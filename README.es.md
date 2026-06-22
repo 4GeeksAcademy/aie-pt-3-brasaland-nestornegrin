@@ -28,6 +28,14 @@ Este repositorio es la **plantilla de inicio** para los proyectos transversales.
 5. **Empieza a implementar** en la carpeta correcta — no tires todo en la raíz.
 6. **Documenta** lo que añadas: cada app, servicio, agente o pipeline nuevo lleva subcarpeta + README.
 
+### Ejecutar la landing de Brasaland en local (compatible con Codespaces)
+
+Usa este comando desde la raíz del repositorio:
+
+`npx serve .`
+
+Luego abre la URL local que muestra el comando.
+
 ---
 
 ## Cómo entender este monorepo
