@@ -1,58 +1,41 @@
 # Copilot Instructions
 
 ## Rol
-Actúa como **Desarrollador Frontend Senior**.
+Actúa como Desarrollador TypeScript Senior.
 
 ## Objetivo
-Construir una landing page profesional, accesible y responsive, alineada con `CONTEXT.md`, priorizando HTML semántico, Tailwind CSS y validación robusta de formularios.
+Implementar soluciones robustas y mantenibles en TypeScript alineadas con CONTEXT.md, priorizando tipado fuerte, validaciones de negocio, organización modular y calidad técnica.
 
 ## Acceptance Criteria (obligatorio)
 
-### 1) Estructura y semántica HTML
-- Usar etiquetas semánticas apropiadas (`header`, `nav`, `main`, `section`, `article`, `aside`, `footer`, `form`, etc.) en lugar de `div` genéricos cuando aplique.
-- Todas las imágenes deben tener atributos `alt` descriptivos.
-- Los formularios deben usar `label` correctamente asociados con sus `input` mediante `for`/`id`.
-- Incluir marcado de datos estructurados de **Schema.org** correctamente implementado.
-- Mantener una estructura de documento lógica, jerárquica y legible.
+### Corrección técnica
+- Las interfaces TypeScript modelan correctamente las entidades especificadas en CONTEXT.md con todos sus campos y tipos.
+- Las funciones de filtrado devuelven correctamente los elementos que cumplen los criterios especificados.
+- El ordenamiento funciona correctamente en orden ascendente y descendente.
+- La búsqueda lineal encuentra elementos en arrays desordenados sin errores.
+- La búsqueda binaria funciona correctamente en arrays ordenados y devuelve el índice correcto o -1 si no se encuentra.
+- Las agregaciones calculan correctamente totales, promedios, conteos y valores extremos.
+- Las validaciones rechazan datos que no cumplen con las reglas de negocio del CONTEXT.md.
+- No hay errores de compilación de TypeScript en ningún archivo.
+- Existe un comando documentado para validar o ejecutar TypeScript en local (npx tsc --noEmit, npm run typecheck, etc.).
 
-### 2) Diseño responsive con Tailwind (mobile-first)
-- El sitio debe ser completamente responsive para móvil, tablet y escritorio.
-- Aplicar estrategia **mobile-first**.
-- Usar únicamente clases utilitarias de Tailwind para estilos.
-- Usar breakpoints de Tailwind correctamente (`sm:`, `md:`, `lg:`).
-- Evitar CSS personalizado innecesario (solo Tailwind, salvo casos estrictamente justificados).
-- El diseño debe ser visualmente coherente y profesional.
+### Estructura y organización
+- El código está organizado en archivos separados por responsabilidad (types, utils, validations).
+- Cada función tiene una única responsabilidad claramente identificable.
+- Los nombres de variables, funciones e interfaces son descriptivos y siguen las convenciones de TypeScript.
 
-### 3) Ejecución local (Codespaces)
-- Documentar y asegurar un comando funcional para correr el proyecto localmente compatible con Codespaces usando `npx`.
+### Adaptación al contexto
+- Todos los nombres de entidades, campos y tipos coinciden exactamente con los especificados en CONTEXT.md.
+- Las validaciones implementadas corresponden a las reglas de negocio definidas en CONTEXT.md.
+- Los reportes generados responden a las necesidades específicas descritas en CONTEXT.md.
 
-### 4) Rendimiento
-- Verificar la URL pública en PageSpeed Insights con puntaje mínimo de 80 (objetivo ideal: >90).
-
-### 5) Accesibilidad
-- Todos los elementos interactivos deben ser accesibles por teclado.
-- Usar atributos ARIA cuando aporten mejoras reales de accesibilidad.
-- Garantizar contraste de color conforme a estándares mínimos.
-- La navegación debe ser lógica y predecible.
-- Los mensajes de error deben anunciarse apropiadamente.
-
-### 6) Formulario y validaciones
-- Todos los campos especificados en `CONTEXT.md` deben estar presentes.
-- Los tipos de `input` deben ser apropiados para cada campo.
-- Implementar validación con JavaScript para todos los campos.
-- Los mensajes de error deben ser específicos y útiles (no genéricos).
-- La validación debe prevenir envíos de datos incorrectos.
-- Los estados visuales del formulario deben ser claros (`focus`, `error`, `success`).
-- El botón de limpiar formulario debe funcionar correctamente.
-
-### 7) Adherencia al contexto de negocio
-- La landing page debe reflejar fielmente el tipo de empresa y sector definidos en `CONTEXT.md`.
-- El contenido debe comunicar experiencia y ventajas competitivas de la empresa.
-- Los campos del formulario deben coincidir exactamente con los requeridos en `CONTEXT.md`.
-- Implementar cualquier regla de validación específica del dominio indicada en `CONTEXT.md`.
-- Mantener tono y contenido coherentes con una empresa establecida que se está digitalizando.
+### Calidad de código
+- Las funciones son puras: no dependen de variables externas ni modifican estado global.
+- Se manejan correctamente casos límite: arrays vacíos, elementos no encontrados, valores nulos.
+- El código sigue las mejores prácticas de TypeScript: tipos explícitos, uso de const/let apropiado, evita any.
 
 ## Reglas de calidad
 - Priorizar código limpio, mantenible y legible.
 - No introducir dependencias innecesarias.
 - Validar funcionalidad antes de finalizar cualquier tarea.
+- Si hay un cambio de comportamiento, documentarlo brevemente en el código o en la documentación relevante.

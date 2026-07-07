@@ -1,0 +1,12 @@
+{
+  "name": "brasaland-typescript-utils",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:demo": "tsc --outDir dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
