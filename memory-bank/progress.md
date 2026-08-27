@@ -68,3 +68,22 @@
 - La idea de un futuro agente de predicción de demanda/pedido de ingredientes
   (de `company-choice.md`) queda registrada en `projectbrief.md` como idea a
   futuro, no implementada en este hito.
+
+## Milestone 5 — Análisis interno de incidencias
+
+- Se añadió a `CONTEXT.es.md` el contrato exacto del CSV de postventa:
+  `incident_id`, `customer_name`, `customer_email`, `category`, `status`,
+  `created_at` y `satisfaction_score`, junto con categorías, estados y reglas
+  de invalidez.
+- `scripts/analyze.py` contiene la lógica reusable para lectura, validación,
+  métricas, resumen de consola y exportación sin datos personales.
+- `data/raw/incidents-COMPANY.csv` es una muestra sintética de 100 filas; sus
+  expectativas verificadas son 90 válidas, 10 inválidas, 30 por categoría,
+  estados 60/30/0 y media cerrada 3.00.
+- `services/api` expone `POST /api/incidents/analyze` y
+  `GET /api/incidents/results/export`; el último resultado se conserva en
+  memoria durante el proceso para desarrollo local.
+- `uis/backoffice` incorpora carga de CSV, resumen de análisis, causas de
+  invalidez y descarga de resultados.
+- Verificado: pruebas Python, fixture de 100 filas, smoke test HTTP, build de
+  backoffice y `npm run typecheck` de la raíz.

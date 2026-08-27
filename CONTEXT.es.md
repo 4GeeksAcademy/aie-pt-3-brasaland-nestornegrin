@@ -225,3 +225,33 @@ Si entregas un solo idioma, configura `availableLanguage` únicamente con ese id
   ]
 }
 ```
+
+---
+
+## Hito 5: Análisis interno de incidencias postventa
+
+El departamento de atención postventa recibe incidencias de clientes y debe
+analizar los datos internamente, sin enviar información sensible a servicios
+externos. El fichero CSV de incidencias usa estas columnas exactas:
+
+| Campo | Tipo | Obligatorio | Valores o reglas |
+| --- | --- | --- | --- |
+| `incident_id` | texto | Sí | Identificador no vacío |
+| `customer_name` | texto | Sí | Nombre no vacío; el script no lo exporta en resultados |
+| `customer_email` | texto | Sí | Email no vacío; el script no lo exporta en resultados |
+| `category` | texto | Sí | `Queja`, `Solicitud`, `Fallo operativo` |
+| `status` | texto | Sí | `Abierto`, `Cerrado`, `Descartado` |
+| `created_at` | fecha | Sí | Fecha ISO `YYYY-MM-DD` |
+| `satisfaction_score` | número | No | Entero de 1 a 5; solo se usa en incidencias `Cerrado` |
+
+Un registro es inválido si falta una columna obligatoria, si su valor está
+vacío, si `category` o `status` no pertenecen a los conjuntos anteriores, si
+la fecha no cumple el formato ISO o si la satisfacción no es un entero entre 1
+y 5. Un registro con varios problemas se cuenta una sola vez como inválido y
+una vez en cada motivo detectado. Los registros inválidos se excluyen de todas
+las métricas principales.
+
+El análisis debe producir: total de filas procesadas, total de registros
+válidos, total de registros inválidos, totales por categoría y estado válidos,
+y satisfacción media de los registros válidos con estado `Cerrado` que tengan
+una puntuación registrada. Los resultados no deben contener datos personales.
