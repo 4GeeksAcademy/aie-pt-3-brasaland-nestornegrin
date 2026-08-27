@@ -1,0 +1,101 @@
+incident_id,customer_name,customer_email,category,status,created_at,satisfaction_score
+INC-001,Cliente 001,cliente001@example.test,Queja,Abierto,2026-01-01,
+INC-002,Cliente 002,cliente002@example.test,Solicitud,Abierto,2026-01-02,
+INC-003,Cliente 003,cliente003@example.test,Fallo operativo,Cerrado,2026-01-03,4
+INC-004,Cliente 004,cliente004@example.test,Queja,Abierto,2026-01-04,
+INC-005,Cliente 005,cliente005@example.test,Solicitud,Abierto,2026-01-05,
+INC-006,Cliente 006,cliente006@example.test,Fallo operativo,Cerrado,2026-01-06,2
+INC-007,Cliente 007,cliente007@example.test,Queja,Abierto,2026-01-07,
+INC-008,Cliente 008,cliente008@example.test,Solicitud,Abierto,2026-01-08,
+INC-009,Cliente 009,cliente009@example.test,Fallo operativo,Cerrado,2026-01-09,5
+INC-010,Cliente 010,cliente010@example.test,Queja,Abierto,2026-01-10,
+INC-011,Cliente 011,cliente011@example.test,Solicitud,Abierto,2026-01-11,
+INC-012,Cliente 012,cliente012@example.test,Fallo operativo,Cerrado,2026-01-12,3
+INC-013,Cliente 013,cliente013@example.test,Queja,Abierto,2026-01-13,
+INC-014,Cliente 014,cliente014@example.test,Solicitud,Abierto,2026-01-14,
+INC-015,Cliente 015,cliente015@example.test,Fallo operativo,Cerrado,2026-01-15,1
+INC-016,Cliente 016,cliente016@example.test,Queja,Abierto,2026-01-16,
+INC-017,Cliente 017,cliente017@example.test,Solicitud,Abierto,2026-01-17,
+INC-018,Cliente 018,cliente018@example.test,Fallo operativo,Cerrado,2026-01-18,4
+INC-019,Cliente 019,cliente019@example.test,Queja,Abierto,2026-01-19,
+INC-020,Cliente 020,cliente020@example.test,Solicitud,Abierto,2026-01-20,
+INC-021,Cliente 021,cliente021@example.test,Fallo operativo,Cerrado,2026-01-21,2
+INC-022,Cliente 022,cliente022@example.test,Queja,Abierto,2026-01-22,
+INC-023,Cliente 023,cliente023@example.test,Solicitud,Abierto,2026-01-23,
+INC-024,Cliente 024,cliente024@example.test,Fallo operativo,Cerrado,2026-01-24,5
+INC-025,Cliente 025,cliente025@example.test,Queja,Abierto,2026-01-25,
+INC-026,Cliente 026,cliente026@example.test,Solicitud,Abierto,2026-01-26,
+INC-027,Cliente 027,cliente027@example.test,Fallo operativo,Cerrado,2026-01-27,3
+INC-028,Cliente 028,cliente028@example.test,Queja,Abierto,2026-01-28,
+INC-029,Cliente 029,cliente029@example.test,Solicitud,Abierto,2026-01-29,
+INC-030,Cliente 030,cliente030@example.test,Fallo operativo,Cerrado,2026-01-30,1
+INC-031,Cliente 031,cliente031@example.test,Queja,Abierto,2026-02-01,
+INC-032,Cliente 032,cliente032@example.test,Solicitud,Abierto,2026-02-02,
+INC-033,Cliente 033,cliente033@example.test,Fallo operativo,Cerrado,2026-02-03,4
+INC-034,Cliente 034,cliente034@example.test,Queja,Abierto,2026-02-04,
+INC-035,Cliente 035,cliente035@example.test,Solicitud,Abierto,2026-02-05,
+INC-036,Cliente 036,cliente036@example.test,Fallo operativo,Cerrado,2026-02-06,2
+INC-037,Cliente 037,cliente037@example.test,Queja,Abierto,2026-02-07,
+INC-038,Cliente 038,cliente038@example.test,Solicitud,Abierto,2026-02-08,
+INC-039,Cliente 039,cliente039@example.test,Fallo operativo,Cerrado,2026-02-09,5
+INC-040,Cliente 040,cliente040@example.test,Queja,Abierto,2026-02-10,
+INC-041,Cliente 041,cliente041@example.test,Solicitud,Abierto,2026-02-11,
+INC-042,Cliente 042,cliente042@example.test,Fallo operativo,Cerrado,2026-02-12,3
+INC-043,Cliente 043,cliente043@example.test,Queja,Abierto,2026-02-13,
+INC-044,Cliente 044,cliente044@example.test,Solicitud,Abierto,2026-02-14,
+INC-045,Cliente 045,cliente045@example.test,Fallo operativo,Cerrado,2026-02-15,1
+INC-046,Cliente 046,cliente046@example.test,Queja,Abierto,2026-02-16,
+INC-047,Cliente 047,cliente047@example.test,Solicitud,Abierto,2026-02-17,
+INC-048,Cliente 048,cliente048@example.test,Fallo operativo,Cerrado,2026-02-18,4
+INC-049,Cliente 049,cliente049@example.test,Queja,Abierto,2026-02-19,
+INC-050,Cliente 050,cliente050@example.test,Solicitud,Abierto,2026-02-20,
+INC-051,Cliente 051,cliente051@example.test,Fallo operativo,Cerrado,2026-02-21,2
+INC-052,Cliente 052,cliente052@example.test,Queja,Abierto,2026-02-22,
+INC-053,Cliente 053,cliente053@example.test,Solicitud,Abierto,2026-02-23,
+INC-054,Cliente 054,cliente054@example.test,Fallo operativo,Cerrado,2026-02-24,5
+INC-055,Cliente 055,cliente055@example.test,Queja,Abierto,2026-02-25,
+INC-056,Cliente 056,cliente056@example.test,Solicitud,Abierto,2026-02-26,
+INC-057,Cliente 057,cliente057@example.test,Fallo operativo,Cerrado,2026-02-27,3
+INC-058,Cliente 058,cliente058@example.test,Queja,Abierto,2026-02-28,
+INC-059,Cliente 059,cliente059@example.test,Solicitud,Abierto,2026-03-01,
+INC-060,Cliente 060,cliente060@example.test,Fallo operativo,Cerrado,2026-03-02,1
+INC-061,Cliente 061,cliente061@example.test,Queja,Abierto,2026-03-03,
+INC-062,Cliente 062,cliente062@example.test,Solicitud,Abierto,2026-03-04,
+INC-063,Cliente 063,cliente063@example.test,Fallo operativo,Cerrado,2026-03-05,4
+INC-064,Cliente 064,cliente064@example.test,Queja,Abierto,2026-03-06,
+INC-065,Cliente 065,cliente065@example.test,Solicitud,Abierto,2026-03-07,
+INC-066,Cliente 066,cliente066@example.test,Fallo operativo,Cerrado,2026-03-08,2
+INC-067,Cliente 067,cliente067@example.test,Queja,Abierto,2026-03-09,
+INC-068,Cliente 068,cliente068@example.test,Solicitud,Abierto,2026-03-10,
+INC-069,Cliente 069,cliente069@example.test,Fallo operativo,Cerrado,2026-03-11,5
+INC-070,Cliente 070,cliente070@example.test,Queja,Abierto,2026-03-12,
+INC-071,Cliente 071,cliente071@example.test,Solicitud,Abierto,2026-03-13,
+INC-072,Cliente 072,cliente072@example.test,Fallo operativo,Cerrado,2026-03-14,3
+INC-073,Cliente 073,cliente073@example.test,Queja,Abierto,2026-03-15,
+INC-074,Cliente 074,cliente074@example.test,Solicitud,Abierto,2026-03-16,
+INC-075,Cliente 075,cliente075@example.test,Fallo operativo,Cerrado,2026-03-17,1
+INC-076,Cliente 076,cliente076@example.test,Queja,Abierto,2026-03-18,
+INC-077,Cliente 077,cliente077@example.test,Solicitud,Abierto,2026-03-19,
+INC-078,Cliente 078,cliente078@example.test,Fallo operativo,Cerrado,2026-03-20,4
+INC-079,Cliente 079,cliente079@example.test,Queja,Abierto,2026-03-21,
+INC-080,Cliente 080,cliente080@example.test,Solicitud,Abierto,2026-03-22,
+INC-081,Cliente 081,cliente081@example.test,Fallo operativo,Cerrado,2026-03-23,2
+INC-082,Cliente 082,cliente082@example.test,Queja,Abierto,2026-03-24,
+INC-083,Cliente 083,cliente083@example.test,Solicitud,Abierto,2026-03-25,
+INC-084,Cliente 084,cliente084@example.test,Fallo operativo,Cerrado,2026-03-26,5
+INC-085,Cliente 085,cliente085@example.test,Queja,Abierto,2026-03-27,
+INC-086,Cliente 086,cliente086@example.test,Solicitud,Abierto,2026-03-28,
+INC-087,Cliente 087,cliente087@example.test,Fallo operativo,Cerrado,2026-03-29,3
+INC-088,Cliente 088,cliente088@example.test,Queja,Abierto,2026-03-30,
+INC-089,Cliente 089,cliente089@example.test,Solicitud,Abierto,2026-03-31,
+INC-090,Cliente 090,cliente090@example.test,Fallo operativo,Cerrado,2026-04-01,1
+INC-091,,cliente091@example.test,Queja,Abierto,2026-04-02,
+INC-092,Cliente 092,,Solicitud,Abierto,2026-04-03,
+INC-093,Cliente 093,cliente093@example.test,Reclamo,Abierto,2026-04-04,
+INC-094,Cliente 094,cliente094@example.test,Queja,En revisión,2026-04-05,
+INC-095,Cliente 095,cliente095@example.test,Solicitud,Cerrado,04/06/2026,4
+INC-096,Cliente 096,cliente096@example.test,Fallo operativo,Cerrado,2026-04-07,6
+,Cliente 097,cliente097@example.test,Queja,Abierto,2026-04-08,
+INC-098,Cliente 098,cliente098@example.test,,Abierto,2026-04-09,
+INC-099,Cliente 099,cliente099@example.test,Solicitud,,2026-04-10,
+INC-100,Cliente 100,cliente100@example.test,Queja,Cerrado,,5

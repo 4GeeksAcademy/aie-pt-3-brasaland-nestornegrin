@@ -68,3 +68,30 @@
 - La idea de un futuro agente de predicción de demanda/pedido de ingredientes
   (de `company-choice.md`) queda registrada en `projectbrief.md` como idea a
   futuro, no implementada en este hito.
+
+## Milestone 5 — Análisis interno de incidencias
+
+- Se añadió a `CONTEXT.es.md` el contrato exacto del CSV de postventa:
+  `incident_id`, `customer_name`, `customer_email`, `category`, `status`,
+  `created_at` y `satisfaction_score`, junto con categorías, estados y reglas
+  de invalidez.
+- `scripts/analyze.py` contiene la lógica reusable para lectura, validación,
+  métricas, resumen de consola y exportación sin datos personales.
+- `data/raw/incidents-COMPANY.csv` es una muestra sintética de 100 filas; sus
+  expectativas verificadas son 90 válidas, 10 inválidas, 30 por categoría,
+  estados 60/30/0 y media cerrada 3.00.
+- `services/api` expone `POST /api/incidents/analyze` y
+  `GET /api/incidents/results/export`; el último resultado se conserva en
+  memoria durante el proceso para desarrollo local.
+- `uis/backoffice` incorpora carga de CSV, resumen de análisis, causas de
+  invalidez y descarga de resultados.
+- Verificado: pruebas Python, fixture de 100 filas, smoke test HTTP, build de
+  backoffice y `npm run typecheck` de la raíz.
+
+## Milestone 6 — Directorio de proveedores
+
+- `services/api/app/suppliers` añade modelos Pydantic, seeder, repositorio TinyDB y rutas CRUD para listar, crear, consultar, filtrar por país/categoría, actualizar tarifas/estado y eliminar.
+- El seeder carga 10 proveedores de Brasaland al primer arranque; los estados son `Activo`/`Suspendido` y las categorías son `Carnes`, `Vegetales`, `Lácteos`, `Bebidas` y `Empaques`.
+- `uis/backoffice` muestra el directorio conectado a la API, con filtros, formulario de alta, estados, timestamps y edición de tarifas.
+- Verificado: smoke test FastAPI CRUD con seed, filtros, rechazo `422`, timestamp de tarifa, `uv run seed` dos veces sin duplicados y `npm run build` de backoffice.
+- Nota: `CONTEXT-company.md` no existe en este checkout; el contrato de proveedores se definió a partir del encargo recibido.
