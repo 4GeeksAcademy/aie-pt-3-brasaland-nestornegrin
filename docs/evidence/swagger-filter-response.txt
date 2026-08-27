@@ -1,0 +1,8 @@
+Request: GET http://127.0.0.1:8000/suppliers?category=Carnes
+
+Response: 200 OK
+[
+  {"name":"Carnes Andinas","categories":["Carnes"],"country":"Colombia","rate":18.5,"status":"Activo","id":1},
+  {"name":"Frigorífico La Sabana","categories":["Carnes"],"country":"Colombia","rate":21.75,"status":"Activo","id":2},
+  {"name":"Florida Prime Meats","categories":["Carnes"],"country":"Estados Unidos","rate":24.9,"status":"Activo","id":6}
+]

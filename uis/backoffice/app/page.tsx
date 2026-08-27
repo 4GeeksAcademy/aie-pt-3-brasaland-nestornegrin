@@ -1,5 +1,6 @@
 import { BackofficeDashboard } from "@/components/backoffice-dashboard";
 import { IncidentAnalysis } from "@/components/incident-analysis";
+import { SupplierDirectory } from "@/components/supplier-directory";
 
 export default function BackofficePage() {
   return (
@@ -13,6 +14,9 @@ export default function BackofficePage() {
       </p>
       <div className="mt-8">
         <BackofficeDashboard />
+      </div>
+      <div className="mt-12 border-t border-zinc-200 pt-10">
+        <SupplierDirectory />
       </div>
       <section id="incidents" className="mt-12 border-t border-zinc-200 pt-10">
         <h2 className="text-2xl font-black text-zinc-900">Análisis de incidencias postventa</h2>

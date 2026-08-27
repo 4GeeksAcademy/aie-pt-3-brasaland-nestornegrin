@@ -21,6 +21,7 @@ export default function RootLayout({
               Brasaland <span className="font-medium text-zinc-500">· Backoffice</span>
             </span>
             <nav aria-label="Secciones" className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              <a href="#suppliers" className="hover:text-red-800">Proveedores</a>
               <a href="#incidents" className="hover:text-red-800">Incidencias</a>
               <span>Panel interno — Brasa Points</span>
             </nav>

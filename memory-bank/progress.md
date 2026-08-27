@@ -87,3 +87,11 @@
   invalidez y descarga de resultados.
 - Verificado: pruebas Python, fixture de 100 filas, smoke test HTTP, build de
   backoffice y `npm run typecheck` de la raíz.
+
+## Milestone 6 — Directorio de proveedores
+
+- `services/api/app/suppliers` añade modelos Pydantic, seeder, repositorio TinyDB y rutas CRUD para listar, crear, consultar, filtrar por país/categoría, actualizar tarifas/estado y eliminar.
+- El seeder carga 10 proveedores de Brasaland al primer arranque; los estados son `Activo`/`Suspendido` y las categorías son `Carnes`, `Vegetales`, `Lácteos`, `Bebidas` y `Empaques`.
+- `uis/backoffice` muestra el directorio conectado a la API, con filtros, formulario de alta, estados, timestamps y edición de tarifas.
+- Verificado: smoke test FastAPI CRUD con seed, filtros, rechazo `422`, timestamp de tarifa, `uv run seed` dos veces sin duplicados y `npm run build` de backoffice.
+- Nota: `CONTEXT-company.md` no existe en este checkout; el contrato de proveedores se definió a partir del encargo recibido.

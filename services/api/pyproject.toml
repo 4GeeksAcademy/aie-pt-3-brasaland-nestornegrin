@@ -1,0 +1,16 @@
+[project]
+name = "brasaland-api"
+version = "0.1.0"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "python-multipart>=0.0.9,<1",
+  "tinydb>=4.8,<5",
+]
+
+[project.scripts]
+seed = "app.seed:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

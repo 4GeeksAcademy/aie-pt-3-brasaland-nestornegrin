@@ -9,8 +9,11 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from scripts.analyze import AnalysisResult, analyze_csv_text
+from app.database import DATABASE_PATH
+from app.suppliers.repository import SupplierRepository
+from app.routes.suppliers import create_router
 
-app = FastAPI(title="Brasaland Incidents API", version="1.0.0")
+app = FastAPI(title="Brasaland Operations API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001"],
@@ -19,6 +22,9 @@ app.add_middleware(
 )
 _latest_result: AnalysisResult | None = None
 _result_lock = Lock()
+supplier_repository = SupplierRepository(DATABASE_PATH)
+app.include_router(create_router(supplier_repository))
+app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 
 
 @app.post("/api/incidents/analyze")
