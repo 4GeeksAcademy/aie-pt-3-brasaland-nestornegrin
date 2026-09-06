@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Form, HTTPException, status
@@ -23,6 +24,8 @@ from .security import (
     hash_password_reset_token,
     verify_password,
 )
+
+logger = logging.getLogger(__name__)
 
 # Mensaje único para /forgot-password: se devuelve exista o no el email, para
 # no permitir que alguien enumere qué direcciones están registradas.
@@ -65,7 +68,15 @@ def create_router() -> APIRouter:
             raw_token = generate_password_reset_token()
             expires_at = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
             password_reset_repository.create(user.id, hash_password_reset_token(raw_token), expires_at)
-            send_password_reset_email(user.email, raw_token)
+            try:
+                send_password_reset_email(user.email, raw_token)
+            except Exception:
+                # Llamada a un servicio externo (Resend): un fallo aquí (red,
+                # clave inválida, límite de envíos) nunca debe filtrar si el
+                # email existe ni convertirse en un 500 -- se registra en el
+                # log del servidor para que el equipo lo pueda diagnosticar,
+                # y la respuesta al cliente sigue siendo la misma de siempre.
+                logger.exception("No se pudo enviar el email de restablecimiento de contraseña")
         # Misma respuesta exista o no el usuario: ver FORGOT_PASSWORD_MESSAGE.
         return MessageResponse(message=FORGOT_PASSWORD_MESSAGE)
 

@@ -66,10 +66,19 @@ def _build_description(row: dict[str, str]) -> str:
 
 
 def seed_incidents(csv_path: Path = DEFAULT_CSV_PATH) -> None:
-    repository = IncidentRepository(INCIDENTS_DATABASE_PATH)
+    try:
+        repository = IncidentRepository(INCIDENTS_DATABASE_PATH)
+    except OSError as error:
+        raise RuntimeError(f"No se pudo abrir la base de datos de incidencias: {error}") from error
 
-    with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        content = handle.read()
+    try:
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            content = handle.read()
+    except OSError as error:
+        raise RuntimeError(f"No se pudo leer el fichero CSV ({csv_path}): {error}") from error
+    except UnicodeDecodeError as error:
+        raise RuntimeError(f"El fichero CSV no está codificado en UTF-8 ({csv_path}): {error}") from error
+
     reader = csv.DictReader(io.StringIO(content, newline=""))
 
     inserted = 0
@@ -77,30 +86,38 @@ def seed_incidents(csv_path: Path = DEFAULT_CSV_PATH) -> None:
     invalid = 0
     invalid_reasons: dict[str, int] = {}
 
-    for row in reader:
-        reasons = validate_incident_row(row)
-        if reasons:
+    for row_number, row in enumerate(reader, start=2):  # la fila 1 es la cabecera
+        try:
+            reasons = validate_incident_row(row)
+            if reasons:
+                invalid += 1
+                for reason in reasons:
+                    invalid_reasons[reason] = invalid_reasons.get(reason, 0) + 1
+                continue
+
+            title = _build_title(row["incident_id"].strip())
+            if repository.get_by_title(title) is not None:
+                already_existed += 1
+                continue
+
+            created_at_iso = datetime.fromisoformat(row["created_at"].strip()).replace(tzinfo=timezone.utc).isoformat()
+            payload = {
+                "title": title,
+                "description": _build_description(row),
+                "category": IncidentCategory(row["category"].strip()).value,
+                "origin": IncidentOrigin.CUSTOMER.value,
+                "branch": Branch.CENTRAL.value,
+                "status": STATUS_MAP[row["status"].strip()].value,
+            }
+            repository.insert_historical(payload, created_at_iso)
+            inserted += 1
+        except (ValueError, KeyError) as error:
+            # Una fila individual malformada de un modo que la validación no
+            # anticipó no debe tumbar el resto del lote: se cuenta como
+            # inválida y se informa en stderr, y se sigue con la siguiente.
             invalid += 1
-            for reason in reasons:
-                invalid_reasons[reason] = invalid_reasons.get(reason, 0) + 1
-            continue
-
-        title = _build_title(row["incident_id"].strip())
-        if repository.get_by_title(title) is not None:
-            already_existed += 1
-            continue
-
-        created_at_iso = datetime.fromisoformat(row["created_at"].strip()).replace(tzinfo=timezone.utc).isoformat()
-        payload = {
-            "title": title,
-            "description": _build_description(row),
-            "category": IncidentCategory(row["category"].strip()).value,
-            "origin": IncidentOrigin.CUSTOMER.value,
-            "branch": Branch.CENTRAL.value,
-            "status": STATUS_MAP[row["status"].strip()].value,
-        }
-        repository.insert_historical(payload, created_at_iso)
-        inserted += 1
+            invalid_reasons["unexpected_row_error"] = invalid_reasons.get("unexpected_row_error", 0) + 1
+            print(f"Advertencia: fila {row_number} omitida por error inesperado: {error}", file=sys.stderr)
 
     print(
         f"Seed de incidencias completado: {inserted} insertadas, "
@@ -117,7 +134,11 @@ def main() -> int:
     if not csv_path.exists():
         print(f"Error: no se encontró el CSV en {csv_path}", file=sys.stderr)
         return 2
-    seed_incidents(csv_path)
+    try:
+        seed_incidents(csv_path)
+    except RuntimeError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
     return 0
 
 

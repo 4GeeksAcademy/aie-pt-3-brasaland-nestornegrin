@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 from threading import Lock
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
@@ -29,6 +30,7 @@ from app.routes.suppliers import create_router
 from app.users.routes import create_router as create_users_router
 
 app = FastAPI(title="Brasaland Operations API", version="1.0.0")
+logger = logging.getLogger(__name__)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001"],
@@ -61,8 +63,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     # Cualquier excepción no controlada (bug, fallo de TinyDB, etc.) responde
-    # con un mensaje genérico — el stack trace completo solo queda en el log
-    # del servidor (uvicorn lo imprime en consola), nunca en la respuesta.
+    # con un mensaje genérico -- el traceback completo se registra en el log
+    # del servidor (visible en la consola de uvicorn) para poder
+    # diagnosticarlo, pero nunca viaja en la respuesta al cliente.
+    logger.exception("Excepción no controlada en %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "Ha ocurrido un error inesperado. Inténtalo de nuevo más tarde."})
 
 

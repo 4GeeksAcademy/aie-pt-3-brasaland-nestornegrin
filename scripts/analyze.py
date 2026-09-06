@@ -144,9 +144,20 @@ def main() -> int:
         print(f"Error: {error}", file=sys.stderr)
         return 2
     print_summary(result)
-    answer = input("¿Deseas exportar los resultados a CSV? [s/n] ").strip().lower()
+    try:
+        answer = input("¿Deseas exportar los resultados a CSV? [s/n] ").strip().lower()
+    except EOFError:
+        # Entrada no interactiva (p. ej. ejecutado en un script o pipeline):
+        # no se puede preguntar, así que se omite la exportación en vez de
+        # fallar con un traceback.
+        print("Entrada no interactiva: se omite la exportación a CSV.", file=sys.stderr)
+        return 0
     if answer == "s":
-        write_results(result, args.output)
+        try:
+            write_results(result, args.output)
+        except OSError as error:
+            print(f"Error al guardar los resultados en {args.output}: {error}", file=sys.stderr)
+            return 1
         print(f"Resultados guardados en {args.output}")
     return 0
 
