@@ -59,5 +59,27 @@ Autenticación:
 
 Configura siempre `JWT_SECRET_KEY` y, opcionalmente, `ACCESS_TOKEN_EXPIRE_MINUTES`.
 
+Recuperación y cambio de contraseña (ver `.env.example`):
+
+- `POST /auth/forgot-password` acepta `{ "email" }` y siempre devuelve `200`
+  con el mismo mensaje, exista o no esa dirección (evita enumerar usuarios).
+  Si el usuario existe, genera un token de un solo uso y le envía por email
+  (Resend) el enlace `FRONTEND_URL/reset-password?token=...`.
+- `POST /auth/reset-password` acepta `{ "token", "new_password" }`. Devuelve
+  `400` si el token es inválido, ya expiró o ya fue utilizado; si es válido,
+  actualiza la contraseña y lo invalida.
+- `POST /auth/change-password` (requiere `Authorization: Bearer <token>`)
+  acepta `{ "current_password", "new_password" }`. Devuelve `400` si la
+  contraseña actual no coincide.
+- El token de restablecimiento **no es un JWT**: es una cadena aleatoria de
+  alta entropía; solo se guarda su hash SHA-256 en `password_resets.json`
+  (TinyDB) junto con su expiración (`PASSWORD_RESET_TOKEN_EXPIRE_MINUTES`,
+  30 min por defecto) y si ya fue usado — así se puede invalidar tras un
+  único uso, algo que un JWT con solo `exp` no permite por sí solo.
+- Envío de email con [Resend](https://resend.com): variables `RESEND_API_KEY`
+  y `EMAIL_FROM`. Con el remitente de pruebas `onboarding@resend.dev` solo se
+  puede enviar a la dirección con la que te registraste en Resend, sin
+  necesidad de verificar un dominio propio.
+
 Categorías válidas: `Carnes`, `Vegetales`, `Lácteos`, `Bebidas`, `Empaques`.
 Estados válidos: `Activo`, `Suspendido`.

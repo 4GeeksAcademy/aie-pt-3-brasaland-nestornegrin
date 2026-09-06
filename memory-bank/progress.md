@@ -109,6 +109,36 @@
   401 sin token/token inválido, 403 sobre otro usuario y acceso autenticado a
   proveedores.
 
+## AUTH-03 — Recuperación y cambio de contraseña
+
+- `services/api`: `POST /auth/forgot-password` (siempre `200`, mismo mensaje
+  exista o no el email), `POST /auth/reset-password` (`400` si el token es
+  inválido, expiró o ya se usó) y `POST /auth/change-password` (autenticado,
+  `400` si la contraseña actual no coincide).
+- El token de restablecimiento es una cadena aleatoria (`secrets.token_urlsafe`),
+  no un JWT: solo se guarda su hash SHA-256 en `password_resets.json` (TinyDB)
+  junto con expiración y un flag `used`, porque un JWT con solo `exp` no puede
+  invalidarse tras un único uso sin persistir estado en servidor de todas formas.
+  Expiración configurable con `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (30 min
+  por defecto).
+- Envío de email con **Resend** (`app/auth/email.py`), variables
+  `RESEND_API_KEY`, `EMAIL_FROM` y `FRONTEND_URL` (para construir el enlace
+  `FRONTEND_URL/reset-password?token=...`); documentadas en `.env.example`.
+  `.env` añadido a `services/api/.gitignore`.
+- `uis/backoffice` incorpora `/forgot-password`, `/reset-password` (lee
+  `token` del query string con `useSearchParams`, envuelto en `Suspense`) y
+  `/account/change-password`. `/login` enlaza a `/forgot-password`; el menú
+  de sesión enlaza a `/account/change-password`.
+- Verificado: smoke test contra la app FastAPI real (`TestClient`, envío de
+  email simulado) cubriendo los 12 criterios de la rúbrica — anti-enumeración,
+  expiración, invalidación tras un solo uso, y los tres códigos `400`/`401`
+  esperados —, además de `npm exec tsc --noEmit`, `npm run lint` y
+  `npm run build` de `uis/backoffice` (las 3 páginas nuevas generan como
+  contenido estático) sin errores.
+- Pendiente para el desarrollador: probar el envío real con una `RESEND_API_KEY`
+  propia (con el remitente `onboarding@resend.dev` solo se puede enviar a la
+  dirección de la cuenta de Resend, sin dominio verificado) antes de abrir el PR.
+
 ## AUTH-02 — Flujos de autenticación en frontend
 
 - `uis/backoffice` incorpora `/login`, `/register` y `/account/profile`.

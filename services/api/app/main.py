@@ -12,11 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from scripts.analyze import AnalysisResult, analyze_csv_text
 from app.auth.dependencies import get_current_user
-from app.auth.repository import ProfileRepository, UserRepository
+from app.auth.repository import PasswordResetRepository, ProfileRepository, UserRepository
 from app.auth.routes import create_router as create_auth_router
 from app.database import (
     DATABASE_PATH,
     INCIDENTS_DATABASE_PATH,
+    PASSWORD_RESETS_DATABASE_PATH,
     PROFILES_DATABASE_PATH,
     USERS_DATABASE_PATH,
 )
@@ -40,6 +41,7 @@ supplier_repository = SupplierRepository(DATABASE_PATH)
 user_repository = UserRepository(USERS_DATABASE_PATH)
 profile_repository = ProfileRepository(PROFILES_DATABASE_PATH)
 incident_repository = IncidentRepository(INCIDENTS_DATABASE_PATH)
+password_reset_repository = PasswordResetRepository(PASSWORD_RESETS_DATABASE_PATH)
 app.include_router(create_auth_router())
 app.include_router(create_users_router())
 app.include_router(create_profiles_router())

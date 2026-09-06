@@ -25,6 +25,7 @@ export function SessionActions() {
   return (
     <div className="flex items-center gap-3">
       <Link href="/account/profile" className="font-bold text-zinc-700 hover:text-red-800">Mi perfil</Link>
+      <Link href="/account/change-password" className="font-bold text-zinc-700 hover:text-red-800">Cambiar contraseña</Link>
       <button type="button" onClick={() => { clearAccessToken(); router.push("/login"); }} className="font-bold text-red-800 hover:text-red-950">Cerrar sesión</button>
     </div>
   );

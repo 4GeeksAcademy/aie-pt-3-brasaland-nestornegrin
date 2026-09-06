@@ -1,4 +1,6 @@
+import hashlib
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
@@ -12,6 +14,7 @@ if not JWT_SECRET_KEY:
     raise RuntimeError("JWT_SECRET_KEY debe estar configurada en el entorno")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = int(os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", "30"))
 
 
 def hash_password(password: str) -> str:
@@ -33,3 +36,17 @@ def decode_access_token(token: str) -> int:
     if not isinstance(subject, str) or not subject.isdigit():
         raise JWTError("Token sin identificador de usuario válido")
     return int(subject)
+
+
+def generate_password_reset_token() -> str:
+    """Genera un token aleatorio de alta entropía (no un JWT).
+
+    Se guarda hasheado en la base de datos junto con su expiración y estado
+    de uso, porque un JWT solo con `exp` no puede invalidarse tras un único
+    uso: haría falta persistir estado en el servidor de todas formas.
+    """
+    return secrets.token_urlsafe(32)
+
+
+def hash_password_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
