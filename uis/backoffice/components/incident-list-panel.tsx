@@ -133,9 +133,9 @@ export function IncidentListPanel() {
                       onChange={(event) => void changeStatus(incident, event.target.value)}
                       className="rounded-lg border border-zinc-300 px-2 py-1 text-sm"
                     >
-                      <option value={incident.status}>{STATUS_LABELS[incident.status]}</option>
+                      <option value={incident.status}>{STATUS_LABELS[incident.status] ?? incident.status}</option>
                       {(ALLOWED_TRANSITIONS[incident.status] ?? []).map((next) => (
-                        <option key={next} value={next}>{STATUS_LABELS[next]}</option>
+                        <option key={next} value={next}>{STATUS_LABELS[next] ?? next}</option>
                       ))}
                     </select>
                     {rowErrors[incident.id] ? <p className="mt-1 text-xs text-red-700">{rowErrors[incident.id]}</p> : null}

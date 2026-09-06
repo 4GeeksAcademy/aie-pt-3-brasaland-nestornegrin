@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
 import { ORIGIN_LABELS, STATUS_LABELS, type IncidentSummaryData } from "@/lib/incidents";
 
@@ -9,34 +9,38 @@ export function IncidentSummaryPanel() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      await Promise.resolve(); // diferir a un microtask: react-hooks/set-state-in-effect
-      if (!active) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await apiFetch("/api/incidents/summary");
-        if (!active) return;
-        if (!response.ok) {
-          setError(await readApiError(response, "No se pudo cargar el resumen."));
-          return;
-        }
-        setSummary(await response.json());
-      } catch {
-        if (active) setError("No se pudo conectar con el servidor.");
-      } finally {
-        if (active) setLoading(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await apiFetch("/api/incidents/summary");
+      if (!response.ok) {
+        setError(await readApiError(response, "No se pudo cargar el resumen."));
+        return;
       }
-    })();
-    return () => {
-      active = false;
-    };
+      setSummary(await response.json());
+    } catch {
+      setError("No se pudo conectar con el servidor.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void Promise.resolve().then(load);
+  }, [load]);
+
   if (loading) return <p className="text-sm text-zinc-600">Cargando resumen...</p>;
-  if (error) return <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>;
+  if (error) {
+    return (
+      <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <p className="font-semibold">{error}</p>
+        <button type="button" onClick={() => void load()} className="mt-2 font-bold underline">
+          Reintentar
+        </button>
+      </div>
+    );
+  }
   if (!summary) return null;
 
   const branchesWithData = Object.entries(summary.by_branch).filter(([, count]) => count > 0);
