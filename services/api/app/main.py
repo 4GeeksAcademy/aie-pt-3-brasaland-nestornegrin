@@ -4,15 +4,24 @@ import csv
 import io
 from threading import Lock
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from scripts.analyze import AnalysisResult, analyze_csv_text
 from app.auth.dependencies import get_current_user
 from app.auth.repository import ProfileRepository, UserRepository
 from app.auth.routes import create_router as create_auth_router
-from app.database import DATABASE_PATH, PROFILES_DATABASE_PATH, USERS_DATABASE_PATH
+from app.database import (
+    DATABASE_PATH,
+    INCIDENTS_DATABASE_PATH,
+    PROFILES_DATABASE_PATH,
+    USERS_DATABASE_PATH,
+)
+from app.incidents.repository import IncidentRepository
+from app.incidents.routes import create_router as create_incidents_router
 from app.profiles.routes import create_router as create_profiles_router
 from app.suppliers.repository import SupplierRepository
 from app.routes.suppliers import create_router
@@ -30,11 +39,29 @@ _result_lock = Lock()
 supplier_repository = SupplierRepository(DATABASE_PATH)
 user_repository = UserRepository(USERS_DATABASE_PATH)
 profile_repository = ProfileRepository(PROFILES_DATABASE_PATH)
+incident_repository = IncidentRepository(INCIDENTS_DATABASE_PATH)
 app.include_router(create_auth_router())
 app.include_router(create_users_router())
 app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
+app.include_router(create_incidents_router(incident_repository))
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    # Mismo formato que ya usa el resto de la API (detail: lista de
+    # {loc, msg, type}) para que el frontend existente (readApiErrorDetails)
+    # siga funcionando sin cambios — solo se corrige el status a 400.
+    return JSONResponse(status_code=400, content={"detail": jsonable_encoder(exc.errors())})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    # Cualquier excepción no controlada (bug, fallo de TinyDB, etc.) responde
+    # con un mensaje genérico — el stack trace completo solo queda en el log
+    # del servidor (uvicorn lo imprime en consola), nunca en la respuesta.
+    return JSONResponse(status_code=500, content={"detail": "Ha ocurrido un error inesperado. Inténtalo de nuevo más tarde."})
 
 
 @app.post("/api/incidents/analyze")

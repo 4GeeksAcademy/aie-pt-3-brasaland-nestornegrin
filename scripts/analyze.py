@@ -9,22 +9,19 @@ import io
 import sys
 from collections import Counter
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 from typing import Iterable
 
-REQUIRED_FIELDS = (
-    "incident_id",
-    "customer_name",
-    "customer_email",
-    "category",
-    "status",
-    "created_at",
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from packages.shared.incident_validation import (  # noqa: E402
+    ALLOWED_CATEGORIES,
+    ALLOWED_CSV_STATUSES as ALLOWED_STATUSES,
+    REQUIRED_CSV_FIELDS as REQUIRED_FIELDS,
+    VALID_CSV_FIELDS as VALID_FIELDS,
+    validate_incident_row as _validate_row,
 )
+
 OPTIONAL_FIELDS = ("satisfaction_score",)
-ALLOWED_CATEGORIES = ("Queja", "Solicitud", "Fallo operativo")
-ALLOWED_STATUSES = ("Abierto", "Cerrado", "Descartado")
-VALID_FIELDS = set(REQUIRED_FIELDS + OPTIONAL_FIELDS)
 
 
 @dataclass(frozen=True)
@@ -49,39 +46,6 @@ class AnalysisResult:
             rows.append(("average_closed_satisfaction", "", f"{self.average_closed_satisfaction:.2f}"))
         rows.extend(("invalid_reason", key, str(value)) for key, value in self.invalid_reasons.items())
         return rows
-
-
-def _validate_row(row: dict[str, str | None]) -> list[str]:
-    reasons: list[str] = []
-    for field in REQUIRED_FIELDS:
-        if not (row.get(field) or "").strip():
-            reasons.append(f"missing_field:{field}")
-
-    category = (row.get("category") or "").strip()
-    if category and category not in ALLOWED_CATEGORIES:
-        reasons.append("invalid_category")
-
-    status = (row.get("status") or "").strip()
-    if status and status not in ALLOWED_STATUSES:
-        reasons.append("invalid_status")
-
-    created_at = (row.get("created_at") or "").strip()
-    if created_at:
-        try:
-            date.fromisoformat(created_at)
-        except ValueError:
-            reasons.append("invalid_date")
-
-    satisfaction = (row.get("satisfaction_score") or "").strip()
-    if satisfaction:
-        try:
-            score = int(satisfaction)
-        except ValueError:
-            reasons.append("invalid_satisfaction")
-        else:
-            if not 1 <= score <= 5:
-                reasons.append("invalid_satisfaction")
-    return reasons
 
 
 def analyze_rows(rows: Iterable[dict[str, str | None]]) -> AnalysisResult:

@@ -15,10 +15,30 @@ JWT_SECRET_KEY='cambia-esta-clave' ACCESS_TOKEN_EXPIRE_MINUTES=30 \
 
 Para cargar el directorio inicial sin duplicados: `uv run seed`.
 
+Para cargar el histórico de incidencias postventa (Hito 5) en el gestor de
+incidencias, sin duplicar en reintentos:
+
+```bash
+uv run --project services/api python scripts/seed_incidents.py
+```
+
 Endpoints:
 
 - `POST /api/incidents/analyze` recibe `file` como `multipart/form-data`.
 - `GET /api/incidents/results/export` descarga el último resultado como CSV.
+- `POST /api/incidents` crea una incidencia (`title`, `description`, `category`,
+  `origin`, `branch`); nace siempre en estado `open`.
+- `GET /api/incidents` lista incidencias; acepta `status`, `origin`, `branch`
+  y `category` como filtros opcionales. Devuelve `[]` si no hay datos o no hay
+  coincidencias, nunca un error.
+- `GET /api/incidents/summary` devuelve totales por estado, categoría, origen
+  y sede.
+- `GET /api/incidents/{id}` devuelve el detalle; `404` si no existe.
+- `PATCH /api/incidents/{id}/status` cambia el estado siguiendo el ciclo de
+  vida `open → in_progress → resolved` (o `discarded` desde `open`/
+  `in_progress`); `resolved` y `discarded` son finales. Una transición no
+  permitida devuelve `400` con el mensaje de qué transiciones sí son válidas
+  desde el estado actual; el mismo estado se trata como no-op (`200`).
 - `GET /api/suppliers` lista proveedores y acepta `country` y `category` como filtros.
 - `GET /api/suppliers/country/{country}` y `GET /api/suppliers/category/{category}` son búsquedas directas.
 - `POST /api/suppliers` crea un proveedor validado por Pydantic.
