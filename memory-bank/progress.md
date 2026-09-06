@@ -121,3 +121,51 @@
   por campo.
 - Verificado: `npm exec tsc -- --noEmit`, `npm run lint`, `npm run build` y
   smoke test API con registro `201`, `401` sin token y `200` autenticado.
+
+## Gestor de incidencias centralizado (extiende Hito 5)
+
+- `services/api/app/incidents`: modelo `Incident` (`title`, `description`,
+  `category`, `origin`, `branch`, `status`, `created_at`, `updated_at`) con
+  ciclo de vida `open → in_progress → resolved`, y `discarded` alcanzable
+  desde `open` o `in_progress`; `resolved`/`discarded` son finales. Las sedes
+  (`branch`) son las 14 ubicaciones reales de `CONTEXT.es.md` (Hito 1) más
+  `central`, ya que el CONTEXT no define un listado de sedes propio para
+  incidencias.
+- Endpoints: `POST/GET /api/incidents`, `GET /api/incidents/{id}`,
+  `GET /api/incidents/summary` (totales por estado/categoría/origen/sede),
+  `PATCH /api/incidents/{id}/status` (`400` con las transiciones válidas si
+  la transición no está permitida; mismo estado = no-op `200`).
+- Manejadores de error globales en `main.py`: `RequestValidationError` →
+  `400` conservando el formato nativo de FastAPI (`detail`: lista de
+  `{loc, msg}`) para no romper `readApiErrorDetails` ya existente en el
+  frontend; `Exception` no controlada → `500` genérico sin stack trace.
+- `scripts/seed_incidents.py`: carga `data/raw/incidents-COMPANY.csv` (el
+  mismo del Hito 5) reutilizando `validate_incident_row` de
+  `packages/shared/incident_validation.py` (nuevo — única fuente de verdad
+  para los campos/categorías/estados válidos del CSV histórico, usada
+  también por `scripts/analyze.py` y por `IncidentCategory` en la API, sin
+  duplicar la lista en tres sitios). Mapea `origin: "customer"` y
+  `branch: "central"` para todo el histórico (el CSV no tiene columna de
+  sede), título `"Incidencia histórica {incident_id}"` (usado también como
+  clave de idempotencia), estados `Abierto→open / Cerrado→resolved /
+  Descartado→discarded`. No copia `customer_name`/`customer_email` (no
+  forman parte del modelo y son datos personales). Verificado: 90
+  insertadas/10 inválidas en la primera corrida (coincide con el Hito 5), 0
+  insertadas/90 ya existían en la segunda; `/api/incidents/summary` tras el
+  seed coincide exactamente con `incidents-file-analyzer`: total 90,
+  por categoría 30/30/30, por estado (open/resolved/discarded) 60/30/0.
+- `uis/backoffice`: `/incidents` (resumen agregado + panel con filtros por
+  estado/origen/sede y cambio de estado en línea, con reversión visual si la
+  actualización falla) y `/incidents/new` (formulario con el campo sede
+  siempre visible y resaltado cuando el origen es "Sede"); enlace nuevo en el
+  menú ("Gestor de incidencias"), sin tocar el enlace `#incidents` existente
+  del análisis CSV del Hito 5.
+- Se resolvió `react-hooks/set-state-in-effect` (regla nueva de
+  `eslint-plugin-react-hooks@7`) difiriendo las llamadas a `setState` dentro
+  de efectos a un microtask.
+- Verificado: smoke test contra la API real (26/26 checks: filtros, las 5
+  transiciones de estado límite, `404`/`401`/`400`/`500` genérico, resumen
+  con las 15 sedes) y `tsc --noEmit` + `npm run lint` + `npm run build` del
+  frontend sin errores (las 2 páginas nuevas generan como contenido
+  estático).
+
