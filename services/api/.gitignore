@@ -1,3 +1,6 @@
 suppliers.json
 .venv
 .env
+users.json
+profiles.json
+password_resets.json
