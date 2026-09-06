@@ -4,31 +4,44 @@ import csv
 import io
 from threading import Lock
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from scripts.analyze import AnalysisResult, analyze_csv_text
-from app.database import DATABASE_PATH
+from app.auth.dependencies import get_current_user
+from app.auth.repository import ProfileRepository, UserRepository
+from app.auth.routes import create_router as create_auth_router
+from app.database import DATABASE_PATH, PROFILES_DATABASE_PATH, USERS_DATABASE_PATH
+from app.profiles.routes import create_router as create_profiles_router
 from app.suppliers.repository import SupplierRepository
 from app.routes.suppliers import create_router
+from app.users.routes import create_router as create_users_router
 
 app = FastAPI(title="Brasaland Operations API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001"],
-    allow_methods=["GET", "POST"],
+        allow_methods=["*"],
     allow_headers=["*"],
 )
 _latest_result: AnalysisResult | None = None
 _result_lock = Lock()
 supplier_repository = SupplierRepository(DATABASE_PATH)
+user_repository = UserRepository(USERS_DATABASE_PATH)
+profile_repository = ProfileRepository(PROFILES_DATABASE_PATH)
+app.include_router(create_auth_router())
+app.include_router(create_users_router())
+app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 
 
 @app.post("/api/incidents/analyze")
-async def analyze_incidents(file: UploadFile = File(...)) -> dict[str, object]:
+async def analyze_incidents(
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+) -> dict[str, object]:
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=415, detail="El fichero debe tener extensión .csv")
     content = await file.read()
@@ -56,7 +69,7 @@ async def analyze_incidents(file: UploadFile = File(...)) -> dict[str, object]:
 
 
 @app.get("/api/incidents/results/export")
-def export_latest_results() -> StreamingResponse:
+def export_latest_results(current_user=Depends(get_current_user)) -> StreamingResponse:
     with _result_lock:
         result = _latest_result
     if result is None:

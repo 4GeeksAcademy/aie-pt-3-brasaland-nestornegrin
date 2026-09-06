@@ -7,11 +7,10 @@ local y se inicializa con 10 proveedores al arrancar por primera vez.
 ## Ejecución local
 
 ```bash
-cd services/api
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --app-dir ../..
+uv sync --project services/api
+JWT_SECRET_KEY='cambia-esta-clave' ACCESS_TOKEN_EXPIRE_MINUTES=30 \
+	PYTHONPATH=services/api uv run --project services/api \
+	uvicorn app.main:app --reload --app-dir services/api
 ```
 
 Para cargar el directorio inicial sin duplicados: `uv run seed`.
@@ -28,7 +27,17 @@ Endpoints:
 
 Los resultados se mantienen en memoria para desarrollo local. No se guardan
 datos personales ni el contenido original del fichero. Los proveedores se
-guardan en `services/api/suppliers.json` (ignorado por Git).
+guardan en `services/api/suppliers.json` (ignorado por Git). Los usuarios y
+perfiles se guardan exclusivamente en `users.json` y `profiles.json` de TinyDB.
+
+Autenticación:
+
+- `POST /auth/login` acepta `email` y `password` y devuelve un JWT.
+- `GET /auth/me` y `GET/PUT /profiles/me` requieren `Authorization: Bearer <token>`.
+- `POST /users` es público para registrar credenciales; el resto de `/users` requiere JWT.
+- Las rutas de incidencias y proveedores también requieren JWT.
+
+Configura siempre `JWT_SECRET_KEY` y, opcionalmente, `ACCESS_TOKEN_EXPIRE_MINUTES`.
 
 Categorías válidas: `Carnes`, `Vegetales`, `Lácteos`, `Bebidas`, `Empaques`.
 Estados válidos: `Activo`, `Suspendido`.

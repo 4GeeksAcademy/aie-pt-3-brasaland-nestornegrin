@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ..auth.dependencies import get_current_user
 from .models import RateUpdate, StatusUpdate, Supplier, SupplierCreate
 from .repository import SupplierRepository
 
 
 def create_router(repository: SupplierRepository, prefix: str = "/api/suppliers") -> APIRouter:
-    router = APIRouter(prefix=prefix, tags=["suppliers"])
+    router = APIRouter(prefix=prefix, tags=["suppliers"], dependencies=[Depends(get_current_user)])
 
     @router.get("", response_model=list[Supplier])
     def list_suppliers(

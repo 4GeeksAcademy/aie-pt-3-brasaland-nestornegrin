@@ -95,3 +95,16 @@
 - `uis/backoffice` muestra el directorio conectado a la API, con filtros, formulario de alta, estados, timestamps y edición de tarifas.
 - Verificado: smoke test FastAPI CRUD con seed, filtros, rechazo `422`, timestamp de tarifa, `uv run seed` dos veces sin duplicados y `npm run build` de backoffice.
 - Nota: `CONTEXT-company.md` no existe en este checkout; el contrato de proveedores se definió a partir del encargo recibido.
+
+## AUTH-01 — Autenticación y protección de rutas
+
+- Se añadió CRUD de credenciales bajo `/users`, con roles `admin`, `manager` y
+  `user`; las contraseñas se guardan únicamente como hashes bcrypt.
+- Se añadieron `/auth/login`, `/auth/me`, `/profiles/me` y la dependencia
+  reutilizable `get_current_user` para JWT stateless con expiración configurable.
+- Usuarios y perfiles se almacenan en TinyDB separado (`users.json` y
+  `profiles.json`); no se crean tablas de autenticación en SQL/Supabase.
+- Se protegieron las rutas de incidencias y del directorio de proveedores.
+- Verificado con smoke test: registro con perfil, login, hash de contraseña,
+  401 sin token/token inválido, 403 sobre otro usuario y acceso autenticado a
+  proveedores.

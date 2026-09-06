@@ -32,7 +32,9 @@ Este es un **monorepo por dominio de negocio**, no un monorepo de librerías gen
 
 1. **No se reescribe el Hito 1 desde cero visualmente.** El contenido, copy, y estructura de secciones de `index.html`/`application.html` (definidos en `CONTEXT.es.md`) se migran tal cual a componentes React tipados; lo que cambia es la implementación (HTML+Tailwind CDN → Next.js + Tailwind compilado + componentes reutilizables), no el contenido de negocio.
 2. **La lógica de negocio del Hito 2 se importa, no se copia**, en `uis/backoffice`. Si en el futuro más de una app necesita esos tipos, se promueven a `packages/shared` — pero eso no ha pasado todavía, así que no se hace preventivamente.
-3. **`uis/backoffice` no incluye autenticación ni backend real en este hito.** Es la vista de entrada + la demo visible de la lógica de negocio. Un futuro hito conectará `services/` cuando haya un caso de uso que lo requiera.
+3. **`uis/backoffice` no incluye autenticación propia.** La autenticación
+	stateless vive en `services/api` mediante JWT; la app puede consumir el
+	backend autenticado cuando se conecte al flujo de producción.
 4. **Restricción de negocio que el agente debe respetar siempre:** Brasa Points es un programa de fidelización, no un sistema de pedidos. Ninguna feature de `uis/website` debe implicar checkout, carrito, o pedidos en línea.
 
 ## Restricciones técnicas
@@ -41,3 +43,6 @@ Este es un **monorepo por dominio de negocio**, no un monorepo de librerías gen
 - Los campos "Ciudad" y "Ubicación favorita" del formulario Brasa Points son **dependientes en cascada** de País → Ciudad → Ubicación — esta relación está codificada como datos en `validation.js` (Hito 1) y debe preservarse exactamente igual al migrar a React (mismo mapa país→ciudad→ubicaciones, ver `.agents/rules/`).
 - Validación de teléfono exige prefijo de país exacto (+57 Colombia, +1 EE.UU.) — regla de negocio, no solo de formato.
 - Node.js 22.x / npm 10.x (versión usada para verificar el build en esta sesión).
+- `services/api` usa `uv` para dependencias y TinyDB para proveedores, usuarios
+	y perfiles. La clave `JWT_SECRET_KEY` es obligatoria por entorno y
+	`ACCESS_TOKEN_EXPIRE_MINUTES` configura la expiración del token.
