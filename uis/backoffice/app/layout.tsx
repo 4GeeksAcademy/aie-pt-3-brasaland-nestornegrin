@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 import { SessionActions } from "@/components/session-actions";
 
@@ -23,7 +24,8 @@ export default function RootLayout({
             </span>
             <nav aria-label="Secciones" className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">
               <a href="#suppliers" className="hover:text-red-800">Proveedores</a>
-              <a href="#incidents" className="hover:text-red-800">Incidencias</a>
+              <a href="#incidents" className="hover:text-red-800">Análisis de incidencias</a>
+              <Link href="/incidents" className="hover:text-red-800">Gestor de incidencias</Link>
               <SessionActions />
             </nav>
           </div>
