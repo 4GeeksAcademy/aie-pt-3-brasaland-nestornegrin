@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { apiFetch, readApiError } from "@/lib/api-client";
 
 type Supplier = {
   id: number;
@@ -12,8 +13,6 @@ type Supplier = {
   updated_at: string;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
 export function SupplierDirectory() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [country, setCountry] = useState("all");
@@ -24,28 +23,28 @@ export function SupplierDirectory() {
   const [error, setError] = useState<string | null>(null);
   const [newSupplier, setNewSupplier] = useState({ name: "", categories: "Carnes", country: "Colombia", rate: "", status: "Activo" as Supplier["status"] });
 
-  useEffect(() => {
-    void loadSuppliers();
-  }, [country, category]);
-
-  async function loadSuppliers() {
+  const loadSuppliers = useCallback(async () => {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
     if (country !== "all") params.set("country", country);
     if (category !== "all") params.set("category", category);
     try {
-      const response = await fetch(`${API_URL}/api/suppliers?${params.toString()}`);
-      const payload = (await response.json()) as Supplier[] | { detail?: string };
-      if (!response.ok) throw new Error("detail" in payload ? payload.detail : "No se pudo cargar el directorio");
-      setSuppliers(payload as Supplier[]);
-      setRates(Object.fromEntries((payload as Supplier[]).map((supplier) => [supplier.id, String(supplier.rate)])));
+      const response = await apiFetch(`/api/suppliers?${params.toString()}`);
+      if (!response.ok) throw new Error(await readApiError(response, "No se pudo cargar el directorio"));
+      const payload = (await response.json()) as Supplier[];
+      setSuppliers(payload);
+      setRates(Object.fromEntries(payload.map((supplier) => [supplier.id, String(supplier.rate)])));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "No se pudo conectar con la API");
     } finally {
       setLoading(false);
     }
-  }
+  }, [country, category]);
+
+  useEffect(() => {
+    void Promise.resolve().then(loadSuppliers);
+  }, [loadSuppliers]);
 
   async function updateRate(supplierId: string) {
     const currentRate = Number(rates[supplierId]);
@@ -56,14 +55,14 @@ export function SupplierDirectory() {
     setSaving(supplierId);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/api/suppliers/${supplierId}/rate`, {
+      const response = await apiFetch(`/api/suppliers/${supplierId}/rate`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current_rate: currentRate }),
       });
-      const payload = (await response.json()) as Supplier | { detail?: string };
-      if (!response.ok) throw new Error("detail" in payload ? payload.detail : "No se pudo actualizar la tarifa");
-      setSuppliers((current) => current.map((supplier) => supplier.id === Number(supplierId) ? payload as Supplier : supplier));
+      if (!response.ok) throw new Error(await readApiError(response, "No se pudo actualizar la tarifa"));
+      const payload = (await response.json()) as Supplier;
+      setSuppliers((current) => current.map((supplier) => supplier.id === Number(supplierId) ? payload : supplier));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "No se pudo conectar con la API");
     } finally {
@@ -73,8 +72,8 @@ export function SupplierDirectory() {
 
   async function updateStatus(supplier: Supplier) {
     const status = supplier.status === "Activo" ? "Suspendido" : "Activo";
-    const response = await fetch(`${API_URL}/api/suppliers/${supplier.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-    if (!response.ok) { setError("No se pudo actualizar el estado."); return; }
+    const response = await apiFetch(`/api/suppliers/${supplier.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    if (!response.ok) { setError(await readApiError(response, "No se pudo actualizar el estado.")); return; }
     const updated = (await response.json()) as Supplier;
     setSuppliers((current) => current.map((item) => item.id === supplier.id ? updated : item));
   }
@@ -82,10 +81,10 @@ export function SupplierDirectory() {
   async function createSupplier(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const response = await fetch(`${API_URL}/api/suppliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...newSupplier, rate: Number(newSupplier.rate), categories: [newSupplier.categories] }) });
-    const payload = (await response.json()) as Supplier | { detail?: string };
-    if (!response.ok) { setError("detail" in payload && typeof payload.detail === "string" ? payload.detail : "La API rechazó el proveedor."); return; }
-    setSuppliers((current) => [...current, payload as Supplier]);
+    const response = await apiFetch("/api/suppliers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...newSupplier, rate: Number(newSupplier.rate), categories: [newSupplier.categories] }) });
+    if (!response.ok) { setError(await readApiError(response, "La API rechazó el proveedor.")); return; }
+    const payload = (await response.json()) as Supplier;
+    setSuppliers((current) => [...current, payload]);
     setNewSupplier({ name: "", categories: "Carnes", country: "Colombia", rate: "", status: "Activo" });
   }
 

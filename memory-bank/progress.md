@@ -108,3 +108,16 @@
 - Verificado con smoke test: registro con perfil, login, hash de contraseña,
   401 sin token/token inválido, 403 sobre otro usuario y acceso autenticado a
   proveedores.
+
+## AUTH-02 — Flujos de autenticación en frontend
+
+- `uis/backoffice` incorpora `/login`, `/register` y `/account/profile`.
+- El cliente común guarda el JWT en `localStorage`, adjunta `Authorization:
+  Bearer` a todas las llamadas protegidas y limpia/redirige ante `401`.
+- El dashboard y el perfil usan un guard cliente; el logout elimina el token y
+  redirige a `/login`. `uis/website` permanece completamente público.
+- Registro, login, lectura de `/auth/me` y actualización de `/profiles/me` se
+  integran contra la API existente; los errores `422` del registro se muestran
+  por campo.
+- Verificado: `npm exec tsc -- --noEmit`, `npm run lint`, `npm run build` y
+  smoke test API con registro `201`, `401` sin token y `200` autenticado.

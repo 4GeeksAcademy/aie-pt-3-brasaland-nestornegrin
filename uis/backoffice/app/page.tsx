@@ -1,10 +1,10 @@
 import { BackofficeDashboard } from "@/components/backoffice-dashboard";
 import { IncidentAnalysis } from "@/components/incident-analysis";
 import { SupplierDirectory } from "@/components/supplier-directory";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default function BackofficePage() {
-  return (
-    <main>
+  return <AuthGuard><main>
       <h1 className="text-2xl font-black text-zinc-900 sm:text-3xl">Registros Brasa Points</h1>
       <p className="mt-2 max-w-2xl text-sm text-zinc-600">
         Vista interna para el equipo de Brasaland. Los datos, el filtrado, el
@@ -27,6 +27,5 @@ export default function BackofficePage() {
           <IncidentAnalysis />
         </div>
       </section>
-    </main>
-  );
+    </main></AuthGuard>;
 }

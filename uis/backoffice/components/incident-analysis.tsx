@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch, readApiError } from "@/lib/api-client";
 
 type Analysis = {
   total_processed: number;
@@ -11,8 +12,6 @@ type Analysis = {
   average_closed_satisfaction: number | null;
   invalid_reasons: Record<string, number>;
 };
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export function IncidentAnalysis() {
   const [file, setFile] = useState<File | null>(null);
@@ -31,10 +30,9 @@ export function IncidentAnalysis() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const response = await fetch(`${API_URL}/api/incidents/analyze`, { method: "POST", body: formData });
-      const payload = (await response.json()) as Analysis | { detail?: string };
-      if (!response.ok) throw new Error("detail" in payload ? payload.detail : "No se pudo analizar el fichero");
-      setAnalysis(payload as Analysis);
+      const response = await apiFetch("/api/incidents/analyze", { method: "POST", body: formData });
+      if (!response.ok) throw new Error(await readApiError(response, "No se pudo analizar el fichero"));
+      setAnalysis((await response.json()) as Analysis);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "No se pudo conectar con la API");
     } finally {
@@ -82,16 +80,22 @@ export function IncidentAnalysis() {
             <Breakdown title="Por estado" values={analysis.by_status} />
             <Breakdown title="Motivos de invalidez" values={analysis.invalid_reasons} emptyLabel="Ninguno" />
           </div>
-          <a
-            href={`${API_URL}/api/incidents/results/export`}
-            className="inline-flex rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:border-red-800 hover:text-red-800"
-          >
-            Descargar resultados CSV
-          </a>
+          <button type="button" onClick={() => void downloadResults()} className="inline-flex rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:border-red-800 hover:text-red-800">Descargar resultados CSV</button>
         </>
       ) : null}
     </div>
   );
+}
+
+async function downloadResults() {
+  const response = await apiFetch("/api/incidents/results/export");
+  if (!response.ok) return;
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "results.csv";
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) {
