@@ -18,6 +18,8 @@ export function IncidentAnalysis() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   async function submitFile() {
     if (!file) {
@@ -37,6 +39,28 @@ export function IncidentAnalysis() {
       setError(requestError instanceof Error ? requestError.message : "No se pudo conectar con la API");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function downloadResults() {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const response = await apiFetch("/api/incidents/results/export");
+      if (!response.ok) {
+        setDownloadError(await readApiError(response, "No se pudo descargar el CSV de resultados."));
+        return;
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "results.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setDownloadError("No se pudo conectar con el servidor. Inténtalo de nuevo.");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -80,22 +104,12 @@ export function IncidentAnalysis() {
             <Breakdown title="Por estado" values={analysis.by_status} />
             <Breakdown title="Motivos de invalidez" values={analysis.invalid_reasons} emptyLabel="Ninguno" />
           </div>
-          <button type="button" onClick={() => void downloadResults()} className="inline-flex rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:border-red-800 hover:text-red-800">Descargar resultados CSV</button>
+          <button type="button" onClick={() => void downloadResults()} disabled={downloading} className="inline-flex rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:border-red-800 hover:text-red-800 disabled:cursor-wait disabled:opacity-60">{downloading ? "Descargando..." : "Descargar resultados CSV"}</button>
+          {downloadError ? <p role="alert" className="text-sm font-semibold text-red-700">{downloadError}</p> : null}
         </>
       ) : null}
     </div>
   );
-}
-
-async function downloadResults() {
-  const response = await apiFetch("/api/incidents/results/export");
-  if (!response.ok) return;
-  const url = URL.createObjectURL(await response.blob());
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "results.csv";
-  link.click();
-  URL.revokeObjectURL(url);
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) {

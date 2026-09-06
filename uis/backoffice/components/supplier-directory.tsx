@@ -20,6 +20,7 @@ export function SupplierDirectory() {
   const [rates, setRates] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newSupplier, setNewSupplier] = useState({ name: "", categories: "Carnes", country: "Colombia", rate: "", status: "Activo" as Supplier["status"] });
 
@@ -72,20 +73,35 @@ export function SupplierDirectory() {
 
   async function updateStatus(supplier: Supplier) {
     const status = supplier.status === "Activo" ? "Suspendido" : "Activo";
-    const response = await apiFetch(`/api/suppliers/${supplier.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-    if (!response.ok) { setError(await readApiError(response, "No se pudo actualizar el estado.")); return; }
-    const updated = (await response.json()) as Supplier;
-    setSuppliers((current) => current.map((item) => item.id === supplier.id ? updated : item));
+    setSaving(`status-${supplier.id}`);
+    setError(null);
+    try {
+      const response = await apiFetch(`/api/suppliers/${supplier.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      if (!response.ok) { setError(await readApiError(response, "No se pudo actualizar el estado.")); return; }
+      const updated = (await response.json()) as Supplier;
+      setSuppliers((current) => current.map((item) => item.id === supplier.id ? updated : item));
+    } catch {
+      setError("No se pudo conectar con el servidor. Inténtalo de nuevo.");
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function createSupplier(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const response = await apiFetch("/api/suppliers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...newSupplier, rate: Number(newSupplier.rate), categories: [newSupplier.categories] }) });
-    if (!response.ok) { setError(await readApiError(response, "La API rechazó el proveedor.")); return; }
-    const payload = (await response.json()) as Supplier;
-    setSuppliers((current) => [...current, payload]);
-    setNewSupplier({ name: "", categories: "Carnes", country: "Colombia", rate: "", status: "Activo" });
+    setCreating(true);
+    try {
+      const response = await apiFetch("/api/suppliers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...newSupplier, rate: Number(newSupplier.rate), categories: [newSupplier.categories] }) });
+      if (!response.ok) { setError(await readApiError(response, "La API rechazó el proveedor.")); return; }
+      const payload = (await response.json()) as Supplier;
+      setSuppliers((current) => [...current, payload]);
+      setNewSupplier({ name: "", categories: "Carnes", country: "Colombia", rate: "", status: "Activo" });
+    } catch {
+      setError("No se pudo conectar con el servidor. Inténtalo de nuevo.");
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
@@ -115,7 +131,7 @@ export function SupplierDirectory() {
         <select value={newSupplier.categories} onChange={(event) => setNewSupplier({ ...newSupplier, categories: event.target.value })} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"><option>Carnes</option><option>Vegetales</option><option>Lácteos</option><option>Bebidas</option><option>Empaques</option></select>
         <select value={newSupplier.country} onChange={(event) => setNewSupplier({ ...newSupplier, country: event.target.value })} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"><option>Colombia</option><option>Estados Unidos</option></select>
         <input required min="0.01" step="0.01" type="number" value={newSupplier.rate} onChange={(event) => setNewSupplier({ ...newSupplier, rate: event.target.value })} placeholder="Tarifa" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
-        <button type="submit" className="rounded-lg bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900">Añadir proveedor</button>
+        <button type="submit" disabled={creating} className="rounded-lg bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 disabled:cursor-wait disabled:opacity-60">{creating ? "Añadiendo..." : "Añadir proveedor"}</button>
       </form>
       {loading ? <p className="mt-6 text-sm text-zinc-500">Cargando proveedores...</p> : null}
       {!loading && !error && suppliers.length === 0 ? <p className="mt-6 text-sm text-zinc-500">No hay proveedores para estos filtros.</p> : null}
@@ -126,7 +142,7 @@ export function SupplierDirectory() {
             <tbody>{suppliers.map((supplier) => <tr key={supplier.id} className="border-b border-zinc-100 text-zinc-800">
               <td className="py-3 pr-4"><span className="font-semibold">{supplier.name}</span><span className="block text-xs text-zinc-500">ID {supplier.id}</span></td>
               <td className="py-3 pr-4">{supplier.categories.join(", ")}</td><td className="py-3 pr-4">{supplier.country}</td>
-              <td className="py-3 pr-4"><button type="button" onClick={() => void updateStatus(supplier)} className={supplier.status === "Activo" ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>{supplier.status}</button></td>
+              <td className="py-3 pr-4"><button type="button" onClick={() => void updateStatus(supplier)} disabled={saving === `status-${supplier.id}`} className={(supplier.status === "Activo" ? "font-semibold text-emerald-700" : "font-semibold text-amber-700") + " disabled:opacity-50"}>{saving === `status-${supplier.id}` ? "..." : supplier.status}</button></td>
               <td className="py-3 pr-4"><div className="flex items-center gap-2"><input aria-label={`Tarifa de ${supplier.name}`} type="number" min="0.01" step="0.01" value={rates[supplier.id] ?? ""} onChange={(event) => setRates((current) => ({ ...current, [supplier.id]: event.target.value }))} className="w-24 rounded-lg border border-zinc-300 px-2 py-1" /><button type="button" onClick={() => void updateRate(String(supplier.id))} disabled={saving === String(supplier.id)} className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-bold text-white hover:bg-red-800 disabled:opacity-50">{saving === String(supplier.id) ? "..." : "Guardar"}</button></div></td>
               <td className="py-3 text-xs text-zinc-500">{new Date(supplier.updated_at).toLocaleString("es-CO")}</td>
             </tr>)}</tbody>

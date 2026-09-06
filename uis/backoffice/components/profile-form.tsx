@@ -11,26 +11,58 @@ export function ProfileForm() {
   const [form, setForm] = useState<Profile>({ name: "", phone: "", address: "" });
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void apiFetch("/auth/me").then(async (response) => {
-      if (!response.ok) { setError(await readApiError(response, "No se pudo cargar el perfil.")); return; }
-      const payload = (await response.json()) as Me;
-      setMe(payload);
-      setForm(payload.profile ?? { name: "", phone: "", address: "" });
-    });
+    let active = true;
+    void apiFetch("/auth/me")
+      .then(async (response) => {
+        if (!active) return;
+        if (!response.ok) {
+          setLoadError(await readApiError(response, "No se pudo cargar el perfil."));
+          return;
+        }
+        const payload = (await response.json()) as Me;
+        setMe(payload);
+        setForm(payload.profile ?? { name: "", phone: "", address: "" });
+      })
+      .catch(() => {
+        if (active) setLoadError("No se pudo conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.");
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setMessage(null);
-    const response = await apiFetch("/profiles/me", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-    if (!response.ok) { setError(await readApiError(response, "No se pudo actualizar el perfil.")); return; }
-    const profile = (await response.json()) as Profile;
-    setForm(profile);
-    setMe((current) => current ? { ...current, profile } : current);
-    setMessage("Perfil actualizado correctamente.");
+    setSaving(true);
+    try {
+      const response = await apiFetch("/profiles/me", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      if (!response.ok) { setError(await readApiError(response, "No se pudo actualizar el perfil.")); return; }
+      const profile = (await response.json()) as Profile;
+      setForm(profile);
+      setMe((current) => current ? { ...current, profile } : current);
+      setMessage("Perfil actualizado correctamente.");
+    } catch {
+      setError("No se pudo conectar con el servidor. Inténtalo de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="max-w-xl rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
+        <p className="font-semibold">{loadError}</p>
+        <button type="button" onClick={() => window.location.reload()} className="mt-3 font-bold underline">
+          Reintentar
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -41,7 +73,7 @@ export function ProfileForm() {
       <Field label="Dirección" value={form.address} onChange={(value) => setForm({ ...form, address: value })} />
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p> : null}
       {message ? <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p> : null}
-      <button type="submit" disabled={!me} className="rounded-lg bg-red-800 px-4 py-2 font-bold text-white hover:bg-red-900 disabled:opacity-60">Guardar cambios</button>
+      <button type="submit" disabled={!me || saving} className="rounded-lg bg-red-800 px-4 py-2 font-bold text-white hover:bg-red-900 disabled:opacity-60">{saving ? "Guardando..." : "Guardar cambios"}</button>
     </form>
   );
 }
