@@ -7,6 +7,7 @@ from tinydb import TinyDB
 DATABASE_PATH = Path(__file__).resolve().parent.parent / "suppliers.json"
 USERS_DATABASE_PATH = Path(__file__).resolve().parent.parent / "users.json"
 PROFILES_DATABASE_PATH = Path(__file__).resolve().parent.parent / "profiles.json"
+PASSWORD_RESETS_DATABASE_PATH = Path(__file__).resolve().parent.parent / "password_resets.json"
 
 
 def get_database() -> TinyDB:

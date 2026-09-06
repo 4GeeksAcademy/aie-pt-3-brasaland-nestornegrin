@@ -92,3 +92,36 @@ class MeResponse(BaseModel):
     email: EmailStr
     role: UserRole
     profile: ProfileResponse | None
+
+
+class PasswordResetRecord(BaseModel):
+    id: int = Field(gt=0)
+    user_id: int = Field(gt=0)
+    token_hash: str
+    expires_at: datetime
+    used: bool = False
+    created_at: datetime
+
+
+class ForgotPasswordRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    token: str = Field(min_length=1)
+    new_password: str = Field(min_length=8)
+
+
+class ChangePasswordRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+class MessageResponse(BaseModel):
+    message: str
