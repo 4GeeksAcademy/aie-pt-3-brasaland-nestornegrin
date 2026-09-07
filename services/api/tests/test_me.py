@@ -51,6 +51,9 @@ def test_me_with_an_expired_token_returns_401(client, register_user):
 
 
 def test_me_for_a_deactivated_user_returns_401_even_with_a_valid_token(client, register_user):
+    """Un JWT válido no basta: get_current_user también comprueba
+    is_active, así que desactivar la cuenta debe invalidar sesiones ya
+    emitidas sin esperar a que el token expire por sí solo."""
     import app.main as main_module
     from app.auth.models import UserUpdate
 

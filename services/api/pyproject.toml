@@ -32,3 +32,4 @@ source = ["app.auth"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--cov=app.auth --cov-report=term-missing"

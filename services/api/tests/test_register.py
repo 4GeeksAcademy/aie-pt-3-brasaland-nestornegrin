@@ -21,6 +21,8 @@ def test_register_duplicate_email_returns_409(client, register_user):
 
 
 def test_register_duplicate_email_check_is_case_insensitive(client, register_user):
+    """El email se guarda en minúsculas -- registrar la misma dirección con
+    otra capitalización debe seguir contando como duplicado."""
     register_user(email="case@example.com")
 
     response = client.post("/users", json={"email": "CASE@EXAMPLE.COM", "password": "ValidPass123"})

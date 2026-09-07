@@ -10,12 +10,28 @@ internos del framework.
 
 ### Backend (pytest)
 
+Funciona igual **desde la raíz del monorepo** o desde dentro de `services/api`
+— la cobertura ya viene siempre acotada a `app.auth` vía `addopts` en
+`services/api/pyproject.toml`, así que no hace falta recordar ningún flag.
+
+Desde la raíz del repo:
+
+```bash
+uv sync --project services/api          # instala pytest, pytest-cov (grupo dev incluido por defecto)
+uv run --project services/api pytest services/api/tests -v
+```
+
+(Si en cambio corres `uv run --project services/api pytest` sin indicar
+`services/api/tests`, pytest intenta descubrir tests desde tu directorio
+actual y puede toparse con `scripts/test_analyze.py`, del Hito 5, que no es
+parte de esta batería — por eso el path explícito.)
+
+O, de forma equivalente, entrando primero al proyecto:
+
 ```bash
 cd services/api
-uv sync --project .                # instala pytest, pytest-cov, httpx2 (grupo dev incluido por defecto)
-uv run pytest                     # corre toda la batería
-uv run pytest --cov               # + reporte de cobertura de app/auth
-uv run pytest --cov --cov-report=term-missing   # + líneas exactas sin cubrir
+uv sync
+uv run pytest              # corre toda la batería + cobertura de app.auth
 ```
 
 Los tests son autocontenidos: `tests/conftest.py` fija las variables de
@@ -23,6 +39,7 @@ entorno necesarias (`JWT_SECRET_KEY`, etc.) antes de importar la app, y un
 fixture `autouse` vacía las tablas de TinyDB antes de cada test, así que no
 hace falta ningún `.env` para correrlos ni se tocan tus datos reales de
 `users.json`/`profiles.json`/`password_resets.json`.
+
 
 ### Frontend (Jest)
 
@@ -63,7 +80,38 @@ externa caída).
   el código de estado y los datos que importan para la lógica de negocio
   (p. ej. que la contraseña nunca se devuelve).
 
-## Resultados obtenidos
+## Flujo asistido por IA
+
+Antes de escribir cualquier prueba, se revisó el código real de
+`auth/routes.py`, `users/routes.py`, `security.py` y `repository.py` (en vez
+de asumir el comportamiento) para identificar casos no evidentes a simple
+vista:
+
+- `LoginRequest` acepta tanto `email` como `username` como campos alternativos
+  para iniciar sesión (`login_email` usa `self.email or self.username`) —
+  nadie lo documentó explícitamente en ningún ticket anterior, pero está
+  implementado y es un caso de prueba real (`test_login_accepts_username_field_as_an_alias_for_email`).
+- El registro normaliza el email a minúsculas antes de guardarlo
+  (`users/routes.py`) y el login hace lo mismo antes de buscar
+  (`LoginRequest.login_email`) — esto solo se confirmó leyendo ambos
+  archivos a la vez; de haber lowercased solo uno de los dos lados, el login
+  con distinta capitalización habría fallado silenciosamente. Se añadió
+  `test_login_email_is_case_insensitive` para dejarlo verificado, no
+  solo asumido.
+- El fix del ticket anterior (auditoría de errores) que hace que
+  `/auth/forgot-password` siga devolviendo `200` aunque Resend falle se
+  "blindó" con una prueba dedicada
+  (`test_forgot_password_still_returns_200_when_the_email_provider_fails`),
+  para que una futura regresión en ese manejo de errores la detecte esta
+  batería antes de llegar a producción — exactamente el escenario que dio
+  origen al ticket AUTH-088 (una regresión sin pruebas que nadie detectó).
+
+No se encontró ningún bug nuevo al escribir las pruebas — el código ya se
+comportaba como debía en los tres puntos anteriores — pero los tres eran
+comportamientos que fácilmente se podrían haber roto sin que ninguna prueba
+lo notara.
+
+
 
 - **Backend:** 42/42 pruebas pasando. Cobertura de `app/auth`: **93%** (routes.py,
   dependencies.py, email.py y models.py al 100%; security.py 97%;
