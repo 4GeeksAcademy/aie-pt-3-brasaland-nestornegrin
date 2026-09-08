@@ -38,9 +38,12 @@ class IngredientEntry(SQLModel, table=True):
     quantity: float
     supplier: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    # References the TinyDB user id (int) that created this order. No FK:
-    # the users table is not replicated into Supabase.
-    user_id: int
+    # References the TinyDB user (app/auth/models.py: UserRecord.id) that
+    # created this order. Named user_uuid to match the spec, but this
+    # codebase's real auth users have an integer id, not a literal UUID
+    # string - so the type here is int, not str. No FK: the users table
+    # is not replicated into Supabase.
+    user_uuid: int
 
 
 class IngredientExit(SQLModel, table=True):
@@ -53,4 +56,4 @@ class IngredientExit(SQLModel, table=True):
     quantity: float
     reason: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    user_id: int
+    user_uuid: int

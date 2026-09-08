@@ -96,7 +96,7 @@ def list_orders(session: Session) -> list[dict]:
                 "ingredient_name": ingredient_name,
                 "quantity": entry.quantity,
                 "created_at": entry.created_at,
-                "user_id": entry.user_id,
+                "user_uuid": entry.user_uuid,
             }
         )
     for exit_record, ingredient_name in session.exec(exits_stmt).all():
@@ -108,7 +108,7 @@ def list_orders(session: Session) -> list[dict]:
                 "ingredient_name": ingredient_name,
                 "quantity": exit_record.quantity,
                 "created_at": exit_record.created_at,
-                "user_id": exit_record.user_id,
+                "user_uuid": exit_record.user_uuid,
             }
         )
     orders.sort(key=lambda o: o["created_at"], reverse=True)

@@ -16,7 +16,7 @@ from sqlmodel import Session, select
 from ..database import engine
 from .models import Ingredient, IngredientEntry, IngredientExit
 
-# The user_id that owns these seed orders. In a real deploy this should
+# The user_uuid that owns these seed orders. In a real deploy this should
 # be an actual operations/admin TinyDB user id.
 SEED_USER_ID = 1
 
@@ -60,7 +60,7 @@ def seed_inventory() -> None:
                     quantity=entry_qty,
                     supplier=supplier,
                     created_at=base_time,
-                    user_id=SEED_USER_ID,
+                    user_uuid=SEED_USER_ID,
                 )
             )
             session.add(
@@ -69,7 +69,7 @@ def seed_inventory() -> None:
                     quantity=exit_qty,
                     reason=exit_reason,
                     created_at=base_time + timedelta(days=2),
-                    user_id=SEED_USER_ID,
+                    user_uuid=SEED_USER_ID,
                 )
             )
         session.commit()

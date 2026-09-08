@@ -90,7 +90,7 @@ def create_router(prefix: str = "/inventory") -> APIRouter:
             ingredient_id=payload.ingredient_id,
             quantity=payload.quantity,
             supplier=payload.supplier,
-            user_id=current_user.id,
+            user_uuid=current_user.id,
         )
         session.add(entry)
         session.commit()
@@ -120,7 +120,7 @@ def create_router(prefix: str = "/inventory") -> APIRouter:
             ingredient_id=payload.ingredient_id,
             quantity=payload.quantity,
             reason=payload.reason,
-            user_id=current_user.id,
+            user_uuid=current_user.id,
         )
         session.add(exit_record)
         session.commit()

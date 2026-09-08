@@ -46,7 +46,7 @@ class IngredientEntryResponse(BaseModel):
     quantity: float
     supplier: str | None
     created_at: datetime
-    user_id: int
+    user_uuid: int
 
 
 class IngredientExitCreate(BaseModel):
@@ -65,7 +65,7 @@ class IngredientExitResponse(BaseModel):
     quantity: float
     reason: str | None
     created_at: datetime
-    user_id: int
+    user_uuid: int
 
 
 class OrderResponse(BaseModel):
@@ -79,4 +79,4 @@ class OrderResponse(BaseModel):
     ingredient_name: str
     quantity: float
     created_at: datetime
-    user_id: int
+    user_uuid: int
