@@ -225,3 +225,122 @@ Si entregas un solo idioma, configura `availableLanguage` únicamente con ese id
   ]
 }
 ```
+
+---
+
+## Hito 5: Análisis interno de incidencias postventa
+
+El departamento de atención postventa recibe incidencias de clientes y debe
+analizar los datos internamente, sin enviar información sensible a servicios
+externos. El fichero CSV de incidencias usa estas columnas exactas:
+
+| Campo | Tipo | Obligatorio | Valores o reglas |
+| --- | --- | --- | --- |
+| `incident_id` | texto | Sí | Identificador no vacío |
+| `customer_name` | texto | Sí | Nombre no vacío; el script no lo exporta en resultados |
+| `customer_email` | texto | Sí | Email no vacío; el script no lo exporta en resultados |
+| `category` | texto | Sí | `Queja`, `Solicitud`, `Fallo operativo` |
+| `status` | texto | Sí | `Abierto`, `Cerrado`, `Descartado` |
+| `created_at` | fecha | Sí | Fecha ISO `YYYY-MM-DD` |
+| `satisfaction_score` | número | No | Entero de 1 a 5; solo se usa en incidencias `Cerrado` |
+
+Un registro es inválido si falta una columna obligatoria, si su valor está
+vacío, si `category` o `status` no pertenecen a los conjuntos anteriores, si
+la fecha no cumple el formato ISO o si la satisfacción no es un entero entre 1
+y 5. Un registro con varios problemas se cuenta una sola vez como inválido y
+una vez en cada motivo detectado. Los registros inválidos se excluyen de todas
+las métricas principales.
+
+El análisis debe producir: total de filas procesadas, total de registros
+válidos, total de registros inválidos, totales por categoría y estado válidos,
+y satisfacción media de los registros válidos con estado `Cerrado` que tengan
+una puntuación registrada. Los resultados no deben contener datos personales.
+---
+
+## Hito 6: Sistema centralizado de gestion de inventario
+
+El equipo de operaciones necesita un sistema centralizado de inventario antes
+de la proxima revision operativa. La autenticacion permanece en TinyDB
+(busquedas rapidas, locales y basadas en documentos); todos los datos de
+negocio de inventario (insumos, ordenes de entrada y ordenes de salida) viven
+en Supabase (PostgreSQL en la nube), usando SQLModel como ORM.
+
+Brasaland es una cadena de restaurantes: el equivalente a "producto" en este
+dominio es un **insumo de cocina** (`Ingredient`), gestionado de forma
+independiente por cada uno de los restaurantes de la cadena.
+
+### Entidades
+
+**`Ingredient`** (equivalente a producto) — insumo de cocina de un restaurante
+concreto:
+
+| Campo | Tipo | Notas |
+| --- | --- | --- |
+| `id` | int | PK |
+| `name` | string | Nombre del insumo (ej. "Carne de res") |
+| `sku` | string | Codigo unico del insumo |
+| `restaurant` | string | Restaurante de Brasaland que gestiona este insumo (ej. "Brasaland El Poblado"). Actua como clave de particion: el stock de un insumo es siempre local a su restaurante. |
+
+**`IngredientEntry`** (equivalente a orden de entrada) — llegada de stock:
+
+| Campo | Tipo | Notas |
+| --- | --- | --- |
+| `id` | int | PK |
+| `ingredient_id` | int | FK a `Ingredient.id` |
+| `quantity` | float | Cantidad que ingresa |
+| `supplier` | string, opcional | Proveedor que entrego el insumo |
+| `created_at` | datetime | Fecha del movimiento |
+| `user_uuid` | int | Id del usuario de TinyDB que registro la orden (el `UserRecord.id` real de este proyecto es un entero, no un UUID literal; el campo se llama `user_uuid` para efectos de la especificacion pero almacena ese entero) |
+
+**`IngredientExit`** (equivalente a orden de salida) — salida de stock:
+
+| Campo | Tipo | Notas |
+| --- | --- | --- |
+| `id` | int | PK |
+| `ingredient_id` | int | FK a `Ingredient.id` |
+| `quantity` | float | Cantidad que sale |
+| `reason` | string, opcional | Motivo (ej. "Uso en cocina", "Merma por vencimiento") |
+| `created_at` | datetime | Fecha del movimiento |
+| `user_uuid` | int | Igual que en `IngredientEntry` |
+
+### Reglas de negocio
+
+- `current_stock` de un `Ingredient` se calcula siempre como
+  `SUMA(quantity de sus IngredientEntry) - SUMA(quantity de sus IngredientExit)`.
+  Nunca se almacena como columna editable directamente.
+- El alcance del calculo de stock es el propio `Ingredient` (ya que cada fila
+  ya pertenece a un unico `restaurant`) — no existe una particion adicional
+  por bodega dentro de un mismo restaurante.
+- Un `Ingredient` nuevo empieza en 0 y solo puede acumular stock mediante
+  `IngredientEntry`.
+- Toda creacion de ordenes (entrada o salida) requiere autenticacion; el
+  `user_uuid` del usuario autenticado se guarda en la orden.
+- Una orden de salida que dejaria el stock de ese insumo en negativo se
+  rechaza ANTES de persistirse, devolviendo HTTP 400 con un mensaje
+  descriptivo.
+- Todos los endpoints de inventario (lectura y escritura) requieren
+  autenticacion, al ser informacion operativa interna de cocina/stock, no
+  informacion de cara al cliente.
+
+### Endpoints (bajo el prefijo `/inventory`)
+
+| Metodo | Ruta | Descripcion |
+| --- | --- | --- |
+| GET | `/inventory/products` | Lista todos los insumos con `current_stock` calculado |
+| POST | `/inventory/products` | Crea un insumo (requiere autenticacion) |
+| GET | `/inventory/products/{id}` | Obtiene un insumo con su stock actual |
+| POST | `/inventory/orders/inbound` | Registra una orden de entrada (requiere autenticacion) |
+| POST | `/inventory/orders/outbound` | Registra una orden de salida (requiere autenticacion) |
+| GET | `/inventory/orders` | Lista todas las ordenes con nombre del insumo y `user_uuid` |
+
+### Datos semilla
+
+Antes de la demo se siembran 4 insumos en 2 restaurantes reales de Brasaland,
+cada uno con una entrada y una salida (el stock resultante es el neto):
+
+| Insumo | SKU | Restaurante | Entrada | Salida | Stock neto |
+| --- | --- | --- | --- | --- | --- |
+| Carne de res | CARNE-RES-POBLADO | Brasaland El Poblado | +80 (Distribuidora Carnes del Valle) | -30 (Uso en cocina) | 50 |
+| Papa criolla | PAPA-CRIOLLA-POBLADO | Brasaland El Poblado | +150 (AgroFresh Antioquia) | -50 (Uso en cocina) | 100 |
+| Chorizo | CHORIZO-POBLADO | Brasaland El Poblado | +40 (Embutidos San Jose) | -10 (Merma por vencimiento) | 30 |
+| Pollo | POLLO-BRICKELL | Brasaland Brickell | +60 (Sysco South Florida) | -15 (Uso en cocina) | 45 |

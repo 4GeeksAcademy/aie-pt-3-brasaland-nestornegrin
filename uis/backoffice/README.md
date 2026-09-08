@@ -35,8 +35,16 @@ corriendo, Next.js lo asigna automáticamente).
 - `data/sample-registrations.ts` contiene únicamente datos de muestra para
   poblar la vista — no es lógica de negocio, por eso vive dentro de esta app.
 
+## Autenticación
+
+- `/login` inicia sesión contra `POST /auth/login` y guarda el JWT en `localStorage`.
+- `/register` crea el usuario en `POST /users`, inicia sesión automáticamente y muestra errores de validación por campo.
+- `/account/profile` consulta `GET /auth/me` y actualiza el perfil con `PUT /profiles/me`.
+- El dashboard y el perfil tienen un guard cliente; las llamadas protegidas adjuntan `Authorization: Bearer` y un `401` limpia la sesión y redirige a `/login`.
+- La aplicación pública `uis/website` permanece sin guard ni autenticación.
+
 ## Notas
 
 - Layout propio (`app/layout.tsx`), independiente del de `uis/website` y de
   `uis/talent-pipeline-tracker` (ver `.agents/rules/nextjs-app-boundaries.md`).
-- No hay autenticación en este hito (ver `memory-bank/techContext.md`).
+- La API debe estar disponible en `http://localhost:8000` o configurarse mediante `NEXT_PUBLIC_API_URL`.

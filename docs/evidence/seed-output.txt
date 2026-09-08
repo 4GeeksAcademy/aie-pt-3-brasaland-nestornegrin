@@ -1,0 +1,4 @@
+Terminal: uv run seed
+$ Seeder completado: 10 proveedores insertados.
+$ uv run seed
+Seeder completado: 0 proveedores insertados.

@@ -12,7 +12,18 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generado por `npm run test:coverage` -- no es código fuente.
+    "coverage/**",
   ]),
+  {
+    // jest.config.js lo carga Node directamente (fuera del pipeline de
+    // Next/TS), así que necesita CommonJS: es el patrón que documenta la
+    // propia guía de next/jest.
+    files: ["jest.config.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -68,3 +68,134 @@
 - La idea de un futuro agente de predicción de demanda/pedido de ingredientes
   (de `company-choice.md`) queda registrada en `projectbrief.md` como idea a
   futuro, no implementada en este hito.
+
+## Milestone 5 — Análisis interno de incidencias
+
+- Se añadió a `CONTEXT.es.md` el contrato exacto del CSV de postventa:
+  `incident_id`, `customer_name`, `customer_email`, `category`, `status`,
+  `created_at` y `satisfaction_score`, junto con categorías, estados y reglas
+  de invalidez.
+- `scripts/analyze.py` contiene la lógica reusable para lectura, validación,
+  métricas, resumen de consola y exportación sin datos personales.
+- `data/raw/incidents-COMPANY.csv` es una muestra sintética de 100 filas; sus
+  expectativas verificadas son 90 válidas, 10 inválidas, 30 por categoría,
+  estados 60/30/0 y media cerrada 3.00.
+- `services/api` expone `POST /api/incidents/analyze` y
+  `GET /api/incidents/results/export`; el último resultado se conserva en
+  memoria durante el proceso para desarrollo local.
+- `uis/backoffice` incorpora carga de CSV, resumen de análisis, causas de
+  invalidez y descarga de resultados.
+- Verificado: pruebas Python, fixture de 100 filas, smoke test HTTP, build de
+  backoffice y `npm run typecheck` de la raíz.
+
+## Milestone 6 — Directorio de proveedores
+
+- `services/api/app/suppliers` añade modelos Pydantic, seeder, repositorio TinyDB y rutas CRUD para listar, crear, consultar, filtrar por país/categoría, actualizar tarifas/estado y eliminar.
+- El seeder carga 10 proveedores de Brasaland al primer arranque; los estados son `Activo`/`Suspendido` y las categorías son `Carnes`, `Vegetales`, `Lácteos`, `Bebidas` y `Empaques`.
+- `uis/backoffice` muestra el directorio conectado a la API, con filtros, formulario de alta, estados, timestamps y edición de tarifas.
+- Verificado: smoke test FastAPI CRUD con seed, filtros, rechazo `422`, timestamp de tarifa, `uv run seed` dos veces sin duplicados y `npm run build` de backoffice.
+- Nota: `CONTEXT-company.md` no existe en este checkout; el contrato de proveedores se definió a partir del encargo recibido.
+
+## AUTH-01 — Autenticación y protección de rutas
+
+- Se añadió CRUD de credenciales bajo `/users`, con roles `admin`, `manager` y
+  `user`; las contraseñas se guardan únicamente como hashes bcrypt.
+- Se añadieron `/auth/login`, `/auth/me`, `/profiles/me` y la dependencia
+  reutilizable `get_current_user` para JWT stateless con expiración configurable.
+- Usuarios y perfiles se almacenan en TinyDB separado (`users.json` y
+  `profiles.json`); no se crean tablas de autenticación en SQL/Supabase.
+- Se protegieron las rutas de incidencias y del directorio de proveedores.
+- Verificado con smoke test: registro con perfil, login, hash de contraseña,
+  401 sin token/token inválido, 403 sobre otro usuario y acceso autenticado a
+  proveedores.
+
+## AUTH-03 — Recuperación y cambio de contraseña
+
+- `services/api`: `POST /auth/forgot-password` (siempre `200`, mismo mensaje
+  exista o no el email), `POST /auth/reset-password` (`400` si el token es
+  inválido, expiró o ya se usó) y `POST /auth/change-password` (autenticado,
+  `400` si la contraseña actual no coincide).
+- El token de restablecimiento es una cadena aleatoria (`secrets.token_urlsafe`),
+  no un JWT: solo se guarda su hash SHA-256 en `password_resets.json` (TinyDB)
+  junto con expiración y un flag `used`, porque un JWT con solo `exp` no puede
+  invalidarse tras un único uso sin persistir estado en servidor de todas formas.
+  Expiración configurable con `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (30 min
+  por defecto).
+- Envío de email con **Resend** (`app/auth/email.py`), variables
+  `RESEND_API_KEY`, `EMAIL_FROM` y `FRONTEND_URL` (para construir el enlace
+  `FRONTEND_URL/reset-password?token=...`); documentadas en `.env.example`.
+  `.env` añadido a `services/api/.gitignore`.
+- `uis/backoffice` incorpora `/forgot-password`, `/reset-password` (lee
+  `token` del query string con `useSearchParams`, envuelto en `Suspense`) y
+  `/account/change-password`. `/login` enlaza a `/forgot-password`; el menú
+  de sesión enlaza a `/account/change-password`.
+- Verificado: smoke test contra la app FastAPI real (`TestClient`, envío de
+  email simulado) cubriendo los 12 criterios de la rúbrica — anti-enumeración,
+  expiración, invalidación tras un solo uso, y los tres códigos `400`/`401`
+  esperados —, además de `npm exec tsc --noEmit`, `npm run lint` y
+  `npm run build` de `uis/backoffice` (las 3 páginas nuevas generan como
+  contenido estático) sin errores.
+- Pendiente para el desarrollador: probar el envío real con una `RESEND_API_KEY`
+  propia (con el remitente `onboarding@resend.dev` solo se puede enviar a la
+  dirección de la cuenta de Resend, sin dominio verificado) antes de abrir el PR.
+
+## AUTH-02 — Flujos de autenticación en frontend
+
+- `uis/backoffice` incorpora `/login`, `/register` y `/account/profile`.
+- El cliente común guarda el JWT en `localStorage`, adjunta `Authorization:
+  Bearer` a todas las llamadas protegidas y limpia/redirige ante `401`.
+- El dashboard y el perfil usan un guard cliente; el logout elimina el token y
+  redirige a `/login`. `uis/website` permanece completamente público.
+- Registro, login, lectura de `/auth/me` y actualización de `/profiles/me` se
+  integran contra la API existente; los errores `422` del registro se muestran
+  por campo.
+- Verificado: `npm exec tsc -- --noEmit`, `npm run lint`, `npm run build` y
+  smoke test API con registro `201`, `401` sin token y `200` autenticado.
+
+## Gestor de incidencias centralizado (extiende Hito 5)
+
+- `services/api/app/incidents`: modelo `Incident` (`title`, `description`,
+  `category`, `origin`, `branch`, `status`, `created_at`, `updated_at`) con
+  ciclo de vida `open → in_progress → resolved`, y `discarded` alcanzable
+  desde `open` o `in_progress`; `resolved`/`discarded` son finales. Las sedes
+  (`branch`) son las 14 ubicaciones reales de `CONTEXT.es.md` (Hito 1) más
+  `central`, ya que el CONTEXT no define un listado de sedes propio para
+  incidencias.
+- Endpoints: `POST/GET /api/incidents`, `GET /api/incidents/{id}`,
+  `GET /api/incidents/summary` (totales por estado/categoría/origen/sede),
+  `PATCH /api/incidents/{id}/status` (`400` con las transiciones válidas si
+  la transición no está permitida; mismo estado = no-op `200`).
+- Manejadores de error globales en `main.py`: `RequestValidationError` →
+  `400` conservando el formato nativo de FastAPI (`detail`: lista de
+  `{loc, msg}`) para no romper `readApiErrorDetails` ya existente en el
+  frontend; `Exception` no controlada → `500` genérico sin stack trace.
+- `scripts/seed_incidents.py`: carga `data/raw/incidents-COMPANY.csv` (el
+  mismo del Hito 5) reutilizando `validate_incident_row` de
+  `packages/shared/incident_validation.py` (nuevo — única fuente de verdad
+  para los campos/categorías/estados válidos del CSV histórico, usada
+  también por `scripts/analyze.py` y por `IncidentCategory` en la API, sin
+  duplicar la lista en tres sitios). Mapea `origin: "customer"` y
+  `branch: "central"` para todo el histórico (el CSV no tiene columna de
+  sede), título `"Incidencia histórica {incident_id}"` (usado también como
+  clave de idempotencia), estados `Abierto→open / Cerrado→resolved /
+  Descartado→discarded`. No copia `customer_name`/`customer_email` (no
+  forman parte del modelo y son datos personales). Verificado: 90
+  insertadas/10 inválidas en la primera corrida (coincide con el Hito 5), 0
+  insertadas/90 ya existían en la segunda; `/api/incidents/summary` tras el
+  seed coincide exactamente con `incidents-file-analyzer`: total 90,
+  por categoría 30/30/30, por estado (open/resolved/discarded) 60/30/0.
+- `uis/backoffice`: `/incidents` (resumen agregado + panel con filtros por
+  estado/origen/sede y cambio de estado en línea, con reversión visual si la
+  actualización falla) y `/incidents/new` (formulario con el campo sede
+  siempre visible y resaltado cuando el origen es "Sede"); enlace nuevo en el
+  menú ("Gestor de incidencias"), sin tocar el enlace `#incidents` existente
+  del análisis CSV del Hito 5.
+- Se resolvió `react-hooks/set-state-in-effect` (regla nueva de
+  `eslint-plugin-react-hooks@7`) difiriendo las llamadas a `setState` dentro
+  de efectos a un microtask.
+- Verificado: smoke test contra la API real (26/26 checks: filtros, las 5
+  transiciones de estado límite, `404`/`401`/`400`/`500` genérico, resumen
+  con las 15 sedes) y `tsc --noEmit` + `npm run lint` + `npm run build` del
+  frontend sin errores (las 2 páginas nuevas generan como contenido
+  estático).
+

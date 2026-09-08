@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
+import { SessionActions } from "@/components/session-actions";
 
 export const metadata: Metadata = {
   title: "Backoffice | Brasaland",
@@ -20,9 +22,12 @@ export default function RootLayout({
             <span className="text-xl font-black tracking-tight text-red-800">
               Brasaland <span className="font-medium text-zinc-500">· Backoffice</span>
             </span>
-            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Panel interno — Brasa Points
-            </span>
+            <nav aria-label="Secciones" className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              <a href="#suppliers" className="hover:text-red-800">Proveedores</a>
+              <a href="#incidents" className="hover:text-red-800">Análisis de incidencias</a>
+              <Link href="/incidents" className="hover:text-red-800">Gestor de incidencias</Link>
+              <SessionActions />
+            </nav>
           </div>
         </header>
         <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">{children}</div>

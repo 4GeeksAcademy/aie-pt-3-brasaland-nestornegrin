@@ -1,0 +1,9 @@
+suppliers.json
+users.json
+profiles.json
+password_resets.json
+incidents.json
+.venv
+.env
+.coverage
+.pytest_cache/
