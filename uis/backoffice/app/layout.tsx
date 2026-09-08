@@ -26,6 +26,7 @@ export default function RootLayout({
               <a href="#suppliers" className="hover:text-red-800">Proveedores</a>
               <a href="#incidents" className="hover:text-red-800">Análisis de incidencias</a>
               <Link href="/incidents" className="hover:text-red-800">Gestor de incidencias</Link>
+              <Link href="/inventory/products" className="hover:text-red-800">Inventario</Link>
               <SessionActions />
             </nav>
           </div>
