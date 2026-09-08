@@ -7,3 +7,5 @@ libpass[bcrypt]>=1.9.3
 python-dotenv>=1.2.3
 email-validator>=2.0,<3
 resend>=2.0,<3
+sqlmodel>=0.0.22,<1
+psycopg2-binary>=2.9,<3

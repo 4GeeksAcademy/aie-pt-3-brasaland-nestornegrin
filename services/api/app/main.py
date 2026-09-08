@@ -28,6 +28,9 @@ from app.profiles.routes import create_router as create_profiles_router
 from app.suppliers.repository import SupplierRepository
 from app.routes.suppliers import create_router
 from app.users.routes import create_router as create_users_router
+from app.inventory.routes import create_router as create_inventory_router
+from app.database import engine
+from sqlmodel import SQLModel
 
 app = FastAPI(title="Brasaland Operations API", version="1.0.0")
 logger = logging.getLogger(__name__)
@@ -50,6 +53,10 @@ app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 app.include_router(create_incidents_router(incident_repository))
+
+# Inventory (Supabase/SQLModel) - create schema, then mount routes.
+SQLModel.metadata.create_all(engine)
+app.include_router(create_inventory_router())
 
 
 @app.exception_handler(RequestValidationError)
