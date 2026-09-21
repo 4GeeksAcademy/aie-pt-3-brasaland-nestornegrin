@@ -19,6 +19,10 @@ RUN cd backoffice && npm ci
 # Copia el código como línea base -- en desarrollo, docker-compose.yml
 # superpone esto con un bind mount para recarga en caliente; esta copia
 # solo garantiza que la imagen funcione igual si se construye sin montajes.
+# NOTA: website y backoffice también importan ../../../src/... (utilidades
+# TypeScript de la raíz del monorepo, fuera de este contexto de build) --
+# docker-compose.yml monta ese directorio en tiempo de ejecución (/src);
+# la imagen sola, sin ese montaje, no la incluye.
 COPY website ./website
 COPY backoffice ./backoffice
 
