@@ -47,12 +47,18 @@ export function InventoryOutboundForm() {
   // la API (no el valor ya cargado en la lista) para reflejar el dato mas
   // reciente antes de que el usuario decida cuanto sacar.
   useEffect(() => {
-    if (!form.ingredient_id) {
-      setCurrentStock(null);
-      return;
-    }
     let active = true;
-    setStockError(null);
+    if (!form.ingredient_id) {
+      void Promise.resolve().then(() => {
+        if (active) setCurrentStock(null);
+      });
+      return () => {
+        active = false;
+      };
+    }
+    void Promise.resolve().then(() => {
+      if (active) setStockError(null);
+    });
     void getProduct(Number(form.ingredient_id))
       .then(async (response) => {
         if (!active) return;

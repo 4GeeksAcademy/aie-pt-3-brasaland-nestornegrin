@@ -1,7 +1,15 @@
+import dynamic from "next/dynamic";
 import { BackofficeDashboard } from "@/components/backoffice-dashboard";
-import { IncidentAnalysis } from "@/components/incident-analysis";
-import { SupplierDirectory } from "@/components/supplier-directory";
 import { AuthGuard } from "@/components/auth-guard";
+
+const SupplierDirectory = dynamic(
+  () => import("@/components/supplier-directory").then((module) => module.SupplierDirectory),
+  { loading: () => <p className="text-sm text-zinc-500">Cargando proveedores...</p> },
+);
+const IncidentAnalysis = dynamic(
+  () => import("@/components/incident-analysis").then((module) => module.IncidentAnalysis),
+  { loading: () => <p className="text-sm text-zinc-500">Cargando análisis...</p> },
+);
 
 export default function BackofficePage() {
   return <AuthGuard><main>

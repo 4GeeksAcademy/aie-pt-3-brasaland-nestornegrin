@@ -199,3 +199,24 @@
   frontend sin errores (las 2 páginas nuevas generan como contenido
   estático).
 
+## Auditoría de rendimiento de frontends
+
+- Se ejecutó Lighthouse 13.5.0 sobre builds de producción de `uis/website` y
+  `uis/backoffice`, en escritorio y móvil, incluyendo `/`, `/brasa-points`,
+  `/login` y el dashboard autenticado. Los informes HTML/JSON y capturas están
+  en `docs/evidence/lighthouse/before/` y `docs/evidence/lighthouse/after/`.
+- `uis/website/components/our-story-section.tsx` prioriza la imagen que
+  Lighthouse identificó como LCP (`loading="eager"`, `fetchPriority="high"`).
+- `uis/backoffice/app/page.tsx` difiere `SupplierDirectory` e
+  `IncidentAnalysis` con `next/dynamic` para no incluir módulos secundarios en
+  la carga inicial.
+- Se extrajo `uis/backoffice/components/stat-card.tsx` y se integró en el
+  dashboard y el análisis CSV, eliminando markup duplicado.
+- Se corrigieron actualizaciones síncronas de estado en
+  `inventory-outbound-form.tsx`; `npm run lint` y `npm run build` pasan en ambas
+  apps (website conserva un warning preexistente de ESLint).
+- `AUDIT.md` y `REPORT.md` documentan las métricas antes/después, causas raíz,
+  impacto y limitaciones del laboratorio. La mejora principal del website fue
+  Performance móvil `92→94` en home y `99→100` en Brasa Points; Best Practices
+  del dashboard autenticado pasó `96→100` al medir con el origen local válido.
+

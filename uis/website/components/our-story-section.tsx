@@ -26,6 +26,8 @@ export function OurStorySection() {
             src="https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=80"
             alt="Chef preparando carne a la brasa en la cocina de un restaurante Brasaland"
             fill
+            loading="eager"
+            fetchPriority="high"
             sizes="(min-width: 1024px) 50vw, 100vw"
             className="object-cover"
           />

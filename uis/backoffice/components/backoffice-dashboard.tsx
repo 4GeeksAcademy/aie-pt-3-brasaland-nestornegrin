@@ -13,6 +13,7 @@ import {
   validateRegistration,
 } from "../../../src/index";
 import { sampleRegistrations } from "../data/sample-registrations";
+import { StatCard } from "./stat-card";
 
 type SortField = "fullName" | "country" | "city" | "birthDate";
 
@@ -26,7 +27,6 @@ function ageFromBirthDate(birthDate: string): number {
   }
   return age;
 }
-
 export function BackofficeDashboard() {
   const [countryFilter, setCountryFilter] = useState<Country | "all">("all");
   const [sortField, setSortField] = useState<SortField>("fullName");
@@ -213,15 +213,6 @@ export function BackofficeDashboard() {
           </ul>
         ) : null}
       </section>
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-5 text-center shadow-sm">
-      <p className="text-3xl font-black text-red-800">{value}</p>
-      <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
     </div>
   );
 }
