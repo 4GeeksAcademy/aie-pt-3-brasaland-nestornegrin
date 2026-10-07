@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
 
 type Supplier = {
@@ -47,7 +47,9 @@ export function SupplierDirectory() {
     void Promise.resolve().then(loadSuppliers);
   }, [loadSuppliers]);
 
-  async function updateRate(supplierId: string) {
+  // useCallback: los manejadores son dependencias de `tableRows` (useMemo más
+  // abajo). Si se recrearan en cada render, la memoización no serviría de nada.
+  const updateRate = useCallback(async (supplierId: string) => {
     const currentRate = Number(rates[supplierId]);
     if (!Number.isFinite(currentRate) || currentRate <= 0) {
       setError("La tarifa debe ser un número mayor que cero.");
@@ -69,9 +71,9 @@ export function SupplierDirectory() {
     } finally {
       setSaving(null);
     }
-  }
+  }, [rates]);
 
-  async function updateStatus(supplier: Supplier) {
+  const updateStatus = useCallback(async (supplier: Supplier) => {
     const status = supplier.status === "Activo" ? "Suspendido" : "Activo";
     setSaving(`status-${supplier.id}`);
     setError(null);
@@ -85,7 +87,7 @@ export function SupplierDirectory() {
     } finally {
       setSaving(null);
     }
-  }
+  }, []);
 
   async function createSupplier(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -104,8 +106,25 @@ export function SupplierDirectory() {
     }
   }
 
+  // Filas de la tabla, memoizadas: con 1.500 proveedores construirlas cuesta
+  // ~200 ms (medido, ver CACHING_REPORT.md; cada fila formatea una fecha con
+  // toLocaleString) y antes se rehacían con CADA tecla del formulario de alta.
+  // Solo dependen de estos cinco valores; el formulario de alta, los filtros
+  // y los mensajes de error no las afectan.
+  const tableRows = useMemo(
+    () =>
+      suppliers.map((supplier) => <tr key={supplier.id} className="border-b border-zinc-100 text-zinc-800">
+              <td className="py-3 pr-4"><span className="font-semibold">{supplier.name}</span><span className="block text-xs text-zinc-500">ID {supplier.id}</span></td>
+              <td className="py-3 pr-4">{supplier.categories.join(", ")}</td><td className="py-3 pr-4">{supplier.country}</td>
+              <td className="py-3 pr-4"><button type="button" onClick={() => void updateStatus(supplier)} disabled={saving === `status-${supplier.id}`} className={(supplier.status === "Activo" ? "font-semibold text-emerald-700" : "font-semibold text-amber-700") + " disabled:opacity-50"}>{saving === `status-${supplier.id}` ? "..." : supplier.status}</button></td>
+              <td className="py-3 pr-4"><div className="flex items-center gap-2"><input aria-label={`Tarifa de ${supplier.name}`} type="number" min="0.01" step="0.01" value={rates[supplier.id] ?? ""} onChange={(event) => setRates((current) => ({ ...current, [supplier.id]: event.target.value }))} className="w-24 rounded-lg border border-zinc-300 px-2 py-1" /><button type="button" onClick={() => void updateRate(String(supplier.id))} disabled={saving === String(supplier.id)} className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-bold text-white hover:bg-red-800 disabled:opacity-50">{saving === String(supplier.id) ? "..." : "Guardar"}</button></div></td>
+              <td className="py-3 text-xs text-zinc-500">{new Date(supplier.updated_at).toLocaleString("es-CO")}</td>
+            </tr>),
+    [suppliers, rates, saving, updateRate, updateStatus],
+  );
+
   return (
-    <section id="suppliers" aria-labelledby="suppliers-title" className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+    <section aria-labelledby="suppliers-title" className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-red-800">Fuente única de verdad</p>
@@ -139,13 +158,7 @@ export function SupplierDirectory() {
         <div className="mt-6 overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead><tr className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-500"><th className="pb-3 pr-4">Proveedor</th><th className="pb-3 pr-4">Categoría</th><th className="pb-3 pr-4">País</th><th className="pb-3 pr-4">Estado</th><th className="pb-3 pr-4">Tarifa vigente</th><th className="pb-3">Último cambio</th></tr></thead>
-            <tbody>{suppliers.map((supplier) => <tr key={supplier.id} className="border-b border-zinc-100 text-zinc-800">
-              <td className="py-3 pr-4"><span className="font-semibold">{supplier.name}</span><span className="block text-xs text-zinc-500">ID {supplier.id}</span></td>
-              <td className="py-3 pr-4">{supplier.categories.join(", ")}</td><td className="py-3 pr-4">{supplier.country}</td>
-              <td className="py-3 pr-4"><button type="button" onClick={() => void updateStatus(supplier)} disabled={saving === `status-${supplier.id}`} className={(supplier.status === "Activo" ? "font-semibold text-emerald-700" : "font-semibold text-amber-700") + " disabled:opacity-50"}>{saving === `status-${supplier.id}` ? "..." : supplier.status}</button></td>
-              <td className="py-3 pr-4"><div className="flex items-center gap-2"><input aria-label={`Tarifa de ${supplier.name}`} type="number" min="0.01" step="0.01" value={rates[supplier.id] ?? ""} onChange={(event) => setRates((current) => ({ ...current, [supplier.id]: event.target.value }))} className="w-24 rounded-lg border border-zinc-300 px-2 py-1" /><button type="button" onClick={() => void updateRate(String(supplier.id))} disabled={saving === String(supplier.id)} className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-bold text-white hover:bg-red-800 disabled:opacity-50">{saving === String(supplier.id) ? "..." : "Guardar"}</button></div></td>
-              <td className="py-3 text-xs text-zinc-500">{new Date(supplier.updated_at).toLocaleString("es-CO")}</td>
-            </tr>)}</tbody>
+            <tbody>{tableRows}</tbody>
           </table>
         </div>
       ) : null}
