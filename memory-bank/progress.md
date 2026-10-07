@@ -199,3 +199,28 @@
   frontend sin errores (las 2 páginas nuevas generan como contenido
   estático).
 
+
+
+## Plan de telemetría (diseño, sin código)
+
+- `docs/telemetry/telemetry-plan.md` y `docs/telemetry/event-schemas.json` (JSON Schema draft-07): 31 eventos (7 obligatorios + 24 oportunidades identificadas) en 7 categorías, Event Envelope común, allowlist por evento, registro de datos sensibles, estrategia stream/batch (4 stream, 27 batch), riesgos y exclusiones, y guía de implementación.
+- El `CONTEXT.es.md` del repo no define métricas de telemetría; se tomaron como obligatorias las siete preguntas del mensaje del tech lead (órdenes de salida/día, errores de validación por producto, intentos de editar stock, alertas de stock mínimo, logins fallidos, secciones más visitadas, flujos abandonados). Si el CONTEXT oficial trae otras, se añaden sin cambiar el envelope.
+- Hallazgos del código registrados en el plan: el umbral de stock (10/30) solo existe en el frontend; no hay `X-Request-ID` ni sesión de servidor (JWT sin estado); el login no limita intentos; el registro es público; el alta de insumos no comprueba el rol.
+- Verificado: el esquema valida como draft-07, cada evento tiene un ejemplo válido y casos inválidos rechazados (propiedad fuera de la allowlist, envelope incompleto, `source` incorrecto), y el plan y el JSON salen de la misma fuente.
+
+
+## Captura de eventos de telemetría (`feat: telemetry event capture`)
+
+- **Fase 1 (stub):** `POST /telemetry/events` en `services/api/app/telemetry/` (router propio). Acepta `{ "events": [...] }`, registra el nº de eventos y cada `event_type`, responde `{ "received": N }`. Modelo `TelemetryEvent` = envelope del plan. Lee el cuerpo en crudo (acepta `text/plain`) para que `sendBeacon` no necesite preflight de CORS. `TELEMETRY_ENDPOINT` declarada en `.env.example` (aún sin uso).
+- **Fase 2 (servicio):** `uis/backoffice/services/telemetry.ts` con `track(eventType, properties)`: cola en memoria, lotes cada 10 s o 20 eventos, `sendBeacon` en `visibilitychange`/`pagehide`, 3 reintentos con backoff exponencial y descarte, campos estándar automáticos y validación contra la allowlist (`telemetry-schema.ts` se genera con `python3 scripts/gen-telemetry-schema.py`). URL en `NEXT_PUBLIC_TELEMETRY_ENDPOINT` (`.env.local`, no versionado).
+- **Fase 3 (instrumentación):** ver la descripción del PR. Esquema revisado a 1.1.0 (11 eventos admiten `source: frontend`; `login_failed` con motivos del cliente).
+- Verificado: 47 tests de la API, 55 de jest (incluye contrato con `ajv` contra `event-schemas.json`), `tsc`, `npm run build` y prueba real con Chromium: 7 lotes, todos `200`.
+- Pendiente/limitaciones: `direct_stock_edit_rejected` no tiene ruta en la UI; `supplier_rate_updated`, `inbound_order_created`, `password_reset_*`, `incident_results_exported` y las vistas de secciones diferidas de la home no se capturan en el cliente.
+
+
+## Almacenamiento de telemetría (`feat: telemetry event storage`)
+
+- **Tabla** `telemetry_events` en Supabase (`services/api/migrations/001_create_telemetry_events.sql`): 8 columnas (`id`, `event_id` UNIQUE, `event_type`, `timestamp`, `service`, `user_id`, `session_id`, `tags` JSONB), índices en `timestamp`, `event_type` y GIN en `tags`, trigger que bloquea UPDATE/DELETE y RLS activado. La API también la crea al arrancar (`create_all`); la migración es la definición de referencia.
+- **Endpoint real** `POST /telemetry/events` (reemplaza el stub; mismo envelope y misma URL, el frontend no cambió): body laxo, `TelemetryEvent.model_validate` por evento, rechazo individual (envelope inválido, `event_type` fuera del plan, faltan propiedades obligatorias), `tags` filtrado por la allowlist (`allowlists.py` se genera con `python -m app.telemetry.generate_allowlists`), una sola sentencia INSERT multi-VALUES con `ON CONFLICT (event_id) DO NOTHING`, respuesta `{received, stored, rejected}`.
+- Decisión: `requestId` y `schemaVersion` se validan pero no se guardan (el ticket fija 8 columnas); un `eventId` repetido cuenta como `rejected`.
+- Verificado con Postgres real: migración idempotente, índices, trigger, `tags @>` y E2E con el backoffice sin cambios (eventos técnicos y de negocio en la tabla).

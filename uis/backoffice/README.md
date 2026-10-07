@@ -48,3 +48,4 @@ corriendo, Next.js lo asigna automáticamente).
 - Layout propio (`app/layout.tsx`), independiente del de `uis/website` y de
   `uis/talent-pipeline-tracker` (ver `.agents/rules/nextjs-app-boundaries.md`).
 - La API debe estar disponible en `http://localhost:8000` o configurarse mediante `NEXT_PUBLIC_API_URL`.
+- Telemetría: define `NEXT_PUBLIC_TELEMETRY_ENDPOINT=http://localhost:8000/telemetry/events` en `.env.local` (sin esa variable la captura queda desactivada). Los eventos se emiten únicamente con `track()` de `services/telemetry.ts`; el diseño está en `docs/telemetry/`.

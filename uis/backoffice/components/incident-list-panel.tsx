@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
+import { track } from "@/services/telemetry";
 import { ALLOWED_TRANSITIONS, BRANCHES, ORIGINS, ORIGIN_LABELS, STATUS_LABELS, type Incident } from "@/lib/incidents";
 
 type Filters = { status: string; origin: string; branch: string };
+
+// Horas desde que se creó la incidencia (para incident_status_changed).
+function incidentAgeHours(createdAt: string): number {
+  return Math.max(0, Math.round(((Date.now() - new Date(createdAt).getTime()) / 3_600_000) * 10) / 10);
+}
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 
@@ -30,7 +36,11 @@ export function IncidentListPanel() {
         setError(await readApiError(response, "No se pudieron cargar las incidencias."));
         return;
       }
-      setIncidents(await response.json());
+      const loaded: Incident[] = await response.json();
+      setIncidents(loaded);
+      // Telemetría: solo cuando el usuario aplicó algún filtro (no en la carga inicial).
+      const applied = (["status", "origin", "branch"] as const).filter((key) => activeFilters[key]);
+      if (applied.length > 0) track("incident_list_filtered", { filtersApplied: applied, resultCount: loaded.length });
     } catch {
       setError("No se pudo conectar con el servidor.");
     } finally {
@@ -61,7 +71,15 @@ export function IncidentListPanel() {
         const message = await readApiError(response, "No se pudo actualizar el estado.");
         setIncidents((current) => current?.map((item) => (item.id === incident.id ? { ...item, status: previousStatus } : item)) ?? current);
         setRowErrors((current) => ({ ...current, [incident.id]: message }));
+        return;
       }
+      track("incident_status_changed", {
+        incidentId: incident.id,
+        fromStatus: previousStatus,
+        toStatus: newStatus,
+        category: incident.category,
+        ageHours: incidentAgeHours(incident.created_at),
+      });
     } catch {
       setIncidents((current) => current?.map((item) => (item.id === incident.id ? { ...item, status: previousStatus } : item)) ?? current);
       setRowErrors((current) => ({ ...current, [incident.id]: "No se pudo conectar con el servidor." }));

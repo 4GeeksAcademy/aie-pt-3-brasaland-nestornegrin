@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
+import { useFlowTracking } from "@/lib/use-flow-tracking";
 
 export function ChangePasswordForm() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -10,6 +11,7 @@ export function ChangePasswordForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const flow = useFlowTracking("password_change", "account_password"); // telemetría
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -17,6 +19,7 @@ export function ChangePasswordForm() {
     setMessage(null);
 
     if (newPassword !== confirmPassword) {
+      flow.submitAttempt(false);
       setError("La nueva contraseña y la confirmación no coinciden.");
       return;
     }
@@ -29,14 +32,17 @@ export function ChangePasswordForm() {
         body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
       });
       if (!response.ok) {
+        flow.submitAttempt(false);
         setError(await readApiError(response, "No se pudo cambiar la contraseña."));
         return;
       }
+      flow.submitAttempt(true);
       setMessage("Tu contraseña se actualizó correctamente.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch {
+      flow.submitAttempt(false);
       setError("No se pudo conectar con el servidor. Inténtalo de nuevo en unos minutos.");
     } finally {
       setLoading(false);
@@ -51,15 +57,15 @@ export function ChangePasswordForm() {
       </div>
       <div>
         <label htmlFor="current-password" className="block text-sm font-bold">Contraseña actual</label>
-        <input id="current-password" required type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
+        <input id="current-password" required type="password" value={currentPassword} onChange={(event) => { flow.touch("CurrentPassword"); setCurrentPassword(event.target.value); }} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
       </div>
       <div>
         <label htmlFor="new-password" className="block text-sm font-bold">Nueva contraseña</label>
-        <input id="new-password" required minLength={8} type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
+        <input id="new-password" required minLength={8} type="password" value={newPassword} onChange={(event) => { flow.touch("NewPassword"); setNewPassword(event.target.value); }} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
       </div>
       <div>
         <label htmlFor="confirm-password" className="block text-sm font-bold">Confirmar nueva contraseña</label>
-        <input id="confirm-password" required minLength={8} type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
+        <input id="confirm-password" required minLength={8} type="password" value={confirmPassword} onChange={(event) => { flow.touch("ConfirmPassword"); setConfirmPassword(event.target.value); }} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
       </div>
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p> : null}
       {message ? <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p> : null}

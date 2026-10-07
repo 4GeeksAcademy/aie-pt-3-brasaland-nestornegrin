@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, readApiError, saveAccessToken } from "@/lib/api-client";
+import { startTelemetrySession, tokenTtlMinutes, track } from "@/services/telemetry";
 
 export function LoginForm() {
   const router = useRouter();
@@ -18,11 +19,20 @@ export function LoginForm() {
     setError(null);
     try {
       const response = await apiFetch("/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) }, false);
-      if (!response.ok) throw new Error(await readApiError(response, "No se pudo iniciar sesión."));
+      if (!response.ok) {
+        // Telemetría: solo el motivo; jamás el email ni la contraseña escritos.
+        track("login_failed", { failureReason: response.status === 401 ? "invalid_credentials" : "server_error" });
+        throw new Error(await readApiError(response, "No se pudo iniciar sesión."));
+      }
       const payload = (await response.json()) as { access_token: string };
       saveAccessToken(payload.access_token);
+      startTelemetrySession(); // el sessionId se genera al iniciar sesión
+      const ttl = tokenTtlMinutes(payload.access_token);
+      if (ttl !== null) track("login_succeeded", { tokenTtlMinutes: ttl });
       router.replace("/");
     } catch (requestError) {
+      // Sin respuesta del servidor (red caída, API apagada): fetch lanzó TypeError.
+      if (requestError instanceof TypeError) track("login_failed", { failureReason: "network_error" });
       setError(requestError instanceof Error ? requestError.message : "No se pudo iniciar sesión.");
     } finally {
       setLoading(false);
