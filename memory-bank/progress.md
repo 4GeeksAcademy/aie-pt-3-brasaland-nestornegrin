@@ -208,3 +208,12 @@
 - `user_uuid` en las órdenes de inventario se conserva a propósito: la tabla del backoffice lo muestra.
 - `response_model=None` explícito en los dos borrados 204 y en la descarga CSV (las únicas operaciones sin cuerpo JSON), fijado con un test.
 - Verificado: 54 tests (42 existentes + 12 de contrato en `tests/test_serialization.py`; 7 de los nuevos fallan contra el código anterior) y prueba manual con `uvicorn` y `curl`. El frontend no necesitó cambios.
+
+
+## Optimización con caché, lazy loading y memoización
+
+- Informe completo con cifras antes/después en `CACHING_REPORT.md`.
+- Backend: middleware de tiempos (`X-Process-Time-Ms` + logger `api.timing`), `app/cache.py` (`TTLCache` en memoria con TTL, tamaño acotado e invalidación segura ante carreras) y caché de 30 s en `GET /api/incidents` y `GET /api/incidents/summary`, invalidada al crear incidencias y al cambiar su estado. Con 1 500 proveedores y 8 000 incidencias (`seed_load.py`): resumen 71,7 → 2,4 ms, listado 318,6 → 22,4 ms. No se cachean proveedores, inventario ni datos de sesión.
+- `BRASALAND_DATA_DIR` permite apuntar los JSON de TinyDB a otro directorio; los tests usan uno temporal y ya no ensucian los datos de desarrollo.
+- Frontend (`uis/backoffice`): `SupplierDirectory` e `IncidentAnalysis` se cargan con `next/dynamic` al acercarse al viewport (`DeferUntilVisible`, conserva las anclas `#suppliers`/`#incidents`); `useMemo` + `useCallback` en las filas de proveedores (≈210 → ≈4,8 ms por pulsación con 1 500 filas).
+- Verificado: 65 tests de backend, jest (15 + 1 benchmark opcional), anclas y consola en Chromium contra el build de producción.
