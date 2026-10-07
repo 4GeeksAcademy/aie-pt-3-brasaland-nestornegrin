@@ -35,10 +35,12 @@ interface QueuedEvent {
 }
 
 const SESSION_KEY = "brasaland_telemetry_session";
+const SESSION_START_KEY = "brasaland_telemetry_session_at";
 
 let queue: QueuedEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let sessionId: string | null = null;
+let sessionStartedAt: number | null = null;
 let listenersInstalled = false;
 
 function endpoint(): string | undefined {
@@ -60,8 +62,10 @@ function uuid(): string {
 /** Genera un sessionId nuevo. Llamar al iniciar sesión (login correcto). */
 export function startTelemetrySession(): string {
   sessionId = uuid();
+  sessionStartedAt = Date.now();
   try {
     window.sessionStorage.setItem(SESSION_KEY, sessionId);
+    window.sessionStorage.setItem(SESSION_START_KEY, String(sessionStartedAt));
   } catch {
     // sessionStorage no disponible: el id vive solo en memoria.
   }
@@ -71,8 +75,10 @@ export function startTelemetrySession(): string {
 /** Cierra la sesión de telemetría (logout / sesión expirada). */
 export function endTelemetrySession(): void {
   sessionId = null;
+  sessionStartedAt = null;
   try {
     window.sessionStorage.removeItem(SESSION_KEY);
+    window.sessionStorage.removeItem(SESSION_START_KEY);
   } catch {
     // ignorar
   }
@@ -84,6 +90,7 @@ function currentSessionId(): string {
     const stored = window.sessionStorage.getItem(SESSION_KEY);
     if (stored) {
       sessionId = stored;
+      sessionStartedAt = Number(window.sessionStorage.getItem(SESSION_START_KEY)) || Date.now();
       return stored;
     }
   } catch {
@@ -91,6 +98,12 @@ function currentSessionId(): string {
   }
   // Evento previo al login (p. ej. login_failed): sesión anónima efímera.
   return startTelemetrySession();
+}
+
+/** Minutos desde que empezó la sesión de telemetría (para `session_expired`). */
+export function sessionAgeMinutes(): number {
+  currentSessionId();
+  return Math.max(0, Math.round(((Date.now() - (sessionStartedAt ?? Date.now())) / 60_000) * 10) / 10);
 }
 
 /** userId = `sub` del JWT de la sesión autenticada; `anonymous` si no hay sesión. */
@@ -104,6 +117,18 @@ function currentUserId(): string {
     return sub === undefined || sub === null ? "anonymous" : String(sub);
   } catch {
     return "anonymous";
+  }
+}
+
+/** Minutos de vigencia restantes de un JWT (`exp`), o null si no se puede leer. */
+export function tokenTtlMinutes(token: string): number | null {
+  try {
+    const payload = token.split(".")[1];
+    const exp = (JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: unknown }).exp;
+    if (typeof exp !== "number") return null;
+    return Math.max(1, Math.round((exp * 1000 - Date.now()) / 60_000));
+  } catch {
+    return null;
   }
 }
 
@@ -235,6 +260,7 @@ export function __resetTelemetryForTests(): void {
   if (flushTimer !== null) clearTimeout(flushTimer);
   flushTimer = null;
   sessionId = null;
+  sessionStartedAt = null;
   listenersInstalled = false;
 }
 
