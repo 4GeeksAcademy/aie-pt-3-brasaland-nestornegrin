@@ -80,11 +80,21 @@ Criterios: (a) coste de la operación, (b) frecuencia de llamada, (c) frecuencia
 | `GET /api/incidents` (con y sin filtros) | **Alto**: 318,6 ms sin filtro (1,2 MB); 59 ms con `status=open` | **Alta**: pantalla principal de incidencias | Baja | **Sí** |
 | `GET /api/suppliers` y `/{id}` | Bajo: 6–40 ms | Media | **Media**: las tarifas y estados se editan desde el propio backoffice | No |
 | `POST/PUT/PATCH` de proveedores e incidencias | — (escrituras) | — | Invalidan la caché de incidencias | No (invalidan) |
-| Inventario (stock, órdenes) | Medio (Postgres) | Media | **Alta**: cada salida/entrada cambia el stock | No (ver más abajo) |
+| `GET /inventory/products` | Medio: **36,8 ms** (agrega ≈ 20 000 movimientos por ingrediente) | Media | **Alta**: cada entrada/salida cambia el stock | No (ver más abajo) |
+| `GET /inventory/orders` | **Alto**: **503,6 ms** y 2,98 MB (20 000 movimientos) | Baja-media | **Alta**: crece con cada movimiento | No: se resuelve paginando, no cacheando (ver más abajo) |
 | `GET /auth/me`, perfiles, usuarios | Muy bajo (2–3 ms) | Alta | — | No: datos **personales** |
 | `POST /api/incidents/analyze`, exportación CSV | Medio | Baja | Dependen del archivo/consulta | No |
 
-El inventario (Postgres/Supabase) no se pudo medir porque el proyecto de Supabase está pausado; se descarta por razón de diseño (ver "Qué no se cacheó"), sin cifras.
+### Inventario (Postgres/Supabase), medido por separado
+
+Se midió contra el proyecto de Supabase real (pooler `eu-west-1`, llamado desde un Codespace, así que el tiempo incluye la ida y vuelta a la base de datos) con `seed_inventory_load.py`: **300 ingredientes y 20 000 movimientos** (10 912 entradas y 9 088 salidas), 20 peticiones por endpoint:
+
+| Endpoint | 1.ª petición | Mediana | p95 | Respuesta |
+|---|---:|---:|---:|---:|
+| `GET /inventory/products` | 62,2 ms | 36,8 ms | 62,2 ms | 32,0 KB |
+| `GET /inventory/orders` | 698,5 ms | 503,6 ms | 577,4 ms | 2 980 KB |
+
+En esa misma ejecución los endpoints de proveedores e incidencias respondieron en 1–5 ms porque el desarrollo solo tiene 10 proveedores y 90 incidencias; esas filas no sustituyen a las mediciones con volumen realista de arriba.
 
 ### `GET /api/incidents/summary`
 
@@ -132,7 +142,9 @@ No se cachea nada con datos de sesión o personales (`/auth/me`, perfiles, usuar
 ## Qué no se cacheó y por qué
 
 - **`GET /api/suppliers` (listado y detalle):** a 1 500 proveedores tarda 6–40 ms y el listado se edita desde el propio backoffice (tarifas, estado). El beneficio es pequeño y el riesgo de mostrar una tarifa antigua justo después de editarla es real. (Una opción más barata para el futuro es paginar, no cachear.)
-- **Inventario (stock y órdenes) y la validación de salidas:** la validación de una salida lee el stock **en vivo**; cachearlo permitiría aprobar salidas con existencias que ya no están. Aquí la frescura prevalece sobre el rendimiento. No se midió porque Supabase está pausado.
+- **`GET /inventory/orders` (503,6 ms, 2,98 MB):** es el endpoint más lento de toda la API y aun así no se cachea. El coste está en traer y serializar 20 000 filas (y en transferir 3 MB), no en un cálculo repetido: cachearlo ocultaría el síntoma y guardaría 3 MB en memoria por worker. Además es el historial de movimientos de stock, que crece con cada entrada y salida. La solución correcta es **paginarlo** (`limit`/`offset` o por sede/fecha), un cambio de contrato de la API que queda fuera de este ticket y se deja como siguiente paso.
+- **`GET /inventory/products` (36,8 ms):** un coste moderado para un dato que cambia con cada movimiento y que se usa para decidir qué sacar de cocina. Con TTL el stock mostrado podría ir por detrás de la realidad.
+- **Inventario (stock) y la validación de salidas:** la validación de una salida lee el stock **en vivo**; cachearlo permitiría aprobar salidas con existencias que ya no están. Aquí la frescura prevalece sobre el rendimiento.
 - **`/auth/me`, perfiles y usuarios:** son datos personales y de sesión; cuestan 2–3 ms. No hay nada que ahorrar y sí riesgo de filtración entre usuarios.
 - **`POST /api/incidents/analyze` y la exportación CSV:** dependen del archivo enviado o son de baja frecuencia.
 - **Memoización en `backoffice-dashboard.tsx`:** 5 filas de muestra; coste del cálculo ≈ coste de comparar dependencias.
@@ -143,6 +155,7 @@ No se cachea nada con datos de sesión o personales (`/auth/me`, perfiles, usuar
 
 - Las cifras del backend son de un sandbox con ruido (±40 %); la mejora (≈ 3–30×) es mucho mayor que el ruido, pero los valores exactos variarán.
 - Las cifras de `useMemo` vienen de jsdom en modo desarrollo: absolutas pesimistas, proporción fiable. Se pueden contrastar con el React DevTools Profiler (pestaña *Profiler* → grabar una pulsación de tecla en el buscador) y con la pestaña *Network* (ver que `/api/suppliers` aparece solo al hacer scroll).
+- Pendiente de mejora (inventario): paginar `GET /inventory/orders` (3 MB con 20 000 movimientos).
 - Pendiente de mejora: escribir en un campo de tarifa de una fila sigue renderizando todas las filas, porque el estado `rates` vive en el padre. Solución: un componente `SupplierRow` con estado local + `React.memo`.
 - `GET /api/incidents` devuelve 1,2 MB con 8 000 incidencias; la mejora estructural es **paginarlo**, que reduciría tanto el coste de construir modelos como el tamaño transferido.
 - Ejecutar los benchmarks del frontend: `cd uis/backoffice && BENCH=1 npx jest supplier-directory`.
