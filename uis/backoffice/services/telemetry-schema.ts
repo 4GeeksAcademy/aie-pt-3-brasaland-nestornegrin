@@ -1,7 +1,7 @@
 // ARCHIVO GENERADO por scripts/gen-telemetry-schema.py — no editar a mano.
 // Fuente: docs/telemetry/event-schemas.json
 
-export const SCHEMA_VERSION = "1.0.0";
+export const SCHEMA_VERSION = "1.1.0";
 
 export type EventAllowlist = { allowed: readonly string[]; required: readonly string[] };
 
@@ -10,7 +10,7 @@ export const EVENT_ALLOWLISTS: Record<string, EventAllowlist> = {
   inventory_validation_failed: { allowed: ["operation", "errorCode", "httpStatus", "ingredientId", "restaurant", "requestedQuantity", "availableStock"], required: ["operation", "errorCode", "httpStatus"] },
   direct_stock_edit_rejected: { allowed: ["attemptKind", "httpMethod", "routeTemplate", "httpStatus", "offendingFields", "ingredientId"], required: ["attemptKind", "httpMethod", "routeTemplate", "httpStatus"] },
   stock_threshold_triggered: { allowed: ["ingredientId", "restaurant", "level", "thresholdValue", "stockBefore", "stockAfter", "triggeringExitId"], required: ["ingredientId", "restaurant", "level", "thresholdValue", "stockBefore", "stockAfter", "triggeringExitId"] },
-  login_failed: { allowed: ["failureReason", "accountKey", "sourceKey"], required: ["failureReason", "accountKey", "sourceKey"] },
+  login_failed: { allowed: ["failureReason", "accountKey", "sourceKey"], required: ["failureReason"] },
   navigation_section_viewed: { allowed: ["section", "previousSection", "entryKind"], required: ["section", "entryKind"] },
   flow_abandoned: { allowed: ["flow", "flowInstanceId", "lastStep", "fieldsTouchedCount", "elapsedMs", "exitTrigger", "hadSubmitError"], required: ["flow", "flowInstanceId", "lastStep", "fieldsTouchedCount", "elapsedMs", "exitTrigger", "hadSubmitError"] },
   inbound_order_created: { allowed: ["entryId", "ingredientId", "restaurant", "quantity", "stockAfter", "supplierProvided"], required: ["entryId", "ingredientId", "restaurant", "quantity", "stockAfter", "supplierProvided"] },
@@ -29,7 +29,7 @@ export const EVENT_ALLOWLISTS: Record<string, EventAllowlist> = {
   password_reset_completed: { allowed: ["tokenAgeMinutes"], required: ["tokenAgeMinutes"] },
   password_reset_failed: { allowed: ["failureReason", "tokenAgeMinutes"], required: ["failureReason"] },
   user_registered: { allowed: ["registrationOutcome", "hasPhone", "hasAddress"], required: ["registrationOutcome", "hasPhone", "hasAddress"] },
-  api_latency_recorded: { allowed: ["method", "routeTemplate", "statusClass", "durationMs", "responseBytes", "cache", "sampleRate"], required: ["method", "routeTemplate", "statusClass", "durationMs", "cache", "sampleRate"] },
+  api_latency_recorded: { allowed: ["method", "routeTemplate", "statusClass", "durationMs", "responseBytes", "cache", "sampleRate"], required: ["method", "routeTemplate", "statusClass", "durationMs", "sampleRate"] },
   web_vital_measured: { allowed: ["metric", "value", "rating", "routeTemplate", "navigationType"], required: ["metric", "value", "rating", "routeTemplate", "navigationType"] },
   api_unhandled_error_raised: { allowed: ["method", "routeTemplate", "exceptionType", "fingerprint"], required: ["method", "routeTemplate", "exceptionType", "fingerprint"] },
   frontend_error_captured: { allowed: ["errorSource", "errorName", "fingerprint", "topFrame", "routeTemplate"], required: ["errorSource", "errorName", "fingerprint", "routeTemplate"] },

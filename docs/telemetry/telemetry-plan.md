@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Versión del plan / de los esquemas** | 1.0.0 |
+| **Versión del plan / de los esquemas** | 1.1.0 |
 | **Estado** | Propuesta para revisión (viernes). No hay código de instrumentación en este PR. |
 | **Entregables** | Este documento y [`event-schemas.json`](./event-schemas.json) (JSON Schema draft-07, validado contra este plan) |
 | **Alcance** | `services/api` (FastAPI + TinyDB + Supabase), `uis/backoffice` (Next.js) y tareas programadas |
@@ -144,7 +144,7 @@ Todo evento, sin excepción, tiene exactamente esta estructura. `properties` es 
   "sessionId": "b71e0c52-8d3a-4f16-a2c9-6e5d4b3a2f10",
   "userId": "7",
   "event_type": "outbound_order_created",
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "requestId": "9c4d7a3e-1b28-4e5f-8a6d-0f2e1c3b4a59",
   "source": "backend",
   "properties": {
@@ -166,41 +166,41 @@ Todo evento, sin excepción, tiene exactamente esta estructura. `properties` es 
 - **`userId`:** el `sub` del JWT (el `UserRecord.id` entero, como texto). `anonymous` antes de autenticarse (incluido `login_failed`: una identificación fallida no es una sesión). `system` en tareas programadas. `deleted` sustituye al id cuando se da de baja al usuario (ver §6.3).
 - **`requestId`:** une frontend, backend y logs. `apiFetch` genera un UUID v4 por llamada y lo envía en `X-Request-ID`; el middleware HTTP lo valida (si falta o no es un UUID, genera uno), lo devuelve en la cabecera de respuesta y lo añade a la línea de log de la petición (el logger `api.timing` del PR #12 de caché, si ya está fusionado). Los eventos del servidor emitidos durante esa petición lo reutilizan. Un evento de frontend asociado a una llamada (`network_request_failed`, `session_expired`) reutiliza el de esa llamada; los demás (p. ej. `navigation_section_viewed`) generan uno nuevo.
 - **`timestamp`:** instante del suceso, UTC con milisegundos (`2026-10-07T16:20:31.245Z`). Los eventos del frontend usan el reloj del cliente, que puede estar desfasado: el almacén guarda además `received_at` (columna aparte, **no** forma parte del envelope) y se marca como sospechoso cualquier evento con más de 5 minutos de diferencia.
-- **`source`:** `backend`, `frontend` o `job`. Es obligatorio y fijo por evento; permite saber qué lado perdió datos si un embudo no cuadra.
+- **`source`:** `backend`, `frontend` o `job`. Es obligatorio; es fijo por evento salvo en los 14 eventos que, desde la versión 1.1.0, también emite el frontend (ver «Revisión 1.1.0»); permite saber qué lado perdió datos si un embudo no cuadra.
 
 ### 3.3 Taxonomía y versionado
 
 - **`event_type` = `entidad_acción`**, en minúsculas y snake_case; la **última palabra es un verbo en participio** de esta lista cerrada: `created`, `rejected`, `triggered`, `failed`, `succeeded`, `completed`, `expired`, `viewed`, `started`, `abandoned`, `recorded`, `measured`, `captured`, `raised`, `changed`, `analyzed`, `filtered`, `shown`, `registered`, `updated`, `requested`, `exported`. Un verbo nuevo requiere modificar este documento. Se nombran hechos ya ocurridos, nunca clics sueltos ni intenciones.
-- **`schemaVersion`** (semver, por evento; hoy `1.0.0`): añadir una propiedad opcional = *minor*; añadir una obligatoria, quitar una, cambiar un tipo o ampliar/estrechar un enum de forma incompatible = *major* y se emiten ambas versiones durante la migración; cambiar solo descripciones = *patch*. Los consumidores deben ignorar versiones *minor* que no conozcan, pero no *major*.
+- **`schemaVersion`** (semver, por evento; hoy `1.1.0`): añadir una propiedad opcional = *minor*; añadir una obligatoria, quitar una, cambiar un tipo o ampliar/estrechar un enum de forma incompatible = *major* y se emiten ambas versiones durante la migración; cambiar solo descripciones = *patch*. Los consumidores deben ignorar versiones *minor* que no conozcan, pero no *major*.
 
 ## 4. Catálogo de eventos
 
 | # | `event_type` | Categoría | Grupo | Emite | Entrega |
 |--:|---|---|---|---|---|
-| 1 | `outbound_order_created` | Negocio · inventario | obligatorio | backend | batch · cada hora |
-| 2 | `inventory_validation_failed` | Negocio · inventario | obligatorio | backend | batch · diario |
-| 3 | `direct_stock_edit_rejected` | Negocio · inventario | obligatorio | backend | stream · ≤ 60 s |
-| 4 | `stock_threshold_triggered` | Negocio · inventario | obligatorio | backend | stream · ≤ 60 s |
-| 5 | `login_failed` | Autenticación | obligatorio | backend | stream · ≤ 60 s |
+| 1 | `outbound_order_created` | Negocio · inventario | obligatorio | backend + frontend | batch · cada hora |
+| 2 | `inventory_validation_failed` | Negocio · inventario | obligatorio | backend + frontend | batch · diario |
+| 3 | `direct_stock_edit_rejected` | Negocio · inventario | obligatorio | backend + frontend | stream · ≤ 60 s |
+| 4 | `stock_threshold_triggered` | Negocio · inventario | obligatorio | backend + frontend | stream · ≤ 60 s |
+| 5 | `login_failed` | Autenticación | obligatorio | backend + frontend | stream · ≤ 60 s |
 | 6 | `navigation_section_viewed` | Navegación y flujos | obligatorio | frontend | batch · diario |
 | 7 | `flow_abandoned` | Navegación y flujos | obligatorio | frontend | batch · diario |
 | 8 | `inbound_order_created` | Negocio · inventario | oportunidad | backend | batch · diario |
 | 9 | `ingredient_created` | Negocio · inventario | oportunidad | backend | batch · diario |
 | 10 | `outbound_overdraw_warning_shown` | Negocio · inventario | oportunidad | frontend | batch · diario |
 | 11 | `stock_snapshot_recorded` | Negocio · inventario | oportunidad | job | batch · diario |
-| 12 | `incident_created` | Negocio · incidencias | oportunidad | backend | batch · diario |
-| 13 | `incident_status_changed` | Negocio · incidencias | oportunidad | backend | batch · cada hora |
-| 14 | `incident_csv_analyzed` | Negocio · incidencias | oportunidad | backend | batch · diario |
+| 12 | `incident_created` | Negocio · incidencias | oportunidad | backend + frontend | batch · diario |
+| 13 | `incident_status_changed` | Negocio · incidencias | oportunidad | backend + frontend | batch · cada hora |
+| 14 | `incident_csv_analyzed` | Negocio · incidencias | oportunidad | backend + frontend | batch · diario |
 | 15 | `incident_list_filtered` | Negocio · incidencias | oportunidad | frontend | batch · diario |
 | 16 | `incident_results_exported` | Negocio · incidencias | oportunidad | backend | batch · diario |
 | 17 | `supplier_rate_updated` | Negocio · proveedores | oportunidad | backend | batch · diario |
-| 18 | `login_succeeded` | Autenticación | oportunidad | backend | batch · diario |
+| 18 | `login_succeeded` | Autenticación | oportunidad | backend + frontend | batch · diario |
 | 19 | `session_expired` | Autenticación | oportunidad | frontend | batch · diario |
-| 20 | `password_reset_requested` | Autenticación | oportunidad | backend | batch · cada hora |
-| 21 | `password_reset_completed` | Autenticación | oportunidad | backend | batch · diario |
-| 22 | `password_reset_failed` | Autenticación | oportunidad | backend | batch · diario |
-| 23 | `user_registered` | Autenticación | oportunidad | backend | batch · cada hora |
-| 24 | `api_latency_recorded` | Rendimiento | oportunidad | backend | batch · cada hora |
+| 20 | `password_reset_requested` | Autenticación | oportunidad | backend + frontend | batch · cada hora |
+| 21 | `password_reset_completed` | Autenticación | oportunidad | backend + frontend | batch · diario |
+| 22 | `password_reset_failed` | Autenticación | oportunidad | backend + frontend | batch · diario |
+| 23 | `user_registered` | Autenticación | oportunidad | backend + frontend | batch · cada hora |
+| 24 | `api_latency_recorded` | Rendimiento | oportunidad | backend + frontend | batch · cada hora |
 | 25 | `web_vital_measured` | Rendimiento | oportunidad | frontend | batch · diario |
 | 26 | `api_unhandled_error_raised` | Errores | oportunidad | backend | stream · ≤ 60 s |
 | 27 | `frontend_error_captured` | Errores | oportunidad | frontend | batch · cada hora |
@@ -215,7 +215,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.1 `outbound_order_created`
 
-**Negocio · inventario** · **obligatorio** · emite: **backend** · entrega: **batch** (cada hora)
+**Negocio · inventario** · **obligatorio** · emite: **backend + frontend** · entrega: **batch** (cada hora)
 
 > Capturamos `outbound_order_created` porque necesitamos saber cuántas órdenes de salida se registran por día, restaurante e insumo, y si ese volumen refleja el consumo real de cocina o mermas, lo que nos permite tomar la decisión de ajustar los pedidos de reposición por restaurante y detectar días con consumo anómalo.
 
@@ -237,7 +237,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.2 `inventory_validation_failed`
 
-**Negocio · inventario** · **obligatorio** · emite: **backend** · entrega: **batch** (diario)
+**Negocio · inventario** · **obligatorio** · emite: **backend + frontend** · entrega: **batch** (diario)
 
 > Capturamos `inventory_validation_failed` porque necesitamos saber qué productos acumulan más errores de validación y si esos rechazos se concentran en pocos insumos, lo que nos permite tomar la decisión de dar un stock de seguridad mayor o corregir los datos maestros de esos insumos, y decidir si hay que bloquear antes en la interfaz.
 
@@ -259,7 +259,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.3 `direct_stock_edit_rejected`
 
-**Negocio · inventario** · **obligatorio** · emite: **backend** · entrega: **stream** (≤ 60 s)
+**Negocio · inventario** · **obligatorio** · emite: **backend + frontend** · entrega: **stream** (≤ 60 s)
 
 > Capturamos `direct_stock_edit_rejected` porque necesitamos saber si hay usuarios o clientes que intentan fijar el stock directamente en lugar de usar órdenes de entrada y salida, y cuántas veces lo repiten, lo que nos permite tomar la decisión de dar formación, crear un flujo oficial de «ajuste de inventario» (con motivo y aprobación) o alertar de seguridad sobre esa cuenta.
 
@@ -280,7 +280,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.4 `stock_threshold_triggered`
 
-**Negocio · inventario** · **obligatorio** · emite: **backend** · entrega: **stream** (≤ 60 s)
+**Negocio · inventario** · **obligatorio** · emite: **backend + frontend** · entrega: **stream** (≤ 60 s)
 
 > Capturamos `stock_threshold_triggered` porque necesitamos saber cuándo y dónde se disparan más las alertas de stock mínimo, y si la reposición llega tarde en ciertos restaurantes u horarios, lo que nos permite tomar la decisión de avisar de inmediato al encargado del restaurante para pedir reposición y, a medio plazo, redefinir umbrales y frecuencia de pedido por restaurante.
 
@@ -302,7 +302,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.5 `login_failed`
 
-**Autenticación** · **obligatorio** · emite: **backend** · entrega: **stream** (≤ 60 s)
+**Autenticación** · **obligatorio** · emite: **backend + frontend** · entrega: **stream** (≤ 60 s)
 
 > Capturamos `login_failed` porque necesitamos saber cuántos intentos de login fallidos hay por día y si son olvidos de contraseña (pocos intentos por cuenta) o ataques de relleno de credenciales (muchas cuentas desde un mismo origen), lo que nos permite tomar la decisión de activar un bloqueo temporal o limitación de intentos y reforzar el flujo de recuperación de contraseña.
 
@@ -314,9 +314,9 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 | Propiedad | Tipo | Oblig. | Descripción y restricciones |
 |---|---|:-:|---|
-| `failureReason` | texto | sí | Causa interna (nunca se devuelve al cliente: la API sigue respondiendo el mismo mensaje). (valores: `unknown_account`, `wrong_password`) |
-| `accountKey` | texto | sí | HMAC truncado del email intentado (16 hex). (formato validado por patrón) |
-| `sourceKey` | texto | sí | HMAC truncado de la IP, clave rotada a diario (16 hex). (formato validado por patrón) |
+| `failureReason` | texto | sí | Causa. Backend: `unknown_account`/`wrong_password` (nunca se devuelve al cliente). Frontend: `invalid_credentials` (401), `network_error` (sin respuesta), `server_error` (otro estado). (valores: `unknown_account`, `wrong_password`, `invalid_credentials`, `network_error`, `server_error`) |
+| `accountKey` | texto | no | HMAC truncado del email intentado (16 hex). (formato validado por patrón) |
+| `sourceKey` | texto | no | HMAC truncado de la IP, clave rotada a diario (16 hex). (formato validado por patrón) |
 
 ### 5.6 `navigation_section_viewed`
 
@@ -439,7 +439,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.12 `incident_created`
 
-**Negocio · incidencias** · **oportunidad** · emite: **backend** · entrega: **batch** (diario)
+**Negocio · incidencias** · **oportunidad** · emite: **backend + frontend** · entrega: **batch** (diario)
 
 > Capturamos `incident_created` porque necesitamos saber cuántas incidencias se crean por sede, origen y categoría, y qué sedes generan más fallos operativos frente a quejas, lo que nos permite tomar la decisión de dirigir mantenimiento o formación a las sedes con más fallos operativos y medir si bajan.
 
@@ -458,7 +458,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.13 `incident_status_changed`
 
-**Negocio · incidencias** · **oportunidad** · emite: **backend** · entrega: **batch** (cada hora)
+**Negocio · incidencias** · **oportunidad** · emite: **backend + frontend** · entrega: **batch** (cada hora)
 
 > Capturamos `incident_status_changed` porque necesitamos saber cuánto tarda una incidencia en resolverse según su categoría y cuántas se descartan, lo que nos permite tomar la decisión de definir un objetivo de tiempo de resolución por categoría y escalar las que lo superen.
 
@@ -478,7 +478,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.14 `incident_csv_analyzed`
 
-**Negocio · incidencias** · **oportunidad** · emite: **backend** · entrega: **batch** (diario)
+**Negocio · incidencias** · **oportunidad** · emite: **backend + frontend** · entrega: **batch** (diario)
 
 > Capturamos `incident_csv_analyzed` porque necesitamos saber con qué frecuencia el CSV se rechaza o trae una proporción alta de filas inválidas, lo que nos permite tomar la decisión de arreglar la exportación de origen o mejorar los mensajes de validación del análisis.
 
@@ -551,7 +551,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.18 `login_succeeded`
 
-**Autenticación** · **oportunidad** · emite: **backend** · entrega: **batch** (diario)
+**Autenticación** · **oportunidad** · emite: **backend + frontend** · entrega: **batch** (diario)
 
 > Capturamos `login_succeeded` porque necesitamos saber cuántos inicios de sesión correctos hay por día, para calcular la proporción de fallos y cuánta gente usa el backoffice, lo que nos permite tomar la decisión de calibrar el umbral de bloqueo por intentos fallidos y dimensionar el soporte de acceso.
 
@@ -586,7 +586,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.20 `password_reset_requested`
 
-**Autenticación** · **oportunidad** · emite: **backend** · entrega: **batch** (cada hora)
+**Autenticación** · **oportunidad** · emite: **backend + frontend** · entrega: **batch** (cada hora)
 
 > Capturamos `password_reset_requested` porque necesitamos saber cuántas solicitudes de restablecimiento son de correos no registrados (sondeo) y cuántas fallan al enviar el email, lo que nos permite tomar la decisión de alertar de los fallos de envío y limitar las solicitudes por origen.
 
@@ -603,7 +603,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.21 `password_reset_completed`
 
-**Autenticación** · **oportunidad** · emite: **backend** · entrega: **batch** (diario)
+**Autenticación** · **oportunidad** · emite: **backend + frontend** · entrega: **batch** (diario)
 
 > Capturamos `password_reset_completed` porque necesitamos saber qué parte de los restablecimientos solicitados se completa y cuánto tarda la gente en usar el enlace, lo que nos permite tomar la decisión de ajustar la caducidad del enlace (30 min) o simplificar el proceso.
 
@@ -619,7 +619,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.22 `password_reset_failed`
 
-**Autenticación** · **oportunidad** · emite: **backend** · entrega: **batch** (diario)
+**Autenticación** · **oportunidad** · emite: **backend + frontend** · entrega: **batch** (diario)
 
 > Capturamos `password_reset_failed` porque necesitamos saber por qué fallan los enlaces de restablecimiento: caducados, ya usados o inválidos, lo que nos permite tomar la decisión de alargar la caducidad o mostrar un mensaje distinto según la causa.
 
@@ -636,7 +636,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.23 `user_registered`
 
-**Autenticación** · **oportunidad** · emite: **backend** · entrega: **batch** (cada hora)
+**Autenticación** · **oportunidad** · emite: **backend + frontend** · entrega: **batch** (cada hora)
 
 > Capturamos `user_registered` porque necesitamos saber cuántas cuentas nuevas se crean por día y si hay altas inesperadas, lo que nos permite tomar la decisión de cerrar el registro público o exigir invitación o aprobación de un administrador.
 
@@ -654,7 +654,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 
 ### 5.24 `api_latency_recorded`
 
-**Rendimiento** · **oportunidad** · emite: **backend** · entrega: **batch** (cada hora)
+**Rendimiento** · **oportunidad** · emite: **backend + frontend** · entrega: **batch** (cada hora)
 
 > Capturamos `api_latency_recorded` porque necesitamos saber qué endpoints son lentos o crecen con el volumen de datos en producción, lo que nos permite tomar la decisión de elegir qué endpoint paginar o cachear a continuación con datos reales.
 
@@ -671,7 +671,7 @@ Cada evento cumple la regla de oro: *«Capturamos [`event_type`] porque necesita
 | `statusClass` | texto | sí | Familia del código de estado. (valores: `2xx`, `3xx`, `4xx`, `5xx`) |
 | `durationMs` | número | sí | Tiempo de servidor en ms. (≥ 0) |
 | `responseBytes` | entero | no | Tamaño de la respuesta si se conoce (`Content-Length`). (≥ 0) |
-| `cache` | texto | sí | Resultado de caché (`none` si el endpoint no usa caché). (valores: `hit`, `miss`, `none`) |
+| `cache` | texto | no | Resultado de caché (`none` si el endpoint no usa caché). (valores: `hit`, `miss`, `none`) |
 | `sampleRate` | número | sí | Probabilidad con la que se muestreó (1 o 0.05). (valores: `1`, `0.05`) |
 
 ### 5.25 `web_vital_measured`
@@ -1048,3 +1048,13 @@ Con ≈ 400 bytes por evento son **unos 2,5 MB al día (< 1 GB al año)**: el co
 | Datos sensibles identificados con su tratamiento | §6.2 |
 | Riesgos y exclusiones con pensamiento crítico | §8 |
 | Suficientemente preciso para implementar sin preguntar | §5 (dónde se emite, cuándo no) y §9 (orden, pruebas, decisiones abiertas) |
+
+## Revisión 1.1.0 (captura en el frontend)
+
+Al implementar la captura (`feat: telemetry event capture`) se detectó que varios eventos obligatorios estaban definidos solo con origen `backend`, pero el ticket exige capturarlos desde el backoffice. Cambios (compatibles: *minor*, salvo el enum ampliado de `login_failed`, aditivo):
+
+- **`source` admite `frontend`** además del original en 14 eventos: `outbound_order_created`, `inventory_validation_failed`, `stock_threshold_triggered`, `direct_stock_edit_rejected`, `login_failed`, `login_succeeded`, `incident_created`, `incident_status_changed`, `incident_csv_analyzed`, `password_reset_requested`, `password_reset_completed`, `password_reset_failed`, `user_registered`, `api_latency_recorded`. Son observaciones del cliente sobre una respuesta de la API; al consolidar se deduplican por (`event_type`, `requestId`) y manda la versión `backend`.
+- **`login_failed` (frontend):** `failureReason` suma `invalid_credentials` (401), `network_error` (sin respuesta) y `server_error` (otro estado). `accountKey` y `sourceKey` pasan a opcionales: el navegador no los conoce y **nunca** envía email, contraseña ni IP.
+- **`api_latency_recorded.cache`** pasa a opcional (el cliente solo lo sabe si la API devuelve `X-Cache`).
+- **`sessionId`:** el cliente lo genera al iniciar sesión y lo guarda en memoria/`sessionStorage`; antes del login se usa un identificador anónimo efímero.
+

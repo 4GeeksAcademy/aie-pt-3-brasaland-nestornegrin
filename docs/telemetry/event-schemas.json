@@ -4,7 +4,7 @@
   "title": "Brasaland · esquemas de eventos de telemetría",
   "description": "Un evento válido cumple exactamente UNO de los esquemas de `definitions.events`. Todos comparten el Event Envelope (`definitions.envelope`). Las claves `x-catalog` son metadatos de diseño (hipótesis, decisión, entrega, privacidad) y no participan en la validación.",
   "x-catalogSummary": {
-    "schemaVersion": "1.0.0",
+    "schemaVersion": "1.1.0",
     "totalEvents": 31,
     "mandatoryEvents": 7,
     "identifiedOpportunities": 24,
@@ -214,13 +214,16 @@
             "const": "outbound_order_created"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -321,13 +324,16 @@
             "const": "inventory_validation_failed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -435,13 +441,16 @@
             "const": "direct_stock_edit_rejected"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -558,13 +567,16 @@
             "const": "stock_threshold_triggered"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -672,30 +684,34 @@
             "const": "login_failed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
             "additionalProperties": false,
             "required": [
-              "failureReason",
-              "accountKey",
-              "sourceKey"
+              "failureReason"
             ],
             "properties": {
               "failureReason": {
                 "type": "string",
                 "enum": [
                   "unknown_account",
-                  "wrong_password"
+                  "wrong_password",
+                  "invalid_credentials",
+                  "network_error",
+                  "server_error"
                 ],
-                "description": "Causa interna (nunca se devuelve al cliente: la API sigue respondiendo el mismo mensaje)."
+                "description": "Causa. Backend: `unknown_account`/`wrong_password` (nunca se devuelve al cliente). Frontend: `invalid_credentials` (401), `network_error` (sin respuesta), `server_error` (otro estado)."
               },
               "accountKey": {
                 "type": "string",
@@ -759,7 +775,7 @@
             "const": "navigation_section_viewed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -880,7 +896,7 @@
             "const": "flow_abandoned"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -1004,7 +1020,7 @@
             "const": "inbound_order_created"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -1105,7 +1121,7 @@
             "const": "ingredient_created"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -1192,7 +1208,7 @@
             "const": "outbound_overdraw_warning_shown"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -1284,7 +1300,7 @@
             "const": "stock_snapshot_recorded"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -1386,13 +1402,16 @@
             "const": "incident_created"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -1500,13 +1519,16 @@
             "const": "incident_status_changed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -1610,13 +1632,16 @@
             "const": "incident_csv_analyzed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -1709,7 +1734,7 @@
             "const": "incident_list_filtered"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -1795,7 +1820,7 @@
             "const": "incident_results_exported"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -1875,7 +1900,7 @@
             "const": "supplier_rate_updated"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -1968,13 +1993,16 @@
             "const": "login_succeeded"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -2040,7 +2068,7 @@
             "const": "session_expired"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -2152,13 +2180,16 @@
             "const": "password_reset_requested"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -2233,13 +2264,16 @@
             "const": "password_reset_completed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -2305,13 +2339,16 @@
             "const": "password_reset_failed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -2386,13 +2423,16 @@
             "const": "user_registered"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -2471,13 +2511,16 @@
             "const": "api_latency_recorded"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
           },
           "source": {
-            "const": "backend"
+            "enum": [
+              "backend",
+              "frontend"
+            ]
           },
           "properties": {
             "type": "object",
@@ -2487,7 +2530,6 @@
               "routeTemplate",
               "statusClass",
               "durationMs",
-              "cache",
               "sampleRate"
             ],
             "properties": {
@@ -2597,7 +2639,7 @@
             "const": "web_vital_measured"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -2710,7 +2752,7 @@
             "const": "api_unhandled_error_raised"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -2808,7 +2850,7 @@
             "const": "frontend_error_captured"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -2910,7 +2952,7 @@
             "const": "network_request_failed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -3015,7 +3057,7 @@
             "const": "request_validation_failed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -3122,7 +3164,7 @@
             "const": "flow_started"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
@@ -3230,7 +3272,7 @@
             "const": "flow_completed"
           },
           "schemaVersion": {
-            "const": "1.0.0"
+            "const": "1.1.0"
           },
           "requestId": {
             "$ref": "#/definitions/envelope/properties/requestId"
