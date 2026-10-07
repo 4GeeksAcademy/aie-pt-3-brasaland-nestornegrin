@@ -1,14 +1,20 @@
 """TinyDB database initialization."""
 
+import os
 from pathlib import Path
 
 from tinydb import TinyDB
 
-DATABASE_PATH = Path(__file__).resolve().parent.parent / "suppliers.json"
-USERS_DATABASE_PATH = Path(__file__).resolve().parent.parent / "users.json"
-PROFILES_DATABASE_PATH = Path(__file__).resolve().parent.parent / "profiles.json"
-INCIDENTS_DATABASE_PATH = Path(__file__).resolve().parent.parent / "incidents.json"
-PASSWORD_RESETS_DATABASE_PATH = Path(__file__).resolve().parent.parent / "password_resets.json"
+# Carpeta de los ficheros TinyDB. Por defecto es services/api (comportamiento
+# de siempre); BRASALAND_DATA_DIR permite apuntar a otra carpeta, p. ej. para
+# medir con un volumen grande de datos sin tocar los datos de desarrollo.
+DATA_DIR = Path(os.environ.get("BRASALAND_DATA_DIR") or Path(__file__).resolve().parent.parent)
+
+DATABASE_PATH = DATA_DIR / "suppliers.json"
+USERS_DATABASE_PATH = DATA_DIR / "users.json"
+PROFILES_DATABASE_PATH = DATA_DIR / "profiles.json"
+INCIDENTS_DATABASE_PATH = DATA_DIR / "incidents.json"
+PASSWORD_RESETS_DATABASE_PATH = DATA_DIR / "password_resets.json"
 
 
 def get_database() -> TinyDB:
@@ -19,8 +25,6 @@ def get_database() -> TinyDB:
 # Kept in this same module alongside the TinyDB setup above: the app
 # maintains two simultaneous DB connections on purpose (auth stays in
 # TinyDB, inventory/orders move to Supabase).
-import os
-
 from dotenv import load_dotenv
 from sqlmodel import Session, create_engine
 
