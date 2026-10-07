@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, readApiError } from "@/lib/api-client";
+import { useFlowTracking } from "@/lib/use-flow-tracking";
 
 export function ResetPasswordForm() {
   const router = useRouter();
@@ -15,12 +16,14 @@ export function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [invalidToken, setInvalidToken] = useState(!token);
+  const flow = useFlowTracking("password_reset", "reset_password"); // telemetría
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
     if (newPassword !== confirmPassword) {
+      flow.submitAttempt(false);
       setError("Las contraseñas no coinciden.");
       return;
     }
@@ -33,6 +36,7 @@ export function ResetPasswordForm() {
         false,
       );
       if (!response.ok) {
+        flow.submitAttempt(false);
         if (response.status === 400) {
           setInvalidToken(true);
         } else {
@@ -40,8 +44,10 @@ export function ResetPasswordForm() {
         }
         return;
       }
+      flow.submitAttempt(true);
       router.replace("/login");
     } catch {
+      flow.submitAttempt(false);
       setError("No se pudo conectar con el servidor. Inténtalo de nuevo en unos minutos.");
     } finally {
       setLoading(false);
@@ -65,11 +71,11 @@ export function ResetPasswordForm() {
     <form onSubmit={submit} className="space-y-5 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
       <div>
         <label htmlFor="new-password" className="block text-sm font-bold">Nueva contraseña</label>
-        <input id="new-password" required minLength={8} type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
+        <input id="new-password" required minLength={8} type="password" value={newPassword} onChange={(event) => { flow.touch("NewPassword"); setNewPassword(event.target.value); }} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
       </div>
       <div>
         <label htmlFor="confirm-password" className="block text-sm font-bold">Confirmar nueva contraseña</label>
-        <input id="confirm-password" required minLength={8} type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
+        <input id="confirm-password" required minLength={8} type="password" value={confirmPassword} onChange={(event) => { flow.touch("ConfirmPassword"); setConfirmPassword(event.target.value); }} className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2" />
       </div>
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p> : null}
       <button disabled={loading} className="w-full rounded-lg bg-red-800 px-4 py-2 font-bold text-white hover:bg-red-900 disabled:opacity-60">{loading ? "Guardando..." : "Restablecer contraseña"}</button>
