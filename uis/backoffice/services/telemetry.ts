@@ -194,7 +194,8 @@ async function sendWithRetry(url: string, events: QueuedEvent[]): Promise<boolea
     try {
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // text/plain: cabecera "simple" de CORS (sin preflight), igual que sendBeacon.
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
         body,
         keepalive: true,
       });
@@ -238,7 +239,7 @@ export function flushWithBeacon(): void {
   try {
     while (queue.length > 0) {
       const batch = queue.splice(0, MAX_BATCH_SIZE);
-      const blob = new Blob([JSON.stringify({ events: batch })], { type: "application/json" });
+      const blob = new Blob([JSON.stringify({ events: batch })], { type: "text/plain;charset=UTF-8" });
       if (typeof navigator.sendBeacon !== "function" || !navigator.sendBeacon(url, blob)) break;
     }
   } catch {
@@ -252,6 +253,8 @@ function installListeners(): void {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flushWithBeacon();
   });
+  // Cierre/recarga de la pestaña: visibilitychange no siempre se dispara a tiempo.
+  window.addEventListener("pagehide", flushWithBeacon);
 }
 
 /** Solo para tests: reinicia el estado interno del módulo. */

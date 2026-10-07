@@ -40,3 +40,21 @@ def test_invalid_envelope_rejected(client):
     del bad["eventId"]
     response = client.post("/telemetry/events", json={"events": [bad]})
     assert response.status_code == 400
+
+
+def test_accepts_text_plain_body(client):
+    # sendBeacon/fetch del frontend usan text/plain para evitar el preflight de CORS.
+    import json
+
+    response = client.post(
+        "/telemetry/events",
+        content=json.dumps({"events": [_event()]}),
+        headers={"Content-Type": "text/plain;charset=UTF-8"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"received": 1}
+
+
+def test_malformed_json_rejected(client):
+    response = client.post("/telemetry/events", content="not json", headers={"Content-Type": "text/plain"})
+    assert response.status_code == 400
