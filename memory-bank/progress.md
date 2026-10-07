@@ -199,3 +199,11 @@
   frontend sin errores (las 2 páginas nuevas generan como contenido
   estático).
 
+
+## Auditoría de serialización de la API
+
+- Auditados todos los endpoints de `services/api` (33 lógicos); el detalle por endpoint, con su estado inicial y final, está en `docs/serialization-audit.md`. Ningún endpoint devolvía un objeto ORM ni `hashed_password`; los problemas eran esquemas de salida heredados del de entrada, claves de almacenamiento expuestas, el email repetido en el registro y `/api/incidents/analyze` devolviendo un `dict` sin tipar.
+- Nuevos esquemas de salida: `ProfilePublic`, `RegisterResponse`, `UserListItem` (auth), `SupplierResponse`, `IncidentResponse`, `IncidentListItem` y `AnalysisResponse`. `OrderResponse.type` pasa a `Literal["inbound", "outbound"]`.
+- `POST /users` ya no devuelve el email (solo `id` y `message`); `is_active` en `PUT /users/{id}` pasa a requerir admin; `POST /auth/login` exige `email` o `username`.
+- `user_uuid` en las órdenes de inventario se conserva a propósito: la tabla del backoffice lo muestra.
+- Verificado: 53 tests (42 existentes + 11 de contrato en `tests/test_serialization.py`; 7 de los nuevos fallan contra el código anterior) y prueba manual con `uvicorn` y `curl`. El frontend no necesitó cambios.
