@@ -216,3 +216,11 @@
 - **Fase 3 (instrumentación):** ver la descripción del PR. Esquema revisado a 1.1.0 (11 eventos admiten `source: frontend`; `login_failed` con motivos del cliente).
 - Verificado: 47 tests de la API, 55 de jest (incluye contrato con `ajv` contra `event-schemas.json`), `tsc`, `npm run build` y prueba real con Chromium: 7 lotes, todos `200`.
 - Pendiente/limitaciones: `direct_stock_edit_rejected` no tiene ruta en la UI; `supplier_rate_updated`, `inbound_order_created`, `password_reset_*`, `incident_results_exported` y las vistas de secciones diferidas de la home no se capturan en el cliente.
+
+
+## Almacenamiento de telemetría (`feat: telemetry event storage`)
+
+- **Tabla** `telemetry_events` en Supabase (`services/api/migrations/001_create_telemetry_events.sql`): 8 columnas (`id`, `event_id` UNIQUE, `event_type`, `timestamp`, `service`, `user_id`, `session_id`, `tags` JSONB), índices en `timestamp`, `event_type` y GIN en `tags`, trigger que bloquea UPDATE/DELETE y RLS activado. La API también la crea al arrancar (`create_all`); la migración es la definición de referencia.
+- **Endpoint real** `POST /telemetry/events` (reemplaza el stub; mismo envelope y misma URL, el frontend no cambió): body laxo, `TelemetryEvent.model_validate` por evento, rechazo individual (envelope inválido, `event_type` fuera del plan, faltan propiedades obligatorias), `tags` filtrado por la allowlist (`allowlists.py` se genera con `python -m app.telemetry.generate_allowlists`), una sola sentencia INSERT multi-VALUES con `ON CONFLICT (event_id) DO NOTHING`, respuesta `{received, stored, rejected}`.
+- Decisión: `requestId` y `schemaVersion` se validan pero no se guardan (el ticket fija 8 columnas); un `eventId` repetido cuenta como `rejected`.
+- Verificado con Postgres real: migración idempotente, índices, trigger, `tags @>` y E2E con el backoffice sin cambios (eventos técnicos y de negocio en la tabla).

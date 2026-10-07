@@ -1058,3 +1058,24 @@ Al implementar la captura (`feat: telemetry event capture`) se detectó que vari
 - **`api_latency_recorded.cache`** pasa a opcional (el cliente solo lo sabe si la API devuelve `X-Cache`).
 - **`sessionId`:** el cliente lo genera al iniciar sesión y lo guarda en memoria/`sessionStorage`; antes del login se usa un identificador anónimo efímero.
 
+
+## Almacenamiento (`feat: telemetry event storage`)
+
+Los eventos validados se guardan en la tabla `telemetry_events` de Supabase (`services/api/migrations/001_create_telemetry_events.sql`). Es una tabla de **solo escritura**: no hay UPDATE ni DELETE en el código y un trigger los bloquea en la base de datos.
+
+| Columna | Tipo | Origen en el envelope |
+|---|---|---|
+| `id` | BIGSERIAL, PK | generado |
+| `event_id` | UUID, UNIQUE | `eventId` (un reintento no duplica el hecho) |
+| `event_type` | TEXT | `event_type` |
+| `timestamp` | TIMESTAMPTZ | `timestamp` |
+| `service` | TEXT | `source` (`backend`, `frontend`, `job`) |
+| `user_id` | TEXT | `userId` |
+| `session_id` | TEXT | `sessionId` |
+| `tags` | JSONB | `properties`, solo las claves de la allowlist del evento |
+
+Índices: `timestamp`, `event_type` y GIN sobre `tags`.
+
+**Dimensiones de Brasaland en `tags`.** `tags` es el `properties` completo, así que conserva las dimensiones específicas del dominio: `restaurant` (los 14 restaurantes: `outbound_order_created`, `inbound_order_created`, `inventory_validation_failed`, `stock_threshold_triggered`, `ingredient_created`, `stock_snapshot_recorded`) y `branch` (la sede o `central`: `incident_created`), además de `ingredientId`, `category`, `origin` y `section`/`flow` en navegación. Ejemplo: `tags @> '{"restaurant": "Brasaland Laureles"}'` usa el índice GIN.
+
+**Qué se guarda y qué se rechaza.** El endpoint valida cada evento con `TelemetryEvent` (envelope) y con la allowlist de este plan: un evento con envelope inválido, `event_type` fuera del catálogo o sin sus propiedades obligatorias se rechaza **individualmente** (no cancela el lote); las claves fuera de la allowlist se descartan y nunca se guardan. `requestId` y `schemaVersion` se validan pero no tienen columna (no se guardan). Un `eventId` ya guardado cuenta como rechazado.
