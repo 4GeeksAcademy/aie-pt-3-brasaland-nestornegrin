@@ -11,10 +11,9 @@ from .models import (
     LoginRequest,
     MeResponse,
     MessageResponse,
-    ProfileResponse,
+    ProfilePublic,
     ResetPasswordRequest,
     TokenResponse,
-    UserResponse,
 )
 from .security import (
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
@@ -56,7 +55,7 @@ def create_router() -> APIRouter:
         return MeResponse(
             email=user.email,
             role=user.role,
-            profile=ProfileResponse.model_validate(profile) if profile else None,
+            profile=ProfilePublic.model_validate(profile) if profile else None,
         )
 
     @router.post("/forgot-password", response_model=MessageResponse)

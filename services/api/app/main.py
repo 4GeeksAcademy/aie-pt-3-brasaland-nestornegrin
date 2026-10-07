@@ -22,6 +22,7 @@ from app.database import (
     PROFILES_DATABASE_PATH,
     USERS_DATABASE_PATH,
 )
+from app.incidents.models import AnalysisResponse
 from app.incidents.repository import IncidentRepository
 from app.incidents.routes import create_router as create_incidents_router
 from app.profiles.routes import create_router as create_profiles_router
@@ -78,11 +79,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "Ha ocurrido un error inesperado. Inténtalo de nuevo más tarde."})
 
 
-@app.post("/api/incidents/analyze")
+@app.post("/api/incidents/analyze", response_model=AnalysisResponse, tags=["incidents"])
 async def analyze_incidents(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
-) -> dict[str, object]:
+) -> AnalysisResponse:
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=415, detail="El fichero debe tener extensión .csv")
     content = await file.read()
@@ -98,18 +99,23 @@ async def analyze_incidents(
     global _latest_result
     with _result_lock:
         _latest_result = result
-    return {
-        "total_processed": result.total_processed,
-        "valid_records": result.valid_records,
-        "invalid_records": result.invalid_records,
-        "by_category": result.by_category,
-        "by_status": result.by_status,
-        "average_closed_satisfaction": result.average_closed_satisfaction,
-        "invalid_reasons": result.invalid_reasons,
-    }
+    return AnalysisResponse(
+        total_processed=result.total_processed,
+        valid_records=result.valid_records,
+        invalid_records=result.invalid_records,
+        by_category=result.by_category,
+        by_status=result.by_status,
+        average_closed_satisfaction=result.average_closed_satisfaction,
+        invalid_reasons=result.invalid_reasons,
+    )
 
 
-@app.get("/api/incidents/results/export")
+@app.get(
+    "/api/incidents/results/export",
+    tags=["incidents"],
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}}, "description": "CSV con columnas metric,dimension,value"}},
+)
 def export_latest_results(current_user=Depends(get_current_user)) -> StreamingResponse:
     with _result_lock:
         result = _latest_result

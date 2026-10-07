@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.auth.dependencies import get_current_user
-from app.auth.models import UserCreate, UserResponse, UserRole, UserUpdate
+from app.auth.models import RegisterResponse, UserCreate, UserListItem, UserResponse, UserRole, UserUpdate
 from app.auth.security import hash_password
 
 
 def create_router() -> APIRouter:
     router = APIRouter(prefix="/users", tags=["users"])
 
-    @router.post("", response_model=UserResponse, status_code=201)
-    def create_user(payload: UserCreate) -> UserResponse:
+    @router.post("", response_model=RegisterResponse, status_code=201)
+    def create_user(payload: UserCreate) -> RegisterResponse:
         from app.main import profile_repository, user_repository
 
         email = str(payload.email).lower()
@@ -17,15 +17,15 @@ def create_router() -> APIRouter:
             raise HTTPException(status_code=409, detail="El email ya está registrado")
         user = user_repository.create(email, hash_password(payload.password))
         profile_repository.create(user.id, payload.name, payload.phone, payload.address)
-        return UserResponse.model_validate(user)
+        return RegisterResponse(id=user.id)
 
-    @router.get("", response_model=list[UserResponse])
-    def list_users(current_user=Depends(get_current_user)) -> list[UserResponse]:
+    @router.get("", response_model=list[UserListItem])
+    def list_users(current_user=Depends(get_current_user)) -> list[UserListItem]:
         from app.main import user_repository
 
         if current_user.role != UserRole.ADMIN:
             raise HTTPException(status_code=403, detail="Solo un admin puede listar usuarios")
-        return [UserResponse.model_validate(user) for user in user_repository.list()]
+        return [UserListItem.model_validate(user) for user in user_repository.list()]
 
     @router.get("/{user_id}", response_model=UserResponse)
     def get_user(user_id: int, current_user=Depends(get_current_user)) -> UserResponse:
@@ -46,6 +46,8 @@ def create_router() -> APIRouter:
             raise HTTPException(status_code=403, detail="No puedes modificar este usuario")
         if payload.role is not None and current_user.role != UserRole.ADMIN:
             raise HTTPException(status_code=403, detail="Solo un admin puede cambiar roles")
+        if payload.is_active is not None and current_user.role != UserRole.ADMIN:
+            raise HTTPException(status_code=403, detail="Solo un admin puede activar o desactivar cuentas")
         if payload.email is not None:
             existing = user_repository.get_by_email(str(payload.email).lower())
             if existing is not None and existing.id != user_id:
