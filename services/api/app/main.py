@@ -114,6 +114,7 @@ async def analyze_incidents(
     "/api/incidents/results/export",
     tags=["incidents"],
     response_class=StreamingResponse,
+    response_model=None,
     responses={200: {"content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}}, "description": "CSV con columnas metric,dimension,value"}},
 )
 def export_latest_results(current_user=Depends(get_current_user)) -> StreamingResponse:

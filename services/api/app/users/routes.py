@@ -58,7 +58,7 @@ def create_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         return UserResponse.model_validate(user)
 
-    @router.delete("/{user_id}", status_code=204)
+    @router.delete("/{user_id}", status_code=204, response_model=None)
     def delete_user(user_id: int, current_user=Depends(get_current_user)) -> None:
         from app.main import profile_repository, user_repository
 

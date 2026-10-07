@@ -48,7 +48,7 @@ def create_router(repository: SupplierRepository, prefix: str = "/api/suppliers"
             raise HTTPException(status_code=404, detail="Proveedor no encontrado")
         return SupplierResponse.model_validate(supplier)
 
-    @router.delete("/{supplier_id}", status_code=204)
+    @router.delete("/{supplier_id}", status_code=204, response_model=None)
     def delete_supplier(supplier_id: str) -> None:
         if not repository.delete(supplier_id):
             raise HTTPException(status_code=404, detail="Proveedor no encontrado")

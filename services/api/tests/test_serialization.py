@@ -1,6 +1,8 @@
 """Contrato de serialización: forma exacta de las respuestas y ausencia de
 campos internos. Complementa los tests por endpoint de auth."""
 
+from fastapi.routing import APIRoute
+
 import app.main as main_module
 from app.auth.models import UserUpdate
 
@@ -143,3 +145,27 @@ def test_no_output_schema_exposes_credential_fields():
             continue
         leaked = FORBIDDEN_OUTPUT_FIELDS & set(schema.get("properties", {}))
         assert not leaked, f"{name} expone {leaked}"
+
+
+def _api_routes(routes):
+    """Recorre las rutas, incluidas las de los routers montados con include_router."""
+    for route in routes:
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            yield from _api_routes(inner.routes)
+        elif isinstance(route, APIRoute):
+            yield route
+
+
+def test_every_route_declares_an_explicit_response_model_or_has_no_body():
+    """Cada operación declara response_model; las únicas excepciones son las
+    que no devuelven JSON: borrados (204, sin cuerpo) y la descarga CSV."""
+    without_model = []
+    for route in _api_routes(main_module.app.routes):
+        if route.response_model is None:
+            without_model.append((route.status_code, route.path))
+    assert without_model, "se esperaban los borrados 204 y la exportación CSV"
+    for status_code, path in without_model:
+        assert status_code == 204 or path == "/api/incidents/results/export", (
+            f"{path} no declara response_model"
+        )
