@@ -55,6 +55,7 @@ def main() -> None:
     parser.add_argument("--label", default="medicion")
     parser.add_argument("--email", default="medicion@example.com")
     parser.add_argument("--password", default="ValidPass123")
+    parser.add_argument("--inventory", action="store_true", help="medir también /inventory (requiere Postgres con datos)")
     parser.add_argument("--out", help="guardar los resultados en este fichero JSON")
     args = parser.parse_args()
 
@@ -65,7 +66,8 @@ def main() -> None:
     token = json.loads(body)["access_token"]
 
     results = []
-    for name, path in ENDPOINTS:
+    endpoints = ENDPOINTS + ([("GET /inventory/products", "/inventory/products"), ("GET /inventory/orders", "/inventory/orders")] if args.inventory else [])
+    for name, path in endpoints:
         times, size = [], 0
         for _ in range(args.requests):
             status, payload, headers = request(args.base, "GET", path, token)
