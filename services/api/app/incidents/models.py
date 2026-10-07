@@ -89,6 +89,38 @@ class Incident(IncidentBase):
     updated_at: datetime
 
 
+class IncidentResponse(BaseModel):
+    """Detalle de una incidencia (POST, GET /{id}, PATCH status). Esquema de
+    salida propio: no hereda de IncidentBase, que es el contrato de entrada."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str
+    category: IncidentCategory
+    origin: IncidentOrigin
+    branch: Branch
+    status: IncidentStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+class IncidentListItem(BaseModel):
+    """Fila del listado (GET /api/incidents). La tabla del backoffice solo
+    muestra estos campos, así que se omiten description (texto largo) y los
+    timestamps: el detalle completo se pide por id."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    category: IncidentCategory
+    origin: IncidentOrigin
+    branch: Branch
+    status: IncidentStatus
+
+
 class StatusUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -101,3 +133,16 @@ class IncidentSummary(BaseModel):
     by_category: dict[str, int]
     by_origin: dict[str, int]
     by_branch: dict[str, int]
+
+
+
+class AnalysisResponse(BaseModel):
+    """Resultado de POST /api/incidents/analyze (análisis de un CSV subido)."""
+
+    total_processed: int
+    valid_records: int
+    invalid_records: int
+    by_category: dict[str, int]
+    by_status: dict[str, int]
+    average_closed_satisfaction: float | None
+    invalid_reasons: dict[str, int]

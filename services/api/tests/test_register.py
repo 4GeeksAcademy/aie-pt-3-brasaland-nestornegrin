@@ -7,7 +7,9 @@ def test_register_happy_path_creates_the_user_and_never_returns_the_password(cli
 
     assert response.status_code == 201
     body = response.json()
-    assert body["email"] == "new@example.com"
+    # El email ya viaja en la petición: la respuesta de registro no lo repite.
+    assert set(body) == {"id", "message"}
+    assert "email" not in body
     assert "password" not in body
     assert "hashed_password" not in body
 
