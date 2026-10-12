@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
+import { useFlowTracking } from "@/lib/use-flow-tracking";
+import { track } from "@/services/telemetry";
 
 type Analysis = {
   total_processed: number;
@@ -20,6 +22,7 @@ export function IncidentAnalysis() {
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const flow = useFlowTracking("csv_analysis", "incident_analysis"); // telemetría
 
   async function submitFile() {
     if (!file) {
@@ -31,10 +34,30 @@ export function IncidentAnalysis() {
     setAnalysis(null);
     const formData = new FormData();
     formData.append("file", file);
+    const startedAt = performance.now();
     try {
       const response = await apiFetch("/api/incidents/analyze", { method: "POST", body: formData });
-      if (!response.ok) throw new Error(await readApiError(response, "No se pudo analizar el fichero"));
-      setAnalysis((await response.json()) as Analysis);
+      const durationMs = Math.round(performance.now() - startedAt);
+      if (!response.ok) {
+        // Telemetría: nunca el nombre del fichero ni su contenido, solo el resultado.
+        track("incident_csv_analyzed", {
+          outcome: !file.name.toLowerCase().endsWith(".csv") ? "rejected_extension" : file.size === 0 ? "rejected_empty" : "rejected_format",
+          fileSizeBytes: file.size,
+          durationMs,
+        });
+        flow.submitAttempt(false);
+        throw new Error(await readApiError(response, "No se pudo analizar el fichero"));
+      }
+      const result = (await response.json()) as Analysis;
+      track("incident_csv_analyzed", {
+        outcome: "analyzed",
+        fileSizeBytes: file.size,
+        totalRows: result.total_processed,
+        invalidRows: result.invalid_records,
+        durationMs,
+      });
+      flow.submitAttempt(true);
+      setAnalysis(result);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "No se pudo conectar con la API");
     } finally {
@@ -75,7 +98,7 @@ export function IncidentAnalysis() {
             id="incident-file"
             type="file"
             accept=".csv,text/csv"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            onChange={(event) => { flow.touch("file"); setFile(event.target.files?.[0] ?? null); }}
             className="block max-w-full text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-red-800 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-red-900"
           />
           <button
