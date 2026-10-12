@@ -224,3 +224,10 @@
 - **Endpoint real** `POST /telemetry/events` (reemplaza el stub; mismo envelope y misma URL, el frontend no cambió): body laxo, `TelemetryEvent.model_validate` por evento, rechazo individual (envelope inválido, `event_type` fuera del plan, faltan propiedades obligatorias), `tags` filtrado por la allowlist (`allowlists.py` se genera con `python -m app.telemetry.generate_allowlists`), una sola sentencia INSERT multi-VALUES con `ON CONFLICT (event_id) DO NOTHING`, respuesta `{received, stored, rejected}`.
 - Decisión: `requestId` y `schemaVersion` se validan pero no se guardan (el ticket fija 8 columnas); un `eventId` repetido cuenta como `rejected`.
 - Verificado con Postgres real: migración idempotente, índices, trigger, `tags @>` y E2E con el backoffice sin cambios (eventos técnicos y de negocio en la tabla).
+
+
+## Pipeline de desempeño de negocio (`feat: add business performance pipeline design document`)
+
+- **Solo diseño, sin código de orquestación:** `data/pipelines/PIPELINE_DESIGN.md` (Estado actual y brecha, propósito, extracción, diagrama E-T-L, actualizaciones/upsert, tablas destino, idempotencia, log de ejecución, mapeo a Prefect, 3 endpoints en `services/reporting/`, respuestas a las 10 preguntas de diseño).
+- **Entregable de negocio:** consolidado diario «Desempeño de Inventario por Restaurante» (`reporting.restaurant_inventory_daily`, PK `(report_date, restaurant)`) con K1–K6 sobre `outbound_order_created`, `stock_threshold_triggered` e `inventory_validation_failed`. `telemetry_events` es solo fuente; no se toca `analysis.py` ni `GET /telemetry/report`; v1 no añade campos al payload.
+- **Pendiente de validar (⚑ en el documento):** el repo no tiene `CONTEXT-company.md` de data pipelines (sin «KPIs a medir» ni «Destination table»); KPIs, nombre de tabla y frecuencia se derivaron de `CONTEXT.es.md` (Hito 6), `company-choice.md` y el plan de telemetría. Hoy solo el frontend emite eventos; el backend aún no.
