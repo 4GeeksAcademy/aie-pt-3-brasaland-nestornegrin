@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import ValidationError
 from sqlmodel import Session
 
+from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.telemetry.allowlists import EVENT_ALLOWLISTS
 from app.telemetry.models import TelemetryEvent, TelemetryReceipt
+from app.telemetry.report import get_report
 from app.telemetry.repository import insert_events
 
 logger = logging.getLogger("telemetry")
@@ -43,8 +45,11 @@ def build_tags(event: TelemetryEvent) -> dict[str, Any] | None:
 
 
 def create_router() -> APIRouter:
-    """Router de telemetría. Sin autenticación: los eventos de login fallido y
-    errores ocurren antes de tener sesión y `sendBeacon` no puede enviar cabeceras."""
+    """Router de telemetría.
+
+    `POST /telemetry/events` (ingesta) NO exige autenticación: los eventos de login fallido
+    y errores ocurren antes de tener sesión y `sendBeacon` no puede enviar cabeceras.
+    `GET /telemetry/report` (lectura) SÍ la exige: expone datos internos del sistema."""
     router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
     @router.post("/events", response_model=TelemetryReceipt)
@@ -98,5 +103,22 @@ def create_router() -> APIRouter:
         for row in rows:
             logger.info("telemetry event: %s", row["event_type"])
         return TelemetryReceipt(received=received, stored=stored, rejected=rejected)
+
+    @router.get("/report", dependencies=[Depends(get_current_user)])
+    def telemetry_report(
+        response: Response,
+        start_date: datetime | None = Query(default=None, description="ISO 8601, inclusivo. Por defecto: end_date − 7 días (UTC)."),
+        end_date: datetime | None = Query(default=None, description="ISO 8601, exclusivo. Por defecto: ahora (UTC)."),
+        session: Session = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Reporte técnico: métricas operacionales calculadas por `analysis.py`.
+
+        Este handler no calcula nada: el período se resuelve una vez, el pipeline de
+        análisis hace el trabajo y el resultado se cachea 60 s por combinación de fechas.
+        La cabecera `X-Cache` (HIT/MISS) indica si se recalculó.
+        """
+        report, from_cache = get_report(session, start_date, end_date)
+        response.headers["X-Cache"] = "HIT" if from_cache else "MISS"
+        return report
 
     return router
