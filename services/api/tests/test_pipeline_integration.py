@@ -218,17 +218,17 @@ def test_an_optional_task_failure_does_not_interrupt_extract_transform_load(monk
 
     monkeypatch.setattr(pipeline, "export_eval_snapshot", broken_export)
     result = run()
-    assert result["status"] == "completed" and result["optional_failures"] == ["export_eval_snapshot"]
+    assert result["status"] == "completed" and result["optional_failures"] == ["export_inventory_validation_snapshot"]
     assert daily()[(YESTERDAY, POBLADO)]["outbound_orders"] == 2  # el ETL principal terminó
     with engine.connect() as connection:
         errors = connection.execute(text("SELECT errors FROM reporting.pipeline_runs")).scalar_one()
-    assert errors[0]["stage"] == "export_eval_snapshot" and errors[0]["severity"] == "warning" and "disco lleno" in errors[0]["message"]
+    assert errors[0]["stage"] == "export_inventory_validation_snapshot" and errors[0]["severity"] == "warning" and "disco lleno" in errors[0]["message"]
 
 
 def test_invalid_kpis_block_the_load(monkeypatch):
     seed()
-    real = pipeline.kpi.compute_daily_kpis
-    monkeypatch.setattr(pipeline.kpi, "compute_daily_kpis", lambda *args, **kwargs: real(*args, **kwargs).assign(outbound_orders=-1))
+    real = pipeline.kpi.assemble_daily_kpis
+    monkeypatch.setattr(pipeline.kpi, "assemble_daily_kpis", lambda *args, **kwargs: real(*args, **kwargs).assign(outbound_orders=-1))
     with pytest.raises(pipeline.PipelineStageError):
         run()
     assert daily() == {}  # una carga mala es peor que ninguna carga
@@ -239,8 +239,8 @@ def test_invalid_kpis_block_the_load(monkeypatch):
 def test_the_expensive_transform_is_not_repeated_within_the_hour(monkeypatch):
     seed()
     calls = []
-    real = pipeline.kpi.compute_daily_kpis
-    monkeypatch.setattr(pipeline.kpi, "compute_daily_kpis", lambda *args, **kwargs: calls.append(1) or real(*args, **kwargs))
+    real = pipeline.kpi.assemble_daily_kpis
+    monkeypatch.setattr(pipeline.kpi, "assemble_daily_kpis", lambda *args, **kwargs: calls.append(1) or real(*args, **kwargs))
     run()
     run()
     assert len(calls) == 1  # la segunda corrida reutilizó el resultado (misma clave de caché: mismos datos)
