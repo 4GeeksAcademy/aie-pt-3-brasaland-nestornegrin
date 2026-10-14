@@ -1,6 +1,6 @@
 # Pipeline de Desempeño de Negocio — Documento de diseño
 
-**Compañía:** Brasaland (14 restaurantes en Colombia y Florida) · **Fase:** diseño (sin código de orquestación todavía) · **Orquestador previsto:** Prefect · **Estado:** propuesta v1 para revisión del tech lead
+**Compañía:** Brasaland (14 restaurantes en Colombia y Florida) · **Fase:** diseño aprobado + implementación (Parte 2) · **Orquestador:** Prefect 3 · **Estado:** v1 implementada; ver «Cambios respecto a la versión aprobada» al final
 
 ---
 
@@ -12,7 +12,7 @@ Este documento diseña un pipeline de datos **nuevo** cuyo único trabajo es con
 
 | Regla | Cómo se cumple |
 |---|---|
-| El reporte técnico de telemetría se queda como está | No se modifica `services/telemetry/analysis.py` ni `GET /telemetry/report`; este pipeline no los importa ni los llama (ver §1.3). |
+| El reporte técnico de telemetría se queda como está | No se modifica el módulo de análisis (en este repo es `services/api/app/telemetry/analysis.py`) ni `GET /telemetry/report`; este pipeline no los importa ni los llama (ver §1.3). |
 | `telemetry_events` es la **fuente**, nunca el destino | El pipeline solo hace `SELECT` sobre `telemetry_events`. Todo lo que escribe vive en el esquema nuevo `reporting`. |
 | Resultado en tablas nuevas bajo el esquema `reporting` | §6: `reporting.restaurant_inventory_daily` + 4 tablas de apoyo. |
 | Expuesto por un módulo nuevo `services/reporting/` | §9: tres endpoints, separados de `services/telemetry/` y de `GET /telemetry/report`. |
@@ -62,7 +62,7 @@ Para no inventar un KPI genérico, este diseño **deriva** el contexto de fuente
 
 El reporte técnico de telemetría responde preguntas **de ingeniería** sobre el sistema: *volumen de eventos por tipo y hora, tasa de errores (`api_unhandled_error_raised`, `frontend_error_captured`, `network_request_failed`), latencia (`api_latency_recorded`), Web Vitals, fallos de login*. Es una lectura sobre `telemetry_events` pensada para depurar.
 
-> **Nota de honestidad sobre el estado del repo.** En la rama sobre la que se escribe este diseño no existen todavía `services/telemetry/analysis.py` ni `GET /telemetry/report` (la telemetría vive hoy en `services/api/app/telemetry/` con captura y almacenamiento). El diseño los trata como **intocables por contrato**: sean los que existan o los que se añadan, este pipeline ni los edita, ni los importa, ni comparte tablas con ellos.
+> **Nota de honestidad sobre el estado del repo.** El ticket habla de `services/telemetry/analysis.py`; en este repo el análisis técnico vive en `services/api/app/telemetry/analysis.py` (y `GET /telemetry/report` en el router de telemetría). El diseño y la implementación los tratan como **intocables por contrato**: este pipeline ni los edita, ni los importa, ni comparte tablas con ellos (hay un test de arquitectura que lo verifica).
 
 ### 1.4 La brecha: la pregunta de negocio que sigue sin respuesta
 
@@ -337,15 +337,15 @@ Mínimo exigido: 5 campos. Se registran **20**.
 
 | Concepto Prefect | Nombre propuesto | Etapa | Notas |
 |---|---|---|---|
-| **Flow** | `inventory_performance_daily_flow(trigger, triggered_by, date_from=None, date_to=None)` | todo el pipeline | Ubicado en `data/pipelines/inventory_performance/flows.py` |
-| Task | `acquire_run_lock_and_start_run` | control | `pg_try_advisory_lock` + inserta fila `running`; si no obtiene el candado → `skipped_locked` |
+| **Flow** | `inventory_performance_daily_flow(trigger, triggered_by, date_from=None, date_to=None)` | todo el pipeline | Implementado en `data/pipelines/pipeline.py` (punto de entrada del ticket) |
+| Task | `acquire_run_lock_and_start_run` | control | Inserta la fila `running`; el índice único parcial `ux_pipeline_runs_one_running` actúa de candado: si ya hay una → `skipped_locked`. Antes, las filas `running` con heartbeat > 10 min pasan a `crashed` |
 | Task | `read_checkpoint` | extracción | Lee `pipeline_watermarks.last_event_id` |
 | Task | **`extract_telemetry_events`** | **Extracción** | Páginas de 5.000; `retries=3`, backoff 30 s / 2 min / 5 min (lectura segura de reintentar) |
 | Task | `extract_domain_snapshot` | extracción | Salidas (razón de merma), stock al cierre local, `dim_restaurant` |
 | Task | **`transform_daily_kpis`** | **Transformación** | Llama a `data/process/business_kpis.py` (funciones puras); sin reintentos (determinista) |
 | Task | `validate_kpis` | transformación | Controles de calidad: sin negativos, `rate ∈ [0,100]`, cobertura razonable; falla el flow si no pasan |
 | Task | **`load_restaurant_inventory_daily`** | **Carga** | Una transacción: upsert + revisiones + checkpoint; `retries=2` (seguro por idempotencia) |
-| Task | `finish_run` | control | Cierra la fila de `pipeline_runs` y libera el candado (también en fallo, vía `finally`) |
+| Task | `finish_run` | control | Cierra la fila de `pipeline_runs` (liberando el candado) incluso si una etapa falló; luego se relanza el fallo original |
 | Flow opcional (v1) | `inventory_performance_backfill_flow(date_from, date_to)` | recuperación | Reprocesa un rango de días con el mismo código; en la Parte 3 las etapas pasarían a subflows |
 
 **Despliegue:** `inventory-performance-daily/production`, programación cron `0 10 * * *` (UTC) ⚑, `concurrency_limit = 1` por etiqueta `reporting-inventory-performance` (segunda defensa además del candado de BD).
@@ -362,14 +362,15 @@ Mínimo exigido: 5 campos. Se registran **20**.
 | `Crashed` | El worker murió (OOM, contenedor reciclado) | `crashed` (lo fija la siguiente corrida por heartbeat) |
 | `Cancelled` | Cancelación manual | `failed` con motivo en `errors` |
 
-### 8.3 Configuración y credenciales como Prefect Blocks
+### 8.3 Configuración y credenciales (implementado con variables de entorno)
 
-| Block | Tipo | Contenido |
+El diseño proponía Prefect Blocks. En la v1 se implementó con variables de entorno y `settings.py`, para no exigir un servidor de Prefect con Blocks registrados (ver «Cambios»).
+
+| Elemento | Dónde vive | Contenido |
 |---|---|---|
-| `supabase-brasaland-reporting` | `SqlAlchemyConnector` | Conexión al pooler de Supabase (`psycopg`), con un rol que tiene `SELECT` sobre `telemetry_events` y las tablas de inventario, y `INSERT/UPDATE` **solo** en el esquema `reporting` (menor privilegio: no puede escribir en `telemetry_events`) |
-| `supabase-database-url` | `Secret` | La cadena de conexión (nunca en el código ni en el repo) |
-| `inventory-kpi-settings` | `JSON` | `low_threshold=30`, `critical_threshold=10`, `lookback_days=3`, `watermark_overlap=2000`, `page_size=5000`, zona horaria por país |
-| `ops-failure-notification` | `Secret` / bloque de notificación (opcional) | Aviso por correo (Resend, ya usado en el repo) cuando una corrida falla |
+| Conexión a Supabase | `DATABASE_URL` (`.env`, nunca en el repo) | Misma cadena que usa la API |
+| Parámetros del pipeline | `data/pipelines/inventory_performance/settings.py` | `low_threshold=30`, `critical_threshold=10`, `lookback_days=3`, `watermark_overlap=2000`, `page_size=5000`, `heartbeat_timeout=10 min`, `cache_expiration=1 h`; sobreescribibles por entorno |
+| Menor privilegio | Pendiente de producción | Rol con `SELECT` en origen e `INSERT/UPDATE` solo en `reporting` (§12) |
 
 ---
 
@@ -385,7 +386,7 @@ Todos bajo `/reporting`, protegidos con el mismo `get_current_user` (JWT) que el
 | 2 | `POST /reporting/inventory-performance/runs` | **Disparo manual** (cuerpo opcional `{date_from, date_to}` para recalcular un rango) | `202 {run_id, status:"queued"}`; `409 {run_id}` si ya hay una corrida activa | `inventory_performance.api.trigger_inventory_performance_run(triggered_by, date_from, date_to)` (invoca el despliegue de Prefect `inventory-performance-daily/production`) |
 | 3 | `GET /reporting/inventory-performance/kpis?from=&to=&restaurant=&country=&granularity=day\|week` | **Consulta de KPIs**: el feed que consumirá el dashboard de la Parte 3 | `200 {items:[{report_date, restaurant, country, K1..K6, capture_health, revision}], generated_at}` | `inventory_performance.api.query_inventory_kpis(filters)` |
 
-Reglas de diseño: el `GET …/kpis` solo lee `reporting.*`; nunca consulta `telemetry_events` ni llama a `GET /telemetry/report`. El endpoint 2 hoy solo exige autenticación (no existe modelo de roles en el repo; riesgo anotado en §12).
+Reglas de diseño: el `GET …/kpis` solo lee `reporting.*`; nunca consulta `telemetry_events` ni llama a `GET /telemetry/report`. El endpoint 2 hoy solo exige autenticación (`get_current_user`). El repo sí tiene roles de usuario, pero ninguno es de «operaciones»; riesgo anotado en §12.
 
 ### 9.2 Estructura de carpetas propuesta
 
@@ -393,20 +394,21 @@ Reglas de diseño: el `GET …/kpis` solo lee `reporting.*`; nunca consulta `tel
 data/
   pipelines/
     PIPELINE_DESIGN.md                    ← este documento
+    pipeline.py                           ← flows y tasks de Prefect; `python data/pipelines/pipeline.py`
     inventory_performance/
-      flows.py                            ← inventory_performance_daily_flow, …_backfill_flow
-      tasks.py                            ← extract_*, transform_daily_kpis, load_*, …
       api.py                              ← get_pipeline_status / trigger_… / query_inventory_kpis
-      settings.py                         ← lectura de los Blocks
-      sql/                                ← consultas de extracción y upsert
+      db.py                               ← esquema, candado de corridas, carga idempotente
+      queries.py                          ← lecturas de origen (solo SELECT)
+      settings.py                         ← umbrales, reintentos, cron
+      windows.py                          ← validación de rangos
   process/
-    business_kpis.py                      ← funciones puras reutilizables (dedupe, día local, K1–K6, kpi_hash)
+    business_kpis.py                      ← funciones puras (dedupe, día local, K1–K6, kpi_hash)
 services/
-  reporting/                              ← NUEVO, separado de telemetry y de /telemetry/report
+  reporting/                              ← separado de telemetry y de /telemetry/report
     router.py                             ← los 3 endpoints
     schemas.py                            ← modelos de petición/respuesta
 services/api/migrations/
-  002_create_reporting_schema.sql         ← esquema `reporting` y tablas (implementación)
+  002_create_reporting_schema.sql         ← esquema `reporting` y tablas
 ```
 
 ### 9.3 Dirección de las dependencias
@@ -437,11 +439,11 @@ services/api/migrations/
 
 ### Transversal
 
-10. **Corridas concurrentes (cron + disparo manual).** *Prevención:* `pg_try_advisory_lock` sobre una clave fija del pipeline y límite de concurrencia 1 en Prefect; la segunda corrida registra `skipped_locked` y el endpoint devuelve `409` con el `run_id` activo. *Si aun así se solaparan:* ambas recalculan lo mismo y el `UPSERT` solo sobrescribe cuando `EXCLUDED.source_max_event_id ≥ t.source_max_event_id` (gana el más reciente, sin pérdida). *Recuperación:* un candado de sesión se libera al morir la conexión; una fila `running` con `heartbeat_at` > 10 min se marca `crashed` al arrancar la siguiente corrida. *Qué se observa:* `status`, `skipped_locked`, `heartbeat_at`.
+10. **Corridas concurrentes (cron + disparo manual).** *Prevención:* índice único parcial sobre `pipeline_runs` (una sola fila `running`) más `pg_advisory_xact_lock` dentro de la carga; la segunda corrida registra `skipped_locked` y el endpoint devuelve `409` con el `run_id` activo. *Si aun así se solaparan:* ambas recalculan lo mismo y el `UPSERT` solo sobrescribe cuando `EXCLUDED.source_max_event_id ≥ t.source_max_event_id` (gana el más reciente, sin pérdida). *Recuperación:* el candado es una fila, no una conexión: una fila `running` con `heartbeat_at` > 10 min se marca `crashed` al arrancar la siguiente corrida. *Qué se observa:* `status`, `skipped_locked`, `heartbeat_at`.
 
 ---
 
-## 11. Trazabilidad con los criterios de evaluación
+## 11. Trazabilidad con los criterios de evaluación (Parte 1)
 
 | Criterio | Dónde |
 |---|---|
@@ -464,5 +466,39 @@ services/api/migrations/
 2. **Emisión solo desde el frontend.** Hoy K1/K4/K5 solo ven lo hecho desde la interfaz; `telemetry_coverage_pct` lo mide y la emisión desde el backend (ya prevista en el plan) la cierra. El diseño ya deduplica para ese día.
 3. **Regla de merma sobre texto libre** (`reason` empieza por «Merma»); candidata de mejora: `reasonCategory` (§2.4).
 4. **Zona horaria por país**, no por restaurante individual; Colombia no tiene horario de verano, Florida sí (cubierto por `America/New_York`).
-5. **Disparo manual solo con autenticación** (no hay roles en la API): conviene un rol «operaciones» antes de producción.
+5. **Disparo manual solo con autenticación** (la API tiene roles, pero ninguno de «operaciones»): conviene restringirlo a un rol antes de producción.
 6. **Umbrales 30/10** siguen en el frontend; este pipeline los toma de un Block de configuración y debería alinearse con la configuración de servidor que pide el plan de telemetría.
+
+---
+## 13. Cambios respecto a la versión aprobada
+
+| Punto del diseño | Implementación | Motivo |
+|---|---|---|
+| Ruta de `analysis.py` (`services/telemetry/`) | Es `services/api/app/telemetry/analysis.py` | El repo real; no se toca |
+| Candado `pg_try_advisory_lock` | Índice único parcial en `pipeline_runs` + `pg_advisory_xact_lock` en la carga | Funciona con el pooler de Supabase en modo transacción (un candado de sesión no es fiable allí) |
+| Flows en `flows.py`/`tasks.py`, SQL en `sql/` | Todo en `data/pipelines/pipeline.py`; consultas en `queries.py` | El ticket exige el script `data/pipelines/pipeline.py` |
+| Prefect Blocks | Variables de entorno + `settings.py` | Sin servidor de Prefect con Blocks en v1 |
+| «No hay modelo de roles» | Sí hay roles; el disparo exige solo autenticación | Corrección de un error del diseño |
+| `CONTEXT-company.md` | No existe; se usan las propuestas ⚑ | Pendiente de validar con el tech lead |
+
+## 14. Ejecución y frecuencia
+
+- **Frecuencia:** diaria, `0 10 * * *` UTC (05:00 en Bogotá; cierra el día local anterior de ambos husos). Cada corrida recalcula los últimos 3 días locales y los buckets afectados por eventos tardíos.
+- **Una corrida:** `python data/pipelines/pipeline.py`
+- **Rango manual (reproceso):** `python data/pipelines/pipeline.py --date-from 2026-10-01 --date-to 2026-10-07`
+- **Programada (cron de Prefect):** `python data/pipelines/pipeline.py --serve`
+- **Manual vía API:** `POST /reporting/inventory-performance/runs` (202, o 409 si ya hay una activa).
+- Requiere `DATABASE_URL`; el esquema `reporting` se crea solo (idempotente).
+
+## 15. Trazabilidad con los criterios de evaluación (Parte 2)
+
+| Criterio | Dónde |
+|---|---|
+| Flow + tasks extract/transform/load, task opcional con `return_state=True` | `pipeline.py` (`export_eval_snapshot`, `_run_stage`) |
+| `retries`/`retry_delay_seconds` justificados | comentarios en cada `@task` de `pipeline.py` |
+| Fallo manejado explícitamente | `_run_stage` → `PipelineStageError`; `finish_run` siempre se ejecuta |
+| Caché con `cache_key_fn` y `cache_expiration` | `transform_daily_kpis` |
+| Carga idempotente (upsert) | `db.load_daily_kpis`, `ON CONFLICT (report_date, restaurant)` |
+| Log con ≥ 5 campos | `reporting.pipeline_runs` (§7.2) |
+| Se ejecuta con `python data/pipelines/pipeline.py` | §14 |
+| 3 endpoints en `services/reporting/` importando de `data/pipelines/` | `router.py`, §9 |

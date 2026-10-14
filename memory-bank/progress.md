@@ -239,3 +239,14 @@
 - **Solo diseño, sin código de orquestación:** `data/pipelines/PIPELINE_DESIGN.md` (Estado actual y brecha, propósito, extracción, diagrama E-T-L, actualizaciones/upsert, tablas destino, idempotencia, log de ejecución, mapeo a Prefect, 3 endpoints en `services/reporting/`, respuestas a las 10 preguntas de diseño).
 - **Entregable de negocio:** consolidado diario «Desempeño de Inventario por Restaurante» (`reporting.restaurant_inventory_daily`, PK `(report_date, restaurant)`) con K1–K6 sobre `outbound_order_created`, `stock_threshold_triggered` e `inventory_validation_failed`. `telemetry_events` es solo fuente; no se toca `analysis.py` ni `GET /telemetry/report`; v1 no añade campos al payload.
 - **Pendiente de validar (⚑ en el documento):** el repo no tiene `CONTEXT-company.md` de data pipelines (sin «KPIs a medir» ni «Destination table»); KPIs, nombre de tabla y frecuencia se derivaron de `CONTEXT.es.md` (Hito 6), `company-choice.md` y el plan de telemetría. Hoy solo el frontend emite eventos; el backend aún no.
+
+
+## Pipeline resiliente de desempeño de negocio (`feat: implement resilient business performance pipeline`)
+
+- **Implementa el diseño** de `data/pipelines/PIPELINE_DESIGN.md` con Prefect 3: `data/pipelines/pipeline.py` (flow `inventory_performance_daily_flow` + backfill; tasks extract → transform → load; `python data/pipelines/pipeline.py [--date-from --date-to --serve]`). Transformaciones puras en `data/process/business_kpis.py`; acceso a datos en `data/pipelines/inventory_performance/`.
+- **Resiliencia:** `retries`/`retry_delay_seconds` justificados por task; fallos manejados con `return_state=True` (`PipelineStageError`, `finish_run` siempre se ejecuta); task opcional `export_eval_snapshot`; caché de `transform_daily_kpis` con `cache_key_fn` + `cache_expiration` (1 h).
+- **Idempotencia:** upsert `ON CONFLICT (report_date, restaurant)` con `kpi_hash`, revisiones append-only y checkpoint por `telemetry_events.id` (solape 2000) en la misma transacción; candado por índice único parcial en `pipeline_runs`; filas `running` sin heartbeat → `crashed`.
+- **Tablas** (`services/api/migrations/002_create_reporting_schema.sql`, esquema `reporting`): `restaurant_inventory_daily`, `…_revisions`, `dim_restaurant`, `pipeline_watermarks`, `pipeline_runs`. `telemetry_events` solo se lee.
+- **Endpoints** `services/reporting/` (autenticados): `GET /reporting/inventory-performance/status`, `POST …/runs` (202/409/400), `GET …/kpis`. Importan de `data/pipelines/`; nunca al revés.
+- **Decisiones/limitaciones:** no existe `CONTEXT-company.md` (se usan las propuestas ⚑); `analysis.py` real en `services/api/app/telemetry/` (intacto); el disparo manual solo exige autenticación; Dockerfile debe copiar `data/` y `services/reporting/`.
+- Verificado: suite por defecto (104 passed, 15 skipped) y 15 tests de integración contra Postgres real; dos ejecuciones seguidas (2.ª: transform en caché, 0 insertadas, 43 sin cambios).
