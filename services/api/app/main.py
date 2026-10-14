@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import sys
+from pathlib import Path
 from threading import Lock
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
@@ -10,6 +12,12 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+# `data/` (pipelines) y `services/reporting/` viven en la raíz del monorepo, fuera de `services/api`:
+# se añade la raíz al path para poder importarlos, arranque la API desde donde arranque.
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.analyze import AnalysisResult, analyze_csv_text
 from app.auth.dependencies import get_current_user
@@ -30,6 +38,7 @@ from app.telemetry.routes import create_router as create_telemetry_router
 from app.routes.suppliers import create_router
 from app.users.routes import create_router as create_users_router
 from app.inventory.routes import create_router as create_inventory_router
+from services.reporting.router import create_router as create_reporting_router
 from app.database import engine
 from sqlmodel import SQLModel
 
@@ -56,6 +65,7 @@ app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 app.include_router(create_incidents_router(incident_repository))
 app.include_router(create_telemetry_router())
+app.include_router(create_reporting_router())  # pipeline de desempeño de negocio (services/reporting/, separado de telemetry)
 
 # Inventory (Supabase/SQLModel) - create schema, then mount routes.
 SQLModel.metadata.create_all(engine)
