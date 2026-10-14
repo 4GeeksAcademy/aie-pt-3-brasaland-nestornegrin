@@ -1,3 +1,7 @@
 __pycache__/
 *.egg-info/
 .coverage
+
+# Salida generada en cada corrida del pipeline de desempeño de negocio (data/pipelines/pipeline.py)
+data/eval/inventory_performance_last_run.json
+data/eval/*.tmp
