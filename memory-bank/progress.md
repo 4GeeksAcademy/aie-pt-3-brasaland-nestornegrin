@@ -199,3 +199,54 @@
   frontend sin errores (las 2 páginas nuevas generan como contenido
   estático).
 
+
+
+## Plan de telemetría (diseño, sin código)
+
+- `docs/telemetry/telemetry-plan.md` y `docs/telemetry/event-schemas.json` (JSON Schema draft-07): 31 eventos (7 obligatorios + 24 oportunidades identificadas) en 7 categorías, Event Envelope común, allowlist por evento, registro de datos sensibles, estrategia stream/batch (4 stream, 27 batch), riesgos y exclusiones, y guía de implementación.
+- El `CONTEXT.es.md` del repo no define métricas de telemetría; se tomaron como obligatorias las siete preguntas del mensaje del tech lead (órdenes de salida/día, errores de validación por producto, intentos de editar stock, alertas de stock mínimo, logins fallidos, secciones más visitadas, flujos abandonados). Si el CONTEXT oficial trae otras, se añaden sin cambiar el envelope.
+- Hallazgos del código registrados en el plan: el umbral de stock (10/30) solo existe en el frontend; no hay `X-Request-ID` ni sesión de servidor (JWT sin estado); el login no limita intentos; el registro es público; el alta de insumos no comprueba el rol.
+- Verificado: el esquema valida como draft-07, cada evento tiene un ejemplo válido y casos inválidos rechazados (propiedad fuera de la allowlist, envelope incompleto, `source` incorrecto), y el plan y el JSON salen de la misma fuente.
+
+
+## Captura de eventos de telemetría (`feat: telemetry event capture`)
+
+- **Fase 1 (stub):** `POST /telemetry/events` en `services/api/app/telemetry/` (router propio). Acepta `{ "events": [...] }`, registra el nº de eventos y cada `event_type`, responde `{ "received": N }`. Modelo `TelemetryEvent` = envelope del plan. Lee el cuerpo en crudo (acepta `text/plain`) para que `sendBeacon` no necesite preflight de CORS. `TELEMETRY_ENDPOINT` declarada en `.env.example` (aún sin uso).
+- **Fase 2 (servicio):** `uis/backoffice/services/telemetry.ts` con `track(eventType, properties)`: cola en memoria, lotes cada 10 s o 20 eventos, `sendBeacon` en `visibilitychange`/`pagehide`, 3 reintentos con backoff exponencial y descarte, campos estándar automáticos y validación contra la allowlist (`telemetry-schema.ts` se genera con `python3 scripts/gen-telemetry-schema.py`). URL en `NEXT_PUBLIC_TELEMETRY_ENDPOINT` (`.env.local`, no versionado).
+- **Fase 3 (instrumentación):** ver la descripción del PR. Esquema revisado a 1.1.0 (11 eventos admiten `source: frontend`; `login_failed` con motivos del cliente).
+- Verificado: 47 tests de la API, 55 de jest (incluye contrato con `ajv` contra `event-schemas.json`), `tsc`, `npm run build` y prueba real con Chromium: 7 lotes, todos `200`.
+- Pendiente/limitaciones: `direct_stock_edit_rejected` no tiene ruta en la UI; `supplier_rate_updated`, `inbound_order_created`, `password_reset_*`, `incident_results_exported` y las vistas de secciones diferidas de la home no se capturan en el cliente.
+
+
+## Almacenamiento de telemetría (`feat: telemetry event storage`)
+
+- **Tabla** `telemetry_events` en Supabase (`services/api/migrations/001_create_telemetry_events.sql`): 8 columnas (`id`, `event_id` UNIQUE, `event_type`, `timestamp`, `service`, `user_id`, `session_id`, `tags` JSONB), índices en `timestamp`, `event_type` y GIN en `tags`, trigger que bloquea UPDATE/DELETE y RLS activado. La API también la crea al arrancar (`create_all`); la migración es la definición de referencia.
+- **Endpoint real** `POST /telemetry/events` (reemplaza el stub; mismo envelope y misma URL, el frontend no cambió): body laxo, `TelemetryEvent.model_validate` por evento, rechazo individual (envelope inválido, `event_type` fuera del plan, faltan propiedades obligatorias), `tags` filtrado por la allowlist (`allowlists.py` se genera con `python -m app.telemetry.generate_allowlists`), una sola sentencia INSERT multi-VALUES con `ON CONFLICT (event_id) DO NOTHING`, respuesta `{received, stored, rejected}`.
+- Decisión: `requestId` y `schemaVersion` se validan pero no se guardan (el ticket fija 8 columnas); un `eventId` repetido cuenta como `rejected`.
+- Verificado con Postgres real: migración idempotente, índices, trigger, `tags @>` y E2E con el backoffice sin cambios (eventos técnicos y de negocio en la tabla).
+
+
+## Reporte técnico de telemetría (`feat: telemetry report endpoint`)
+
+- **Pipeline de análisis** `services/api/app/telemetry/analysis.py` (Pandas): 5 funciones de métrica independientes y sin efectos secundarios — `events_per_day`, `event_type_distribution`, `error_rate_by_type`, `latency_by_day`, `auth_failure_rate`. Fórmula fija: cargar (SQL con rango `[start, end)` y `event_type`) → refinar (campos de `tags`, flags `is_error`/`is_failure`) → `pd.to_datetime(utc=True)` → `groupby` → `agg`; sin bucles (un test lo comprueba con `ast`); cada una devuelve una lista de dicts serializable.
+- **Endpoint** `GET /telemetry/report` (`report.py` + `routes.py`): requiere autenticación (la ingesta `POST /telemetry/events` sigue pública); `start_date`/`end_date` ISO 8601 opcionales, por defecto los últimos 7 días en UTC (máx. 90, 400 si es vacío o invertido); resuelve el período una vez y lo pasa a todas las métricas; devuelve `{period, metrics}`; caché en memoria con TTL de 60 s por combinación de fechas (cabecera `X-Cache: HIT|MISS`; las peticiones sin parámetros comparten clave).
+- **Actividades adicionales hechas:** `auth_failure_rate` (con nuestros eventos `login_failed`/`login_succeeded`) y dashboard técnico `/telemetry` en `uis/backoffice` (tablas y barras CSS, muestra el `period`, ventanas 7 d/24 h/30 d).
+- **Decisiones:** `analysis.py` vive en el módulo existente `services/api/app/telemetry/` (no hay carpeta `services/telemetry/`); errores técnicos = `frontend_error_captured`, `network_request_failed`, `api_unhandled_error_raised`, `request_validation_failed` (los rechazos de reglas de negocio no cuentan); la latencia viene de `api_latency_recorded`, que el frontend muestrea (5 % de las rápidas), así que `samples` no es volumen real. Dependencia nueva: `pandas` (`requirements.txt`, `pyproject.toml`, `uv.lock`).
+- Verificado: 73 tests de la API (18 nuevos; también contra Postgres real), 55 de jest, `tsc`, build, y prueba en navegador con una réplica local de las 46 filas reales. Límite: hoy solo el frontend emite eventos, así que `api_unhandled_error_raised` y `request_validation_failed` (backend) no aparecen todavía.
+
+## Pipeline de desempeño de negocio (`feat: add business performance pipeline design document`)
+
+- **Solo diseño, sin código de orquestación:** `data/pipelines/PIPELINE_DESIGN.md` (Estado actual y brecha, propósito, extracción, diagrama E-T-L, actualizaciones/upsert, tablas destino, idempotencia, log de ejecución, mapeo a Prefect, 3 endpoints en `services/reporting/`, respuestas a las 10 preguntas de diseño).
+- **Entregable de negocio:** consolidado diario «Desempeño de Inventario por Restaurante» (`reporting.restaurant_inventory_daily`, PK `(report_date, restaurant)`) con K1–K6 sobre `outbound_order_created`, `stock_threshold_triggered` e `inventory_validation_failed`. `telemetry_events` es solo fuente; no se toca `analysis.py` ni `GET /telemetry/report`; v1 no añade campos al payload.
+- **Pendiente de validar (⚑ en el documento):** el repo no tiene `CONTEXT-company.md` de data pipelines (sin «KPIs a medir» ni «Destination table»); KPIs, nombre de tabla y frecuencia se derivaron de `CONTEXT.es.md` (Hito 6), `company-choice.md` y el plan de telemetría. Hoy solo el frontend emite eventos; el backend aún no.
+
+
+## Pipeline resiliente de desempeño de negocio (`feat: implement resilient business performance pipeline`)
+
+- **Implementa el diseño** de `data/pipelines/PIPELINE_DESIGN.md` con Prefect 3: `data/pipelines/pipeline.py` (flow `inventory_performance_daily_flow` + backfill; tasks extract → transform → load; `python data/pipelines/pipeline.py [--date-from --date-to --serve]`). Transformaciones puras en `data/process/business_kpis.py`; acceso a datos en `data/pipelines/inventory_performance/`.
+- **Resiliencia:** `retries`/`retry_delay_seconds` justificados por task; fallos manejados con `return_state=True` (`PipelineStageError`, `finish_run` siempre se ejecuta); task opcional `export_eval_snapshot`; caché de `transform_daily_kpis` con `cache_key_fn` + `cache_expiration` (1 h).
+- **Idempotencia:** upsert `ON CONFLICT (report_date, restaurant)` con `kpi_hash`, revisiones append-only y checkpoint por `telemetry_events.id` (solape 2000) en la misma transacción; candado por índice único parcial en `pipeline_runs`; filas `running` sin heartbeat → `crashed`.
+- **Tablas** (`services/api/migrations/002_create_reporting_schema.sql`, esquema `reporting`): `restaurant_inventory_daily`, `…_revisions`, `dim_restaurant`, `pipeline_watermarks`, `pipeline_runs`. `telemetry_events` solo se lee.
+- **Endpoints** `services/reporting/` (autenticados): `GET /reporting/inventory-performance/status`, `POST …/runs` (202/409/400), `GET …/kpis`. Importan de `data/pipelines/`; nunca al revés.
+- **Decisiones/limitaciones:** no existe `CONTEXT-company.md` (se usan las propuestas ⚑); `analysis.py` real en `services/api/app/telemetry/` (intacto); el disparo manual solo exige autenticación; Dockerfile debe copiar `data/` y `services/reporting/`.
+- Verificado: suite por defecto (104 passed, 15 skipped) y 15 tests de integración contra Postgres real; dos ejecuciones seguidas (2.ª: transform en caché, 0 insertadas, 43 sin cambios).
