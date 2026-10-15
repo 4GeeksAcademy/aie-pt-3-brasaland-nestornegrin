@@ -13,3 +13,5 @@ válidas y 10 inválidas, con errores de campos obligatorios, categoría, estado
 fecha y satisfacción. Las expectativas son: 90 válidos, 10 inválidos, 30
 incidencias por categoría, 60 `Abierto`, 30 `Cerrado`, 0 `Descartado` y una
 satisfacción media cerrada de 3.00.
+
+- **Respaldo nocturno de telemetría:** `telemetry_YYYY-MM-DD.csv` lo genera `scripts/nightly_export.py` (respaldo/auditoría del día anterior; el pipeline NO lo lee). Está en `.gitignore`: contiene datos de usuarios.

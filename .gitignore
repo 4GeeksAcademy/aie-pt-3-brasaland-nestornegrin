@@ -5,3 +5,7 @@ __pycache__/
 # Salida generada en cada corrida del pipeline de desempeño de negocio (data/pipelines/pipeline.py)
 data/eval/inventory_performance_last_run.json
 data/eval/*.tmp
+
+# Respaldo diario de telemetría que genera scripts/nightly_export.py (datos de usuarios: no se versionan)
+data/raw/telemetry_*.csv
+data/raw/telemetry_*.csv.tmp
