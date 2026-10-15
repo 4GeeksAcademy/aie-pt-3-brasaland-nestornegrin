@@ -90,10 +90,19 @@ def _as_dict(value: Any) -> dict[str, Any]:
     return {}
 
 
+def as_utc(timestamps: pd.Series) -> pd.Series:
+    """Serie de instantes en UTC. Las columnas `timestamp WITHOUT time zone` del dominio (`ingredient_exits.created_at`,
+    que la API escribe con `datetime.now(timezone.utc)`) llegan SIN zona: se interpretan como UTC, igual que ya se hace
+    con las entradas de stock. Si ya traen zona, solo se convierten."""
+    stamps = pd.to_datetime(timestamps, utc=False, errors="coerce")
+    return stamps.dt.tz_localize("UTC") if stamps.dt.tz is None else stamps.dt.tz_convert("UTC")
+
+
 def local_date(timestamps: pd.Series, zones: pd.Series) -> pd.Series:
-    """Día calendario LOCAL de cada instante UTC, según la zona IANA de su fila."""
+    """Día calendario LOCAL de cada instante UTC, según la zona IANA de su fila (los instantes sin zona se toman como UTC)."""
     if timestamps.empty:
         return pd.Series([], index=timestamps.index, dtype=object)
+    timestamps = as_utc(timestamps)
     parts = [stamps.dt.tz_convert(zone).dt.date for zone, stamps in timestamps.groupby(zones)]
     return pd.concat(parts).reindex(timestamps.index)
 
