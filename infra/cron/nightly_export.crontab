@@ -1,0 +1,17 @@
+# DEV-53 · Disparador del script nocturno de telemetría (scripts/nightly_export.py).
+#
+#   ┌ minuto (0)   ┌ hora (2)   ┌ día mes   ┌ mes   ┌ día semana
+#   0 2 * * *   → todas las noches a las 02:00 UTC
+#
+# Qué hace el script: exporta a CSV los eventos de AYER (UTC), lanza el pipeline y deja constancia en public.job_runs.
+# El script resuelve «ayer en UTC» por sí mismo, así que no depende de la zona horaria del servidor; aun así, 02:00 UTC
+# deja un margen de 2 h tras el cierre del día para eventos que llegan con retraso (y va ANTES del flow programado
+# del pipeline, 10:00 UTC, que recalcula con ventana móvil).
+#
+# SIN `flock` ni lockfile a propósito: el lock es el estado `processing` de job_runs (el ticket prohíbe un segundo
+# mecanismo). Si una noche tarda y el siguiente ciclo la encuentra corriendo, la segunda instancia aborta en silencio.
+#
+# Sustituye /ruta/al/repo y la ruta del intérprete (el que tiene las dependencias del monorepo instaladas).
+# `DATABASE_URL` se lee de /ruta/al/repo/.env o services/api/.env: cron arranca con un entorno casi vacío.
+CRON_TZ=UTC
+0 2 * * * cd /ruta/al/repo && /ruta/al/repo/.venv/bin/python scripts/nightly_export.py >> /var/log/brasaland/nightly_export.log 2>&1

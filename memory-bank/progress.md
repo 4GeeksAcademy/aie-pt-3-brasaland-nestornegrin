@@ -260,3 +260,13 @@
 - **Decisiones:** sigue sin existir `CONTEXT-company.md` (nombres ⚑ del diseño); `analysis.py` real en `services/api/app/telemetry/` (intacto). Mejoras adicionales anotadas en `PIPELINE_DESIGN.md` §16.2.
 - Verificado: pytest raíz 18, API 104 (+15 de integración contra Postgres), jest 66, `tsc`, eslint, `npm run build` y prueba en navegador con la API y datos reales.
 
+
+## Script nocturno de telemetría (`feat: add nightly telemetry export job (DEV-53)`)
+
+- **Tabla** `public.job_runs` (`services/api/migrations/003_create_job_runs.sql`): `id, job_name, target_date, status (pending|processing|completed|failed), started_at, finished_at, error_message, created_at`; índice `(job_name, target_date)` y **índice único parcial** `ux_job_runs_one_processing` (una sola fila `processing` por job). No se fusiona con `reporting.pipeline_runs` (orquestación nocturna vs. ETL interno).
+- **`services/job_runner/`:** crear, `mark_processing/completed/failed`, `has_processing_lock`, `has_completed_for_date`, recuperación de registros obsoletos. `processing` ES el lock distribuido (sin tabla, columna ni flag aparte).
+- **`scripts/nightly_export.py`:** `TARGET_DATE` o ayer UTC → exporta `telemetry_events` a `data/raw/telemetry_YYYY-MM-DD.csv` (solo si no existe, escritura atómica) → subproceso `python -m data.pipelines.pipeline --date-from D --date-to D --trigger cron` → `completed`. `try/except/finally`: nada queda en `processing`. Proceso independiente de FastAPI.
+- **Disparador:** crontab del SO, `0 2 * * *` UTC (`infra/cron/`), sin `flock` (el lock es el estado `processing`).
+- **Decisiones/suposiciones:** el entry point del ticket (`data.pipelines.telemetry_kpi_daily.run --no-prefect`) no existe; se usa el nuestro. Un `failed` no bloquea: la siguiente ejecución del mismo día reintenta. Un `processing`/`pending` de más de 120 min (proceso muerto) se recupera a `failed` antes de decidir. Las omisiones (duplicado/lock) solo se registran en el log, no crean filas. El CSV está en `.gitignore`.
+- Verificado: `tests/jobs` (27 en SQLite + 4 contra Postgres real: export UTC, 3 procesos simultáneos → 1 solo trabaja, SIGTERM) y ejecución real sobre la réplica local con el pipeline completo.
+- **Bug del pipeline destapado por la primera ejecución real (Supabase):** `ingredient_exits.created_at` es `timestamp WITHOUT time zone`; llegaba sin zona y `assemble_daily_kpis` fallaba con «Cannot convert tz-naive timestamps» en cualquier día con salidas reales. Corregido (`as_utc` en `business_kpis.py` + normalización en `fetch_exits`, sin zona = UTC) con test de regresión. El script guarda además la causa real en `job_runs.error_message` (línea `El pipeline falló:`), no la última línea de Prefect.

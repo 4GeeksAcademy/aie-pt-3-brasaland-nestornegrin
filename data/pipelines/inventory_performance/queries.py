@@ -64,7 +64,9 @@ def fetch_exits(connection: Connection, restaurants: Iterable[str], ts_from: dat
         "WHERE (i.restaurant IN :restaurants AND x.created_at >= :ts_from AND x.created_at < :ts_to) OR x.id IN :exit_ids"
     ).bindparams(bindparam("restaurants", expanding=True), bindparam("exit_ids", expanding=True))
     ids = [int(value) for value in exit_ids] or [-1]  # IN () vacío no es SQL válido
-    return pd.read_sql(statement, connection, params={"restaurants": list(restaurants) or [""], "ts_from": ts_from, "ts_to": ts_to, "exit_ids": ids})
+    frame = pd.read_sql(statement, connection, params={"restaurants": list(restaurants) or [""], "ts_from": ts_from, "ts_to": ts_to, "exit_ids": ids})
+    # `created_at` puede ser `timestamp without time zone` (naive, en UTC): se normaliza igual que en `fetch_stock_movements`.
+    return frame.assign(created_at=pd.to_datetime(frame["created_at"], utc=True)) if not frame.empty else frame
 
 
 def fetch_stock_movements(connection: Connection, restaurants: Iterable[str], ts_to: datetime) -> pd.DataFrame:
