@@ -145,6 +145,13 @@ def test_proceso_muerto_deja_un_processing_zombi_que_se_recupera_a_la_noche_sigu
     assert "obsoleto" in rows()[0][3]
 
 
+def test_el_motivo_del_fallo_es_la_causa_real_y_no_la_ultima_linea_de_prefect():
+    stderr = "Traceback (most recent call last):\n  ...\nPipelineStageError: x\nEl pipeline falló: assemble_daily_kpis: TypeError: tz-naive\n10:35:58.737 | INFO    | prefect - Stopping temporary server on http://127.0.0.1:8907\n"
+    assert nightly.failure_reason(stderr) == "assemble_daily_kpis: TypeError: tz-naive"
+    assert nightly.failure_reason("linea 1\nlinea 2\nlinea 3\nlinea 4") == "linea 2 ⏎ linea 3 ⏎ linea 4"  # sin línea explícita: últimas 3
+    assert nightly.failure_reason("", "") == "sin salida"
+
+
 # ------------------------------------------------------------------ logs
 def test_cada_linea_de_log_lleva_timestamp_job_y_estado(engine, capsys, monkeypatch):
     monkeypatch.setenv("NIGHTLY_PIPELINE_CMD", f"{sys.executable} -c \"import sys; sys.exit(1)\"")

@@ -161,14 +161,27 @@ def pipeline_command(target_date: date) -> list[str]:
     return [sys.executable, "-m", "data.pipelines.pipeline", "--date-from", day, "--date-to", day, "--trigger", "cron"]
 
 
+def failure_reason(stderr: str | None, stdout: str | None = None) -> str:
+    """Motivo legible del fallo del subproceso para `job_runs.error_message`.
+
+    La CLI del pipeline imprime `El pipeline falló: <causa>` y después Prefect añade líneas de apagado («Stopping
+    temporary server…»): la ÚLTIMA línea no sirve. Se prefiere esa línea explícita; si no está (p. ej. un
+    `ImportError` antes de arrancar), se usan las últimas líneas con contenido.
+    """
+    lines = [line.strip() for line in f"{stderr or ''}\n{stdout or ''}".splitlines() if line.strip()]
+    explicit = [line for line in lines if line.startswith("El pipeline falló:")]
+    if explicit:
+        return explicit[-1].removeprefix("El pipeline falló:").strip()
+    return " ⏎ ".join(lines[-3:]) if lines else "sin salida"
+
+
 def run_pipeline(target_date: date) -> None:
     """Lanza el pipeline como subproceso (proceso aparte, sin hilos compartidos). Lanza si termina con error o por tiempo."""
     command = pipeline_command(target_date)
     log(logging.INFO, "processing", f"Lanzando pipeline: {shlex.join(command)}")
     completed = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, timeout=PIPELINE_TIMEOUT_SECONDS)
     if completed.returncode != 0:
-        detail = (completed.stderr or completed.stdout or "").strip().splitlines()
-        raise RuntimeError(f"El pipeline terminó con código {completed.returncode}: {detail[-1] if detail else 'sin salida'}")
+        raise RuntimeError(f"El pipeline terminó con código {completed.returncode}: {failure_reason(completed.stderr, completed.stdout)}")
     log(logging.INFO, "processing", "Pipeline terminó correctamente")
 
 
