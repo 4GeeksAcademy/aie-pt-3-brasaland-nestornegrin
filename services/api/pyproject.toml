@@ -13,6 +13,9 @@ dependencies = [
   "resend>=2.0,<3",
   "sqlmodel>=0.0.42",
   "psycopg2-binary>=2.9.12",
+  "celery[redis]>=5.4,<6",
+  "redis>=5,<6.5",
+  "flower>=2,<3",
 ]
 
 [project.scripts]

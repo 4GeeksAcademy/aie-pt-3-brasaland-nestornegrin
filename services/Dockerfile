@@ -19,6 +19,11 @@ RUN uv pip install --system -r requirements.txt
 # que colocan esos dos paquetes en /app/scripts y /app/packages.
 COPY api api
 
+# Cola de tareas (Celery): se importa como `services.celery_app` / `services.async_tasks` (PYTHONPATH incluye /app).
+# La API y el worker usan esta misma imagen; en desarrollo docker-compose.yml los superpone con bind mounts.
+COPY celery_app.py /app/services/celery_app.py
+COPY async_tasks /app/services/async_tasks
+
 ENV PYTHONPATH=/app:/app/services/api
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -26,4 +31,5 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", \
-     "--reload-dir", "/app/services/api", "--reload-dir", "/app/scripts", "--reload-dir", "/app/packages"]
+     "--reload-dir", "/app/services/api", "--reload-dir", "/app/services/async_tasks", \
+     "--reload-dir", "/app/scripts", "--reload-dir", "/app/packages"]

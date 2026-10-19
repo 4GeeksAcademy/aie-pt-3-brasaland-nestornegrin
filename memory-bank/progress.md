@@ -199,3 +199,15 @@
   frontend sin errores (las 2 páginas nuevas generan como contenido
   estático).
 
+## DEV-55 — Cola de tareas asíncronas (Redis + Celery)
+
+- `POST /api/incidents/analyze` (la operación que bloqueaba la API: procesaba el lote de CSV dentro de la petición)
+  ahora encola la tarea y responde `202 {"task_id"}`; `GET /tasks/{task_id}` devuelve `pending|started|success|failure`.
+- `services/celery_app.py` (Redis como broker y result backend, `REDIS_URL`) + `services/async_tasks/` (tarea, DLQ,
+  staging del CSV, estado, logs). Reintentos: `max_retries=3`, backoff 2→4→8 s. DLQ: tabla `task_dead_letters`
+  (`task_id`, intento, error, timestamp). Worker = proceso aparte; Redis, worker y Flower en `docker-compose.yml`.
+- El último resultado ya no vive en memoria de la API (`_latest_result`): lo guarda el worker en Redis.
+- Backoffice: `incident-analysis.tsx` hace polling con `lib/tasks.ts`.
+- Medido (400 mil filas, 24 MB): antes, una petición barata concurrente llegó a esperar 1758 ms (bucle de eventos
+  bloqueado); ahora, 37 ms, y el POST responde 202 en ~150 ms.
+

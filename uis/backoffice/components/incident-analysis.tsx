@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
+import { waitForTask, type TaskStatus } from "@/lib/tasks";
 
 type Analysis = {
   total_processed: number;
@@ -18,8 +19,13 @@ export function IncidentAnalysis() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null);
+  const pollController = useRef<AbortController | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  // Si el usuario sale de la página mientras se espera el resultado, se deja de consultar.
+  useEffect(() => () => pollController.current?.abort(), []);
 
   async function submitFile() {
     if (!file) {
@@ -31,14 +37,24 @@ export function IncidentAnalysis() {
     setAnalysis(null);
     const formData = new FormData();
     formData.append("file", file);
+    pollController.current?.abort();
+    const controller = new AbortController();
+    pollController.current = controller;
     try {
+      // 202 Accepted: la API encola el análisis y devuelve un task_id al instante; un worker lo procesa aparte.
       const response = await apiFetch("/api/incidents/analyze", { method: "POST", body: formData });
       if (!response.ok) throw new Error(await readApiError(response, "No se pudo analizar el fichero"));
-      setAnalysis((await response.json()) as Analysis);
+      const { task_id: taskId } = (await response.json()) as { task_id: string };
+      setTaskStatus("pending");
+      setAnalysis(await waitForTask<Analysis>(taskId, { onStatus: setTaskStatus, signal: controller.signal }));
     } catch (requestError) {
+      if (controller.signal.aborted) return;
       setError(requestError instanceof Error ? requestError.message : "No se pudo conectar con la API");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setTaskStatus(null);
+      }
     }
   }
 
@@ -84,7 +100,7 @@ export function IncidentAnalysis() {
             disabled={loading}
             className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-700 disabled:cursor-wait disabled:opacity-60"
           >
-            {loading ? "Analizando..." : "Analizar CSV"}
+            {loading ? (taskStatus === "started" ? "Analizando..." : "En cola...") : "Analizar CSV"}
           </button>
         </div>
         {file ? <p className="mt-2 text-xs text-zinc-500">Seleccionado: {file.name}</p> : null}
