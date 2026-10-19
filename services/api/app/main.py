@@ -3,15 +3,19 @@ from __future__ import annotations
 import csv
 import io
 import logging
-from threading import Lock
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from redis.exceptions import RedisError
 
-from scripts.analyze import AnalysisResult, analyze_csv_text
+from scripts.analyze import AnalysisResult
+from services.async_tasks import results as task_results
+from services.async_tasks import staging
+from services.async_tasks.incident_tasks import analyze_incidents_csv
 from app.auth.dependencies import get_current_user
 from app.auth.repository import PasswordResetRepository, ProfileRepository, UserRepository
 from app.auth.routes import create_router as create_auth_router
@@ -26,6 +30,7 @@ from app.incidents.repository import IncidentRepository
 from app.incidents.routes import create_router as create_incidents_router
 from app.profiles.routes import create_router as create_profiles_router
 from app.suppliers.repository import SupplierRepository
+from app.tasks.routes import create_router as create_tasks_router
 from app.routes.suppliers import create_router
 from app.users.routes import create_router as create_users_router
 from app.inventory.routes import create_router as create_inventory_router
@@ -41,8 +46,6 @@ app.add_middleware(
         allow_methods=["*"],
     allow_headers=["*"],
 )
-_latest_result: AnalysisResult | None = None
-_result_lock = Lock()
 supplier_repository = SupplierRepository(DATABASE_PATH)
 user_repository = UserRepository(USERS_DATABASE_PATH)
 profile_repository = ProfileRepository(PROFILES_DATABASE_PATH)
@@ -54,6 +57,7 @@ app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 app.include_router(create_incidents_router(incident_repository))
+app.include_router(create_tasks_router())  # GET /tasks/{task_id} (cola de tareas asíncronas, DEV-55)
 
 # Inventory (Supabase/SQLModel) - create schema, then mount routes.
 SQLModel.metadata.create_all(engine)
@@ -78,43 +82,46 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "Ha ocurrido un error inesperado. Inténtalo de nuevo más tarde."})
 
 
-@app.post("/api/incidents/analyze")
+@app.post("/api/incidents/analyze", status_code=202)
 async def analyze_incidents(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
-) -> dict[str, object]:
+) -> dict[str, str]:
+    """Encola el análisis del CSV y responde al instante con el `task_id` (202 Accepted).
+
+    El análisis ya no se ejecuta en esta petición: lo hace un worker de Celery (proceso aparte). Aquí solo se
+    validan lo barato (extensión, fichero no vacío), se aparca el CSV y se encola su identificador —el mensaje
+    nunca lleva el contenido—. El cliente consulta el progreso en `GET /tasks/{task_id}`.
+    """
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=415, detail="El fichero debe tener extensión .csv")
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="El fichero CSV está vacío")
-    try:
-        result = analyze_csv_text(content.decode("utf-8-sig"))
-    except UnicodeDecodeError as error:
-        raise HTTPException(status_code=400, detail="El fichero debe estar codificado en UTF-8") from error
-    except (csv.Error, ValueError) as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
 
-    global _latest_result
-    with _result_lock:
-        _latest_result = result
-    return {
-        "total_processed": result.total_processed,
-        "valid_records": result.valid_records,
-        "invalid_records": result.invalid_records,
-        "by_category": result.by_category,
-        "by_status": result.by_status,
-        "average_closed_satisfaction": result.average_closed_satisfaction,
-        "invalid_reasons": result.invalid_reasons,
-    }
+    upload_id = await run_in_threadpool(staging.stage_upload, content)
+    try:
+        # `.delay()` publica en Redis (E/S bloqueante): fuera del bucle de eventos.
+        task = await run_in_threadpool(analyze_incidents_csv.delay, upload_id)
+    except Exception as error:
+        # Sin cola no hay tarea: se limpia el fichero aparcado y se avisa de que reintente.
+        await run_in_threadpool(staging.delete_upload, upload_id)
+        logger.exception("No se pudo encolar el análisis de incidencias")
+        raise HTTPException(status_code=503, detail="La cola de tareas no está disponible. Inténtalo de nuevo en unos segundos.") from error
+    logger.info("analyze enqueued task_id=%s upload_id=%s bytes=%d", task.id, upload_id, len(content))
+    return {"task_id": task.id}
 
 
 @app.get("/api/incidents/results/export")
 def export_latest_results(current_user=Depends(get_current_user)) -> StreamingResponse:
-    with _result_lock:
-        result = _latest_result
-    if result is None:
+    try:
+        payload = task_results.load_latest()
+    except RedisError as error:
+        logger.exception("No se pudo leer el último resultado de Redis")
+        raise HTTPException(status_code=503, detail="La cola de tareas no está disponible. Inténtalo de nuevo en unos segundos.") from error
+    if payload is None:
         raise HTTPException(status_code=404, detail="Todavía no hay ningún análisis disponible")
+    result = AnalysisResult(**payload)
     output = io.StringIO(newline="")
     writer = csv.writer(output)
     writer.writerow(("metric", "dimension", "value"))
