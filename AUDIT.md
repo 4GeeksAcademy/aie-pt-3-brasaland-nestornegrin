@@ -6,7 +6,9 @@ Fecha: 2026-09-28
 
 Se ejecutó Lighthouse 13.5.0 sobre builds de producción de Next.js 16.2.12, con Chromium 1161 dentro de un contenedor reproducible. Se usaron los mismos URLs, viewport y flags antes y después. La web se auditó en `/` y `/brasa-points`, en escritorio y móvil. El backoffice se auditó en `/login` y, con una cuenta temporal de desarrollo, en el dashboard `/` en escritorio y móvil.
 
-Los informes HTML/JSON y las capturas están en `docs/evidence/lighthouse/before/` y `docs/evidence/lighthouse/after/`.
+Los informes HTML/JSON y las capturas están en `audit/before/` y `audit/after/`. Cada informe tiene cuatro archivos con el mismo nombre base: `<vista>.json` (la medición), `<vista>.html` (el informe navegable), `<vista>-lighthouse.png` (captura del informe con las cuatro puntuaciones y las métricas) y `<vista>-page.png` (captura de la página auditada).
+
+Nota de método: cada informe HTML se regeneró a partir de su propio JSON, que es la medición que citan las tablas de este documento y de `REPORT.md`. Los HTML originales procedían de una segunda ejecución independiente de Lighthouse y mostraban puntuaciones distintas a las del JSON (por ejemplo, home móvil antes: 92 en el JSON y 100 en el HTML original); los originales siguen en el historial de git. Esa diferencia es la variabilidad normal entre ejecuciones de laboratorio y se comenta en `REPORT.md`.
 
 ## Línea base
 

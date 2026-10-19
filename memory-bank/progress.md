@@ -204,7 +204,7 @@
 - Se ejecutó Lighthouse 13.5.0 sobre builds de producción de `uis/website` y
   `uis/backoffice`, en escritorio y móvil, incluyendo `/`, `/brasa-points`,
   `/login` y el dashboard autenticado. Los informes HTML/JSON y capturas están
-  en `docs/evidence/lighthouse/before/` y `docs/evidence/lighthouse/after/`.
+  en `audit/before/` y `audit/after/` (con una captura `*-lighthouse.png` por informe).
 - `uis/website/components/our-story-section.tsx` prioriza la imagen que
   Lighthouse identificó como LCP (`loading="eager"`, `fetchPriority="high"`).
 - `uis/backoffice/app/page.tsx` difiere `SupplierDirectory` e
@@ -219,4 +219,3 @@
   impacto y limitaciones del laboratorio. La mejora principal del website fue
   Performance móvil `92→94` en home y `99→100` en Brasa Points; Best Practices
   del dashboard autenticado pasó `96→100` al medir con el origen local válido.
-
