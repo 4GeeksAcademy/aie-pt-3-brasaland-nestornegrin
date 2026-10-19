@@ -8,6 +8,9 @@ python-dotenv>=1.2.3
 email-validator>=2.0,<3
 resend>=2.0,<3
 sqlmodel>=0.0.22,<1
+# SQLAlchemy 2.1 cambió el driver por defecto de `postgresql://` a psycopg (v3); la imagen solo trae psycopg2-binary.
+# Misma rama que fija uv.lock (2.0.x).
+sqlalchemy>=2.0,<2.1
 psycopg2-binary>=2.9,<3
 celery[redis]>=5.4,<6
 redis>=5,<6.5
