@@ -36,6 +36,64 @@ Usa este comando desde la raíz del repositorio:
 
 Luego abre la URL local que muestra el comando.
 
+### Cola de tareas asíncronas: Redis + Celery + Flower (DEV-55)
+
+Las operaciones pesadas de la API no se ejecutan dentro de la petición: la API **encola** la tarea y responde
+`202 Accepted` con un `task_id`; un **worker** (proceso independiente de FastAPI) la procesa. Hoy la usa
+`POST /api/incidents/analyze` (análisis del CSV de incidencias).
+
+```
+Cliente → API (productor) → Redis (broker) → Worker (consumidor) → Resultado (Redis)
+```
+
+**Levantar todo** (desde la raíz del repo, con `.env` creado a partir de `.env.example`):
+
+```bash
+docker compose up --build            # api + worker + flower + redis + interfaces
+docker compose up -d redis worker    # solo la cola (en segundo plano)
+```
+
+| Servicio | URL / puerto | Para qué |
+|---|---|---|
+| `api` | http://localhost:8000 | Productor: encola y consulta estados |
+| `worker` | — (sin puerto) | Consumidor Celery: ejecuta las tareas |
+| `flower` | http://localhost:5555 | Monitoreo: tareas en cola, en proceso, completadas y fallidas |
+| `redis` | localhost:6379 | Broker + result backend (`noeviction`, persistencia AOF) |
+
+**Detener / reiniciar el worker** (la API y los mensajes en Redis no se tocan):
+
+```bash
+docker compose stop worker           # detener (termina la tarea en curso; lo pendiente sigue en Redis)
+docker compose start worker          # volver a arrancarlo: retoma la cola donde estaba
+docker compose restart worker        # tras cambiar código de tareas (el worker no recarga solo)
+docker compose logs -f worker        # logs: task_id, intento, estado y duración de cada ejecución
+```
+
+**Sin Docker** (Redis en localhost, p. ej. `docker compose up -d redis`), con `REDIS_URL=redis://localhost:6379/0`:
+
+```bash
+PYTHONPATH=.:services/api celery -A services.celery_app worker --loglevel=info   # worker (Ctrl+C para detenerlo)
+```
+
+**Contrato HTTP**
+
+- `POST /api/incidents/analyze` → `202 {"task_id": "..."}` al instante. Sigue devolviendo `415` (extensión) y `400` (fichero vacío) en la propia petición; el resto de errores del CSV (cabecera inválida, codificación…) aparecen como `failure` de la tarea.
+- `GET /tasks/{task_id}` → `{"task_id", "status", "result"}`, con `status` = `pending | started | success | failure`. `result` es el resumen del análisis en `success` y `{"error": "..."}` en `failure`. Un id desconocido figura como `pending` (así lo reporta Celery).
+- `GET /api/incidents/results/export` descarga el último resultado como CSV (ya no vive en memoria de la API: lo guarda el worker en Redis).
+
+**Reintentos y Dead Letter Queue.** Toda excepción de la tarea se reintenta 3 veces con backoff exponencial
+(2 s → 4 s → 8 s; `TASK_RETRY_BASE_SECONDS`). Tras el último fallo (4 ejecuciones en total) la tarea se registra en la
+tabla `task_dead_letters` (`task_id`, `attempt`, `error_message`, `failed_at`); se crea sola la primera vez
+(SQL equivalente en `services/api/migrations/004_create_task_dead_letters.sql`). Para provocar un fallo y verla:
+sube un CSV con una cabecera inválida (p. ej. `x,y` + una fila) y consulta `SELECT * FROM task_dead_letters;`.
+
+**Reglas del patrón**: los mensajes son ligeros (el CSV se aparca en un volumen compartido y el mensaje solo lleva su
+nombre), el ACK llega tras el éxito (`acks_late`) y toda tarea tiene timeout (`TASK_SOFT_TIME_LIMIT_SECONDS`=240,
+`TASK_TIME_LIMIT_SECONDS`=300). Variables de entorno: `REDIS_URL`, `TASK_UPLOAD_DIR`, `TASK_RETRY_BASE_SECONDS`,
+`TASK_VISIBILITY_TIMEOUT_SECONDS`.
+
+> Flower no tiene autenticación por defecto: es una herramienta de desarrollo, no la expongas fuera de tu máquina.
+
 ---
 
 ## Cómo entender este monorepo

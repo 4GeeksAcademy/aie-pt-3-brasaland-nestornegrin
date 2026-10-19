@@ -24,8 +24,11 @@ uv run --project services/api python scripts/seed_incidents.py
 
 Endpoints:
 
-- `POST /api/incidents/analyze` recibe `file` como `multipart/form-data`.
-- `GET /api/incidents/results/export` descarga el último resultado como CSV.
+- `POST /api/incidents/analyze` recibe `file` como `multipart/form-data`, **encola** el análisis y responde
+  `202 {"task_id": "..."}` al instante (DEV-55); el análisis lo ejecuta un worker de Celery.
+- `GET /tasks/{task_id}` estado de la tarea: `{"task_id", "status": "pending|started|success|failure", "result"}`.
+  Requiere JWT. Cómo levantar Redis, el worker y Flower: README de la raíz, sección «Cola de tareas asíncronas».
+- `GET /api/incidents/results/export` descarga el último resultado como CSV (lo guarda el worker en Redis).
 - `POST /api/incidents` crea una incidencia (`title`, `description`, `category`,
   `origin`, `branch`); nace siempre en estado `open`.
 - `GET /api/incidents` lista incidencias; acepta `status`, `origin`, `branch`
