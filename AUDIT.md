@@ -50,6 +50,13 @@ La medición autenticada usa `localhost`, que es un origen permitido por la API.
 - **Causa raíz:** el efecto que sincroniza el stock remoto también mutaba estado inmediatamente al cambiar el ingrediente, provocando renders en cascada y mezclando el ciclo de limpieza con la petición.
 - **Corrección:** ambos resets se difieren a un microtask y se conservó la bandera de cancelación. Esto reduce trabajo redundante sin cambiar la lógica de negocio.
 
+### 4. `<select>` del formulario de proveedores sin nombre accesible
+
+- **Dónde:** `uis/backoffice/components/supplier-directory.tsx`, formulario «Añadir proveedor» (selects de categoría y país, líneas 131 y 132).
+- **Evidencia:** Lighthouse marcó `select-name` en el dashboard autenticado y Accessibility bajó a 96 en escritorio y móvil; los dos nodos señalados son esos selects. Los dos filtros de la cabecera de la sección sí estaban dentro de un `<label>` y pasaban.
+- **Causa raíz:** el formulario usa `placeholder` en los campos de texto y deja los `<select>` sin `<label>`, `aria-label` ni `id`, así que un lector de pantalla los anuncia solo como «lista desplegable». El defecto ya existía antes de la auditoría, y la línea base no lo detectó porque en esa medición el directorio de proveedores no llegó a renderizarse (`select-name` figura como no aplicable y el DOM tenía 29 nodos frente a 326 después).
+- **Corrección:** `aria-label="Categoría del nuevo proveedor"` y `aria-label="País del nuevo proveedor"` en cada `<select>`; no cambia el aspecto ni la estructura. Medición posterior en producción: Accessibility 100 en escritorio y móvil.
+
 ## Análisis de refactorización
 
 ### Caso A: tarjeta estadística duplicada

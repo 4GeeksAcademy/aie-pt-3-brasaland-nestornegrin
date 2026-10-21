@@ -219,3 +219,8 @@
   impacto y limitaciones del laboratorio. La mejora principal del website fue
   Performance móvil `92→94` en home y `99→100` en Brasa Points; Best Practices
   del dashboard autenticado pasó `96→100` al medir con el origen local válido.
+- Seguimiento de accesibilidad (2026-10-21): los dos `<select>` del formulario
+  «Añadir proveedor» (`supplier-directory.tsx`) no tenían nombre accesible
+  (`select-name`, Accessibility 96). Se añadió un `aria-label` a cada uno y el
+  dashboard autenticado mide Accessibility `100` en escritorio y móvil
+  (build + start de producción; control sin el arreglo reproduce el 96).
