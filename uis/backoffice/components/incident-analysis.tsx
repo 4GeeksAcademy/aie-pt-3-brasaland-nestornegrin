@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
+import { StatCard } from "./stat-card";
 
 type Analysis = {
   total_processed: number;
@@ -94,10 +95,10 @@ export function IncidentAnalysis() {
       {analysis ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat label="Filas procesadas" value={analysis.total_processed} />
-            <Stat label="Registros válidos" value={analysis.valid_records} />
-            <Stat label="Registros inválidos" value={analysis.invalid_records} />
-            <Stat label="Satisfacción cerrados" value={analysis.average_closed_satisfaction?.toFixed(2) ?? "N/D"} />
+            <StatCard label="Filas procesadas" value={analysis.total_processed} compact />
+            <StatCard label="Registros válidos" value={analysis.valid_records} compact />
+            <StatCard label="Registros inválidos" value={analysis.invalid_records} compact />
+            <StatCard label="Satisfacción cerrados" value={analysis.average_closed_satisfaction?.toFixed(2) ?? "N/D"} compact />
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             <Breakdown title="Por categoría" values={analysis.by_category} />
@@ -110,10 +111,6 @@ export function IncidentAnalysis() {
       ) : null}
     </div>
   );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"><p className="text-2xl font-black text-red-800">{value}</p><p className="mt-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p></div>;
 }
 
 function Breakdown({ title, values, emptyLabel = "Sin datos" }: { title: string; values: Record<string, number>; emptyLabel?: string }) {
