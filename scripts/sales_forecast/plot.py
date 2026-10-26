@@ -81,3 +81,27 @@ def plot_decomposition(decomposition, output: Path) -> Path:
     fig.savefig(output, dpi=150)
     plt.close(fig)
     return output
+
+
+def plot_learning_curve(curve: list[dict], noise_pct: float, label: str, output: Path) -> Path:
+    """Curva de aprendizaje: error de entrenamiento y de validación según crece el entrenamiento.
+
+    Se grafica en % del nivel de ventas (no en USD) para que los puntos sean comparables: los años recientes venden más.
+    """
+    sizes = [point["train_months"] for point in curve]
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharex=True)
+    for ax, key, title in ((axes[0], "mae_pct", "MAE (error absoluto medio)"), (axes[1], "rmse_pct", "RMSE (penaliza más los fallos grandes)")):
+        ax.plot(sizes, [p["train"][key] for p in curve], color="#2563eb", marker="o", linewidth=2, label="Error de entrenamiento")
+        ax.plot(sizes, [p["validation"][key] for p in curve], color="#ea580c", marker="o", linewidth=2, label="Error de validación")
+        ax.set_title(title)
+        ax.set_xlabel("Meses de entrenamiento")
+        ax.set_ylabel("Error (% del nivel de ventas)")
+        ax.grid(alpha=0.25)
+    axes[0].axhline(noise_pct, color="#6b7280", linestyle="--", linewidth=1.2, label=f"Ruido irreducible estimado ({noise_pct:.1f} %)")
+    axes[0].legend(loc="upper right", fontsize=9, frameon=False)
+    fig.suptitle(f"Curva de aprendizaje del modelo de ventas ({label}); validación fija = último año de entrenamiento", fontsize=12)
+    fig.tight_layout()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, dpi=150)
+    plt.close(fig)
+    return output
