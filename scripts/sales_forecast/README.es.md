@@ -15,7 +15,8 @@ uv run pytest tests/pipelines -v                 # pruebas del split y de la aus
 ```
 
 Salidas en `data/eval/sales_forecast/`: `metrics.json` (todas las métricas y la huella SHA-256 del dataset),
-`predictions.csv` (mes a mes: real, previsto y rango) y `forecast.png` (la visualización).
+`predictions.csv` (mes a mes: real, previsto y rango), `forecast.png` (la visualización) y `decomposition.csv` /
+`decomposition.png` (descomposición en tendencia, estacionalidad y residuo).
 
 ## Datos
 
@@ -26,6 +27,7 @@ sin nulos, fechas en `YYYY-MM-01`) y acepta tanto comas como tabuladores.
 
 Observaciones sobre el dataset, sin alterarlo:
 
+- (Estas observaciones se cuantifican en la sección siguiente con la descomposición de la serie.)
 - El crecimiento anual de la media sale entre el 2,6 % y el 9,0 % (el briefing habla de 3-7 %): es compatible con el
   ruido mensual de ±5 %, pero conviene saberlo.
 - Enero cae entre un 11 % y un 16 % respecto a la media del año anterior (salvo 2023, −7 %), y diciembre sube un
@@ -34,6 +36,46 @@ Observaciones sobre el dataset, sin alterarlo:
   9,5 millones.
 - `revenue_usd` es exactamente `covers_served × avg_ticket_usd` en todas las filas. Por eso esas dos columnas **no**
   se usan del propio mes: dejarían al modelo "adivinar" el resultado con datos que no se conocen de antemano.
+
+## Tendencia, estacionalidad y residuo
+
+Antes de modelar se descompone la serie en tres partes, para entender qué hay detrás de las ventas y justificar las
+decisiones del modelo. Método: **STL robusto** (`statsmodels`) sobre el logaritmo de las ventas, equivalente a una
+descomposición multiplicativa: `ventas = tendencia × factor estacional × residuo`. Se usa porque la estacionalidad crece
+con el nivel (diciembre sube un porcentaje, no una cantidad fija de dólares). Se aplica **solo a los 96 meses de
+entrenamiento**: el análisis exploratorio nunca ve los 2 años de prueba.
+
+![Descomposición de las ventas](../../data/eval/sales_forecast/decomposition.png)
+
+| Componente | Qué es | Resultado (2016-01 → 2023-12) |
+| --- | --- | --- |
+| **Tendencia** | El nivel de fondo, sin estacionalidad ni ruido | Sube de $487 mil a $756 mil: **+5,7 % anual**. Fuerza 0,96 |
+| **Estacionalidad** | El patrón que se repite cada año | Fuerza 0,90. Enero queda un **14 % por debajo** de un mes normal (factor 0,86) y diciembre un **19 % por encima** (1,19). El resto de meses se mueve entre −3 % y +3 % |
+| **Residuo** | Lo que no explican ni la tendencia ni la estacionalidad | Desviación de **2,4 %** (desvío medio absoluto 1,9 %). El mayor es marzo de 2019, +8,3 % |
+
+La "fuerza" va de 0 (el componente no explica nada) a 1 (explica toda la variación); se calcula con la fórmula de
+Hyndman: `1 − varianza(residuo) / varianza(componente + residuo)`.
+
+Qué se deduce, y cómo guía el modelo:
+
+- **Tendencia.** Las ventas crecen todos los años de forma suave, a un ritmo dentro del 3-7 % que cita el briefing. Por
+  eso el modelo no predice dólares sino la razón "ventas / media de los 12 meses anteriores": un árbol no puede predecir
+  valores mayores que los vistos al entrenar. También explica el PSI alto de las ventas en bruto (5,65), que es
+  crecimiento y no un cambio estructural.
+- **Estacionalidad.** Es el componente más claro: con fuerza 0,90, la mayor parte de la variación de un mes a otro es
+  calendario y no azar. Por eso las variables del modelo incluyen el mes (seno y coseno, bandera de enero y de
+  diciembre) y el mismo mes del año anterior (`lag12_ratio`).
+- **Residuo.** Es el ruido que ningún modelo con estas variables puede predecir. Su desvío medio absoluto (1,9 %) es un
+  suelo aproximado del error: el modelo se equivoca un 2,72 % en la prueba, unos 0,8 puntos por encima. Es una
+  referencia orientativa, no un límite exacto: el residuo se mide dentro de la muestra y el modelo pronostica hacia
+  adelante. Este ruido también explica la anchura del rango del 80 % (de −4,2 % a +5,7 %).
+- **Comprobación del residuo.** Sin rachas entre meses consecutivos (autocorrelación a 1 mes de −0,10, dentro del
+  ruido de ±0,20). A 12 meses sale −0,36, algo fuera del ruido: es lo esperable cuando la estacionalidad se estima con
+  los mismos 8 años, y no deja estacionalidad sin explicar (el residuo medio de cada mes del año queda entre −0,8 % y
+  +0,7 %). Una limitación a tener en cuenta, no un fallo.
+
+Las cifras salen de `metrics.json` (bloque `decomposition`) y la serie completa de componentes está en
+`data/eval/sales_forecast/decomposition.csv`.
 
 ## Split sin fuga de datos
 

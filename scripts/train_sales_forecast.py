@@ -9,7 +9,9 @@ Flujo:
  2. Divide por fecha: primeros 8 años -> entrenamiento, 2 años más recientes -> prueba.
  3. Elige entre Random Forest y XGBoost con validación walk-forward DENTRO del entrenamiento (la prueba no se usa).
  4. Entrena el elegido con el entrenamiento y lo evalúa sobre la prueba: MSE, PSI, Gini y K2 Score (R²).
- 5. Guarda `metrics.json`, `predictions.csv` y `forecast.png` en `data/eval/sales_forecast/`.
+ 5. Descompone las ventas de ENTRENAMIENTO en tendencia, estacionalidad y residuo (análisis exploratorio).
+ 6. Guarda `metrics.json`, `predictions.csv`, `forecast.png`, `decomposition.csv` y `decomposition.png` en
+    `data/eval/sales_forecast/`.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import sklearn
+import statsmodels
 import xgboost
 
 if __package__ in (None, ""):  # permite `python scripts/train_sales_forecast.py` desde la raíz
@@ -37,6 +40,7 @@ from scripts.sales_forecast.data import (  # noqa: E402
     load_sales,
     split_train_test,
 )
+from scripts.sales_forecast.decomposition import decompose  # noqa: E402
 from scripts.sales_forecast.features import build_training_frame  # noqa: E402
 from scripts.sales_forecast.model import (  # noqa: E402
     MODEL_NAMES,
@@ -47,7 +51,7 @@ from scripts.sales_forecast.model import (  # noqa: E402
     recursive_forecast,
     walk_forward_cv,
 )
-from scripts.sales_forecast.plot import plot_forecast  # noqa: E402
+from scripts.sales_forecast.plot import plot_decomposition, plot_forecast  # noqa: E402
 
 DEFAULT_OUT_DIR = REPO_ROOT / "data" / "eval" / "sales_forecast"
 COVERAGE = 0.80
@@ -88,6 +92,9 @@ def run(data_path: Path, out_dir: Path, forced_model: str | None = None) -> dict
     one_step = one_step_forecast(model, full_series, test_series.index)
     low, high = prediction_band(recursive, cv[chosen].rel_errors, COVERAGE)
 
+    # --- Análisis exploratorio: tendencia, estacionalidad y residuo (solo meses de entrenamiento) ---
+    decomposition = decompose(train_series)
+
     # --- Métricas SOBRE EL CONJUNTO DE PRUEBA ---
     def block(forecast: pd.Series) -> dict:
         return {
@@ -119,7 +126,8 @@ def run(data_path: Path, out_dir: Path, forced_model: str | None = None) -> dict
             "test": [test.index.min().strftime("%Y-%m"), test.index.max().strftime("%Y-%m"), int(len(test))],
             "effective_training_rows": int(len(train_ratio)),
         },
-        "reproducibility": {"random_state": RANDOM_STATE, "sklearn": sklearn.__version__, "xgboost": xgboost.__version__, "numpy": np.__version__, "pandas": pd.__version__},
+        "reproducibility": {"random_state": RANDOM_STATE, "sklearn": sklearn.__version__, "xgboost": xgboost.__version__, "statsmodels": statsmodels.__version__, "numpy": np.__version__, "pandas": pd.__version__},
+        "decomposition": decomposition.summary,
         "model_selection": {
             "method": "validación walk-forward en los últimos 3 años de ENTRENAMIENTO (pronóstico recursivo de 12 meses)",
             "validation": {
@@ -152,6 +160,8 @@ def run(data_path: Path, out_dir: Path, forced_model: str | None = None) -> dict
     pd.DataFrame(
         {"actual_usd": test_series, "predicted_recursive_usd": recursive, "range_low_usd": low, "range_high_usd": high, "predicted_one_step_usd": one_step}
     ).round(2).to_csv(out_dir / "predictions.csv", index_label="month")
+    decomposition.to_frame().round(4).to_csv(out_dir / "decomposition.csv", index_label="month")
+    plot_decomposition(decomposition, out_dir / "decomposition.png")
     label = "Random Forest" if chosen == "random_forest" else "XGBoost"
     plot_forecast(train_series, test_series, recursive, low, high, one_step, label, f"{COVERAGE:.0%}", out_dir / "forecast.png")
     return results
@@ -163,6 +173,12 @@ def print_summary(results: dict) -> None:
     print(f"Split: entrenamiento {results['split']['train']} | prueba {results['split']['test']}")
     for name, value in sel["validation"].items():
         print(f"  validación {name:14s} RMSE medio ${value['mean_rmse_usd']:,.0f} | MAPE medio {value['mean_mape_pct']:.2f} %")
+    dec = results["decomposition"]
+    print(
+        f"Descomposición (solo entrenamiento): tendencia +{dec['trend']['annual_growth_pct']:.1f} % anual | "
+        f"estacionalidad {dec['seasonality']['strength']:.2f} (mín. {dec['seasonality']['lowest_month']}, máx. {dec['seasonality']['highest_month']}) | "
+        f"residuo ±{dec['residual']['std_pct']:.1f} %"
+    )
     print(f"Modelo elegido: {sel['chosen']}\n  {sel['reason']}")
     for key, title in (("primary_recursive_24_months", "PRINCIPAL (recursivo 24 meses)"), ("one_step_ahead", "un mes por delante")):
         m = test[key]

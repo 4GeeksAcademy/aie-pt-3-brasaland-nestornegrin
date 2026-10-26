@@ -10,5 +10,6 @@ This folder is for **evaluation and validation**: evaluation datasets, golden se
 ## `sales_forecast/`
 
 Output of the sales forecast model (`scripts/train_sales_forecast.py`): `metrics.json` (MSE, PSI, Gini, K2 Score,
-validation, dataset fingerprint), `predictions.csv` and `forecast.png`. Regenerate with
+validation, dataset fingerprint), `predictions.csv`, `forecast.png`, and the trend / seasonality / residual decomposition of the training months
+(`decomposition.csv`, `decomposition.png`). Regenerate with
 `uv run python scripts/train_sales_forecast.py`; see `scripts/sales_forecast/README.es.md` for the explanation.

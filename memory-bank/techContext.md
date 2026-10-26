@@ -47,5 +47,5 @@ Este es un **monorepo por dominio de negocio**, no un monorepo de librerías gen
 	y perfiles. La clave `JWT_SECRET_KEY` es obligatoria por entorno y
 	`ACCESS_TOKEN_EXPIRE_MINUTES` configura la expiración del token.
 - La raíz del monorepo tiene un `pyproject.toml` (gestionado con `uv`, Python >= 3.12) para el código de ciencia de
-  datos de `scripts/` y sus pruebas en `tests/pipelines/` (scikit-learn, xgboost, pandas, matplotlib, pytest). Es
+  datos de `scripts/` y sus pruebas en `tests/pipelines/` (scikit-learn, xgboost, statsmodels, pandas, matplotlib, pytest). Es
   independiente del de `services/api`. Se ejecuta con `uv run`, nunca con `pip`.

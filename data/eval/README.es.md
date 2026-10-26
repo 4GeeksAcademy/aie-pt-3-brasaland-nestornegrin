@@ -8,5 +8,6 @@ Esta carpeta está orientada a **evaluación y validación**: datasets de evalua
 ## `sales_forecast/`
 
 Resultados del modelo de predicción de ventas (`scripts/train_sales_forecast.py`): `metrics.json` (MSE, PSI, Gini,
-K2 Score, validación y huella del dataset), `predictions.csv` y `forecast.png`. Se regeneran con
+K2 Score, validación y huella del dataset), `predictions.csv`, `forecast.png` y la descomposición en tendencia, estacionalidad y residuo de los meses de
+entrenamiento (`decomposition.csv`, `decomposition.png`). Se regeneran con
 `uv run python scripts/train_sales_forecast.py`; la explicación está en `scripts/sales_forecast/README.es.md`.

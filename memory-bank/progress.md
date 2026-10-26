@@ -213,6 +213,12 @@
   Gini 0,908, K2 Score (R²) 0,893; PSI de ventas en bruto 5,65 (tendencia de crecimiento), PSI sin tendencia 0,23
   (dentro del ruido). Referencia "mismo mes del año pasado": 4,78 %. Explicación en
   `scripts/sales_forecast/README.es.md`.
-- Pruebas en `tests/pipelines/test_sales_split.py` (14): split 8/2, sin fuga de datos, escalador y semilla.
-  Se ejecutan con `uv run pytest tests/pipelines -v`.
+- Descomposición en tendencia, estacionalidad y residuo (STL robusto sobre logaritmos, solo con los 96 meses de
+  entrenamiento; añadido tras el comentario del revisor del PR #23): tendencia +5,7 % anual, estacionalidad con fuerza
+  0,90 (enero −14 %, diciembre +19 %), residuo 2,4 %. Módulo `scripts/sales_forecast/decomposition.py`, salidas
+  `decomposition.csv/png` y bloque `decomposition` en `metrics.json`; dependencia nueva `statsmodels` (con `uv add`).
+  Las métricas del modelo no cambian.
+- Pruebas en `tests/pipelines/` (19): `test_sales_split.py` (14: split 8/2, sin fuga de datos, escalador y semilla) y
+  `test_sales_decomposition.py` (5: los componentes reconstruyen la serie, recuperan una estructura conocida y no usan
+  meses de prueba). Se ejecutan con `uv run pytest tests/pipelines -v`.
 - Nota: "K2 Score" no está definido en el ticket; se interpreta como R².

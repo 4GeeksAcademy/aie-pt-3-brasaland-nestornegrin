@@ -22,8 +22,47 @@
     "random_state": 42,
     "sklearn": "1.9.1",
     "xgboost": "3.4.1",
+    "statsmodels": "0.15.0",
     "numpy": "2.5.4",
     "pandas": "3.1.0"
+  },
+  "decomposition": {
+    "method": "STL robusto sobre logaritmos (descomposición multiplicativa), periodo 12",
+    "months_used": 96,
+    "range": [
+      "2016-01",
+      "2023-12"
+    ],
+    "trend": {
+      "annual_growth_pct": 5.712463885607666,
+      "first_usd": 487295.2758511956,
+      "last_usd": 756469.1938127954,
+      "strength": 0.9598276834439866
+    },
+    "seasonality": {
+      "strength": 0.8986187019289117,
+      "factor_by_month": {
+        "ene": 0.8603391930865273,
+        "feb": 1.026846769413373,
+        "mar": 1.0001036451370717,
+        "abr": 1.0316612392401316,
+        "may": 0.9941392524429178,
+        "jun": 0.9782107917935776,
+        "jul": 1.0049524762757274,
+        "ago": 1.0074084806014265,
+        "sep": 0.9723435464891235,
+        "oct": 0.9850145209003472,
+        "nov": 0.968612245830445,
+        "dic": 1.1940381082491056
+      },
+      "lowest_month": "ene",
+      "highest_month": "dic"
+    },
+    "residual": {
+      "std_pct": 2.3985598456549435,
+      "mean_abs_pct": 1.8773796820437052,
+      "max_abs_pct": 8.279860725315991
+    }
   },
   "model_selection": {
     "method": "validación walk-forward en los últimos 3 años de ENTRENAMIENTO (pronóstico recursivo de 12 meses)",

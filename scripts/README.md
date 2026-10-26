@@ -11,7 +11,7 @@ This folder contains **helper scripts** for the monorepo: development automation
 
 `train_sales_forecast.py` trains and evaluates a regression model (Random Forest or XGBoost) on
 `data/raw/brasaland_sales.csv`: 8-year / 2-year split, MSE, PSI, Gini, K2 Score and a forecast chart with its
-variability range. Code lives in `scripts/sales_forecast/`; model choice and metrics are explained in
+variability range, plus a trend / seasonality / residual decomposition (STL) of the training months. Code lives in `scripts/sales_forecast/`; model choice and metrics are explained in
 `scripts/sales_forecast/README.es.md`.
 
 ```bash
