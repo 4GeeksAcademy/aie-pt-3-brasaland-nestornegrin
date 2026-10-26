@@ -17,3 +17,16 @@ python3 scripts/analyze.py data/raw/incidents-COMPANY.csv
 
 Responde `s` al final para escribir `results.csv`. Para cambiar la ruta de
 salida usa `--output ruta/resultados.csv`.
+
+## Modelo de predicción de ventas
+
+`train_sales_forecast.py` entrena y evalúa un modelo de regresión (Random Forest o XGBoost) sobre
+`data/raw/brasaland_sales.csv`: split 8 años / 2 años, MSE, PSI, Gini, K2 Score y gráfica con rango de variabilidad y descomposición (STL) en tendencia, estacionalidad y residuo de los meses de
+entrenamiento.
+El código vive en `scripts/sales_forecast/` y su criterio de elección y métricas están explicados en
+`scripts/sales_forecast/README.es.md`.
+
+```bash
+uv run python scripts/train_sales_forecast.py
+uv run pytest tests/pipelines -v
+```

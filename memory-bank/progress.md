@@ -199,3 +199,26 @@
   frontend sin errores (las 2 páginas nuevas generan como contenido
   estático).
 
+
+## Modelo de predicción de ventas (regresión)
+
+- `scripts/sales_forecast/` (carga y validación, split, features causales, métricas, modelo, gráfica) y el CLI
+  `scripts/train_sales_forecast.py`. Dataset provisto `data/raw/brasaland_sales.csv` (120 meses consolidados),
+  sin modificar; su huella SHA-256 queda en `data/eval/sales_forecast/metrics.json`.
+- Split temporal 8 años (2016-01 → 2023-12) / 2 años (2024-01 → 2025-12). El modelo predice la razón
+  ventas/nivel de los 12 meses previos (para poder extrapolar el crecimiento) y se convierte a USD.
+- Algoritmo elegido con validación walk-forward dentro del entrenamiento: Random Forest (XGBoost mejora el RMSE solo
+  un 2,3 %, bajo el 5 % exigido, así que gana el modelo más simple). Semilla `random_state=42`.
+- Resultados sobre la prueba (pronóstico recursivo de 24 meses): MSE 583.655.557 USD², error medio 2,72 %,
+  Gini 0,908, K2 Score (R²) 0,893; PSI de ventas en bruto 5,65 (tendencia de crecimiento), PSI sin tendencia 0,23
+  (dentro del ruido). Referencia "mismo mes del año pasado": 4,78 %. Explicación en
+  `scripts/sales_forecast/README.es.md`.
+- Descomposición en tendencia, estacionalidad y residuo (STL robusto sobre logaritmos, solo con los 96 meses de
+  entrenamiento; añadido tras el comentario del revisor del PR #23): tendencia +5,7 % anual, estacionalidad con fuerza
+  0,90 (enero −14 %, diciembre +19 %), residuo 2,4 %. Módulo `scripts/sales_forecast/decomposition.py`, salidas
+  `decomposition.csv/png` y bloque `decomposition` en `metrics.json`; dependencia nueva `statsmodels` (con `uv add`).
+  Las métricas del modelo no cambian.
+- Pruebas en `tests/pipelines/` (19): `test_sales_split.py` (14: split 8/2, sin fuga de datos, escalador y semilla) y
+  `test_sales_decomposition.py` (5: los componentes reconstruyen la serie, recuperan una estructura conocida y no usan
+  meses de prueba). Se ejecutan con `uv run pytest tests/pipelines -v`.
+- Nota: "K2 Score" no está definido en el ticket; se interpreta como R².

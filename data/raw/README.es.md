@@ -5,6 +5,14 @@ Esta carpeta está pensada para almacenar **datos en bruto** (raw) relacionados 
 - **Propósito principal**: servir como zona de aterrizaje o referencia de datos originales antes de ser procesados por pipelines.
 - **Recomendación**: documenta el origen de cada dataset, formato, tamaño esperado, consideraciones de privacidad/PII y cómo se versiona (idealmente evitando subir datos sensibles al repositorio).
 
+## `brasaland_sales.csv`
+
+Dataset **provisto por el curso** (no se genera ni se modifica) con las ventas mensuales consolidadas de las 14
+ubicaciones: 120 filas, de 2016-01 a 2025-12, fila `market = consolidated`. Columnas: `month` (`YYYY-MM-01`),
+`revenue_usd`, `covers_served`, `avg_ticket_usd` y `market`. Lo usa el modelo de predicción de ventas
+(`scripts/sales_forecast/`), que valida sus reglas al cargarlo y registra su huella SHA-256 en
+`data/eval/sales_forecast/metrics.json`. Sin datos personales.
+
 ## `incidents-COMPANY.csv`
 
 Muestra sintética y anonimizada de 100 incidencias postventa para validar el
