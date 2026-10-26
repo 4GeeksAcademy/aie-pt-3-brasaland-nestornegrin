@@ -25,6 +25,9 @@ salida usa `--output ruta/resultados.csv`.
 entrenamiento.
 El código vive en `scripts/sales_forecast/` y su criterio de elección y métricas están explicados en
 `scripts/sales_forecast/README.es.md`.
+`evaluate_sales_model.py` evalúa ese modelo (solo con los meses de entrenamiento): `TimeSeriesSplit` de 5 folds con
+comprobación explícita del orden cronológico, MAE y RMSE como media ± desviación, curva de aprendizaje y diagnóstico
+de ajuste; resultados en `data/eval/evaluation_report.md`.
 
 ```bash
 uv run python scripts/train_sales_forecast.py

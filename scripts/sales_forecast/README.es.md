@@ -12,6 +12,7 @@ Desde la raíz del monorepo (dependencias con `uv`, nunca `pip`):
 uv sync                                          # instala scikit-learn, xgboost, pandas, matplotlib, pytest
 uv run python scripts/train_sales_forecast.py    # entrena, evalúa y guarda los resultados
 uv run pytest tests/pipelines -v                 # pruebas del split y de la ausencia de fuga de datos
+uv run python scripts/evaluate_sales_model.py    # validación cruzada temporal, curva de aprendizaje y diagnóstico
 ```
 
 Salidas en `data/eval/sales_forecast/`: `metrics.json` (todas las métricas y la huella SHA-256 del dataset),
@@ -166,6 +167,16 @@ alrededor de cada predicción), calculado con los errores reales de la validaci�
 de los meses reales cae dentro del rango (algo conservador, que es preferible).
 
 ![Predicción vs. real](../../data/eval/sales_forecast/forecast.png)
+
+## Evaluación técnica (validación cruzada y curva de aprendizaje)
+
+Antes de pasar a staging, el modelo se evalúa con `scripts/evaluate_sales_model.py`, **solo con los 96 meses de
+entrenamiento**: `TimeSeriesSplit` de 5 folds (cada uno valida un año completo, con comprobación explícita de que
+ningún fold mezcla datos y sin fuga de las features de lag y rolling), MAE y RMSE de entrenamiento y validación como
+media ± desviación estándar, y una curva de aprendizaje. Resultado: **bien ajustado** (MAE de validación 4,12 ± 1,11 %,
+estable en 3,3-3,5 % desde los 48 meses de entrenamiento); el error que sobra es un sesgo cíclico ligado al crecimiento
+anual alterno, no un problema de ajuste, y regularizar más lo empeora. Diagnóstico, métrica elegida según el briefing y
+acción correctiva en `data/eval/evaluation_report.md`; imagen en `data/eval/learning_curve.png`.
 
 ## Limitaciones
 

@@ -222,3 +222,25 @@
   `test_sales_decomposition.py` (5: los componentes reconstruyen la serie, recuperan una estructura conocida y no usan
   meses de prueba). Se ejecutan con `uv run pytest tests/pipelines -v`.
 - Nota: "K2 Score" no está definido en el ticket; se interpreta como R².
+
+## Evaluación técnica del modelo de regresión (ticket "Evaluación de un Modelo de Regresión")
+
+- Rama `feature/regression-model-eval` (sale de `feature/sales-forecast-model`: el PR #23 seguía abierto). Script
+  `scripts/evaluate_sales_model.py` y módulo `scripts/sales_forecast/evaluation.py`; usa solo los 96 meses de
+  entrenamiento, el conjunto de prueba no interviene.
+- Validación cruzada: `TimeSeriesSplit(n_splits=5, test_size=12)` (entrena 24 a 72 meses, valida 2019-2023), con
+  `verify_folds` (comprobación explícita de que nada se baraja ni se solapa) y features construidas con la serie
+  recortada al final de cada fold. Métricas como media ± desviación estándar (ddof=1): MAE de validación 4,12 ± 1,11 %,
+  RMSE 4,99 ± 1,71 %; entrenamiento 2,49 ± 0,65 % de MAE. Se añadió `mae` a `metrics.py`.
+- Curva de aprendizaje en `data/eval/learning_curve.png` (validación fija = último año de entrenamiento). Reporte en
+  `data/eval/evaluation_report.md` y cifras en `data/eval/evaluation_metrics.json`.
+- Diagnóstico con una regla fijada antes de ver los números (contra el ruido irreducible de la descomposición, 1,88 %):
+  **bien ajustado**, brecha de 1,5 puntos que regularizar más empeora (4,12 % → 5,14-5,58 %). Métrica principal: RMSE
+  (el briefing pide MSE y no cuantifica si sobreestimar o subestimar cuesta más). Causa del error que sobra: sesgo
+  cíclico ligado al crecimiento anual alterno (correlación −0,99 con 5 folds); una feature de crecimiento interanual no
+  mejora (4,12 % → 4,64 %), así que no se incorpora. Acción: aprobar sin cambiar el modelo, entregar rango y vigilar el
+  sesgo (umbral 2 %), reentrenar cada año.
+- Pruebas: `tests/pipelines/test_cv_chronology.py` (13 con las parametrizadas): orden cronológico de los folds (la del
+  ticket), rechazo de folds barajados o solapados, features sin fuga entre folds, resumen media ± desviación, curva de
+  aprendizaje y diagnóstico. En total 32 pruebas en `tests/pipelines/`. No hay CI configurado en el repo (sin
+  `.github/workflows`): se ejecutan con `uv run pytest tests/pipelines -v`.

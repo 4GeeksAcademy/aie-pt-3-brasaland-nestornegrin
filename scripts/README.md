@@ -13,6 +13,9 @@ This folder contains **helper scripts** for the monorepo: development automation
 `data/raw/brasaland_sales.csv`: 8-year / 2-year split, MSE, PSI, Gini, K2 Score and a forecast chart with its
 variability range, plus a trend / seasonality / residual decomposition (STL) of the training months. Code lives in `scripts/sales_forecast/`; model choice and metrics are explained in
 `scripts/sales_forecast/README.es.md`.
+`evaluate_sales_model.py` evaluates that model (training months only): 5-fold `TimeSeriesSplit` with an explicit
+chronological-order check, MAE / RMSE as mean ± std, a learning curve and a bias-variance diagnosis; results in
+`data/eval/evaluation_report.md`.
 
 ```bash
 uv run python scripts/train_sales_forecast.py
