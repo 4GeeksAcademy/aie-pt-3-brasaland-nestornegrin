@@ -216,6 +216,12 @@ def test_query_without_context_still_goes_through_the_model(monkeypatch):
     assert "Nunca inventes datos de la empresa" in captured[0][0]["content"]
 
 
+def test_system_prompt_keeps_no_information_answers_clean():
+    """Sin información: respuesta corta, sin hablar del 'contexto' interno ni de fuentes."""
+    assert 'sin mencionar "contexto"' in pipeline.SYSTEM_PROMPT
+    assert 'sin línea de "Fuente"' in pipeline.SYSTEM_PROMPT
+
+
 def _fake_generation_client(contents: list):
     """Cliente de chat simulado que devuelve, en orden, los `content` indicados (None = respuesta vacía)."""
     calls: list[dict] = []

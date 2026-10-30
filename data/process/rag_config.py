@@ -32,7 +32,7 @@ SOURCE_DOCUMENTS = ("loyalty-program", "waste-protocol", "menu-allergens", "supp
 
 # Umbral de similitud coseno por defecto. Se calibra con `scripts/evaluate_rag.py` (ver docs/rag/rag-design.md);
 # se puede sobrescribir con RAG_MIN_SCORE sin tocar el código.
-DEFAULT_MIN_SCORE = 0.30
+DEFAULT_MIN_SCORE = 0.45
 DEFAULT_K = 5
 
 # No hay modelos por defecto a propósito: cada equipo de 4Geeks tiene su propia lista de modelos permitidos (el

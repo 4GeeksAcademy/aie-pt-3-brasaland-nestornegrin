@@ -116,11 +116,11 @@ son los que permiten citar la fuente ("Fuente: loyalty-program — Niveles del p
 | Aspecto | Decisión |
 |---|---|
 | **Modelo de embeddings** | `madrid-spain/openrouter/perplexity/pplx-embed-v1-0.6b`, modelo dedicado de embeddings proporcionado por 4Geeks (uno de los modelos permitidos a este equipo). Se lee de `EMBEDDING_MODEL`; no hay valor por defecto. Se piden vectores en formato `float`. |
-| **Modelo de generación** | _completar: ID elegido entre los modelos de chat de 4Geeks_. Se lee de `GENERATION_MODEL` o `LLM_MODEL`; no hay valor por defecto. Temperatura 0 para ceñirse al contexto. |
+| **Modelo de generación** | `madrid-spain/openrouter/xiaomi/mimo-v2.5` (modelo de chat de la lista permitida del equipo). Se lee de `GENERATION_MODEL` o `LLM_MODEL`; no hay valor por defecto. Temperatura 0 para ceñirse al contexto. Se probaron los modelos de chat de la lista: `deepseek-v4-flash` devolvía `content` vacío de forma intermitente (modelo de razonamiento), `glm-5.3-flash` no estaba disponible en el gateway y `gpt-6-luna` respondía bien pero más lento (7 s frente a 3,7 s). Además, `complete()` reintenta una vez y lanza `EmptyCompletionError` si la respuesta sigue vacía, para no devolver nunca un texto en blanco. |
 | **Endpoint** | Gateway de 4Geeks compatible con OpenAI: clave en `LLM_API_KEY` y URL en `LLM_API_URL` (o `LLM_BASE_URL`). Cada equipo tiene una lista de modelos permitidos; pedir otro devuelve 403. |
 | **Separación** | Los dos IDs deben ser distintos: `load_settings()` lanza `RagConfigError` si coinciden (hay un test). El modelo de generación nunca calcula embeddings. |
 | **Una sola `embed()`** | La misma función embebe los chunks al indexar y la pregunta al consultar, así ambos viven en el mismo espacio vectorial. |
-| **Dimensión del vector** | No se escribe a mano: `setup()` la mide con el primer embedding y crea la colección con ese tamaño (si cambia el modelo y cambia la dimensión, recrea la colección). **Valor medido: _completar tras la primera ejecución_.** |
+| **Dimensión del vector** | No se escribe a mano: `setup()` la mide con el primer embedding y crea la colección con ese tamaño (si cambia el modelo y cambia la dimensión, recrea la colección). **Valor medido: 1024.** El modelo devuelve vectores con aspecto cuantizado (valores múltiplos de 1/256); con coseno funcionan bien, como muestra el Recall@3 de la sección 5. |
 | **Métrica de distancia** | Coseno (`Distance.COSINE`). Qdrant normaliza los vectores al insertarlos, así que la puntuación está en [−1, 1] y mide el ángulo, no la longitud del texto. |
 | **Preprocesado antes de embeber** | Solo se recortan y colapsan espacios y saltos de línea (`normalize_text`). No se pasa a minúsculas ni se quitan tildes: el modelo las entiende y quitarlas puede confundir palabras. |
 | **Contexto en el texto embebido** | Al indexar, cada chunk se embebe como `"<título del documento>. <sección>.\n<cuerpo>"`. El título y la sección aportan contexto (p. ej. "Protocolo de Control de Desperdicio") sin cambiar el `text` que se guarda y se inserta en el prompt. La pregunta del usuario se embebe tal cual. |
@@ -145,7 +145,15 @@ precio de la Ensalada Tropical) no se pueden separar por similitud, y por eso la
 solo puede usar el contexto y debe admitir cuando no contiene la respuesta.
 
 El valor por defecto está en `data/process/rag_config.py` (`DEFAULT_MIN_SCORE`) y se puede sobrescribir con la
-variable `RAG_MIN_SCORE` sin tocar el código. **Umbral elegido: _completar tras la primera ejecución_.**
+variable `RAG_MIN_SCORE` sin tocar el código. **Umbral elegido: 0,45.**
+
+Con las 16 preguntas de evaluación: los aciertos puntúan entre **0,5285 y 0,846**, las preguntas fuera de tema entre
+**0,07 y 0,28**, y las del dominio sin respuesta en los documentos entre 0,36 y 0,47. El script recomienda el punto
+medio de 0,406 (entre 0,284 y 0,5285). Se elige **0,45** porque deja el mismo resultado sobre el conjunto de prueba,
+filtra mejor lo ajeno al negocio y mantiene un margen de ~0,08 sobre el acierto más bajo: preguntas reales
+formuladas con menos precisión puntuarán algo menos que las de prueba, y rechazar una pregunta válida es peor error
+que dejar pasar una dudosa (que el prompt manda contestar como "sin información"). Subir el umbral hasta ~0,50 para
+cortar también la pregunta de vacaciones (0,47) dejaría solo ~0,03 de margen, así que no se hace.
 
 ---
 
@@ -157,7 +165,7 @@ clientes y personal nuevo** de Brasaland en Colombia y Florida. Reglas del promp
 1. Usar **únicamente** el CONTEXTO recuperado.
 2. Todo número, porcentaje, monto o plazo debe aparecer tal cual en el contexto; los montos en USD y COP se dejan como
    están (sin conversión de moneda).
-3. Si el contexto está vacío o no contiene la respuesta, decir que no hay información suficiente; nunca inventar.
+3. Si el contexto está vacío o no contiene la respuesta, decir que no hay información suficiente en una o dos frases, sin mencionar el "contexto" interno ni citar fuente; nunca inventar.
 4. Alérgenos: nunca decir "sin riesgo" ni garantizar cero riesgo de contaminación cruzada; seguir literalmente el texto.
 5. Responder en español, breve, y cerrar con "Fuente: <documento> — <sección>" (la respuesta es trazable a la fuente
    aunque el endpoint solo devuelva el campo `answer`).
@@ -175,7 +183,7 @@ uv run python -m scripts.evaluate_rag --answers  # además genera las respuestas
 ```
 
 - **Recall@3** (objetivo ≥ 80 %): fracción de preguntas respondibles con el chunk correcto entre los 3 primeros
-  resultados (se mide sin umbral, porque evalúa la calidad de la búsqueda). **Resultado: _completar tras la primera ejecución_.**
+  resultados (se mide sin umbral, porque evalúa la calidad de la búsqueda). **Resultado: 100 % (12 de 12 preguntas con el chunk correcto en el top 3; 11 en el primer puesto y 1 en el segundo).**
 - **Fidelidad:** ningún número en la respuesta que no aparezca en los chunks recuperados (comprobación automática).
 - **Honestidad:** las preguntas sin respuesta deben contestarse admitiendo que no hay información.
 - **Seguridad en alérgenos:** ninguna respuesta contiene "sin riesgo".
@@ -214,3 +222,7 @@ cd uis/backoffice && npm run dev                 # página /knowledge
 curl -X POST localhost:8000/knowledge/query -H 'Content-Type: application/json' \
      -d '{"question": "¿Cuántos puntos necesito para el nivel Oro?"}'
 ```
+
+**Resultado con `mimo-v2.5` y umbral 0,45** (`uv run python -m scripts.evaluate_rag --answers --min-score 0.45`):
+Recall@3 = 100 %, fidelidad = correcta (ningún número fuera de los chunks recuperados), honestidad = correcta
+(las 4 preguntas sin respuesta admiten que no hay información) y ninguna respuesta contiene frases prohibidas.
