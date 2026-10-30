@@ -143,13 +143,13 @@ def build_messages(question: str, context: list[dict]) -> list[dict]:
 
 
 def complete(messages: list[dict]) -> str:
-    """Llamada al modelo de generación (`GENERATION_MODEL`, distinto del de embeddings). Temperatura baja: aquí
+    """Llamada al modelo de generación (`GENERATION_MODEL`, distinto del de embeddings). Temperatura 0: aquí
     se busca fidelidad al contexto, no creatividad."""
     settings = load_settings()
     response = get_generation_client().chat.completions.create(
         model=settings.generation_model,
         messages=messages,
-        temperature=0.2,
+        temperature=0.0,
     )
     return (response.choices[0].message.content or "").strip()
 

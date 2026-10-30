@@ -252,8 +252,33 @@ def test_embedding_and_generation_models_must_be_different(no_dotenv):
 
 
 def test_missing_configuration_raises_a_clear_error(no_dotenv):
-    with pytest.raises(rag_config.RagConfigError, match="EMBEDDING_MODEL"):
+    with pytest.raises(rag_config.RagConfigError, match="LLM_API_KEY"):
         rag_config.load_settings()
+    no_dotenv.setenv("LLM_API_KEY", "k")
+    with pytest.raises(rag_config.RagConfigError, match="QDRANT_URL"):
+        rag_config.load_settings()
+
+
+def test_models_default_to_the_course_models_and_are_distinct(no_dotenv):
+    no_dotenv.setenv("QDRANT_URL", "https://q")
+    no_dotenv.setenv("LLM_API_KEY", "k")
+    settings = rag_config.load_settings()
+    assert settings.embedding_model == "text-embedding-3-small"
+    assert settings.generation_model == "gpt-4o-mini"
+    assert settings.embedding_model != settings.generation_model
+    assert settings.llm_base_url is None  # sin URL propia se usa la del SDK (OpenAI)
+
+
+def test_course_variable_names_are_accepted_as_aliases(no_dotenv):
+    for name, value in {"QDRANT_URL": "https://q", "LLM_API_KEY": "k", "LLM_API_URL": "https://proxy.example/v1",
+                        "LLM_MODEL": "otro-chat", "EMBEDDING_MODEL": "otro-embedding"}.items():
+        no_dotenv.setenv(name, value)
+    settings = rag_config.load_settings()
+    assert settings.llm_base_url == "https://proxy.example/v1"
+    assert settings.embedding_base_url == "https://proxy.example/v1"  # hereda la URL común
+    assert settings.generation_model == "otro-chat" and settings.embedding_model == "otro-embedding"
+    no_dotenv.setenv("GENERATION_MODEL", "prioritario")  # GENERATION_MODEL gana sobre LLM_MODEL
+    assert rag_config.load_settings().generation_model == "prioritario"
 
 
 def test_min_score_can_be_overridden_from_the_environment(no_dotenv):

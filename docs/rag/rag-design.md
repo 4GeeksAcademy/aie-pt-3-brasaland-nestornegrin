@@ -115,8 +115,9 @@ son los que permiten citar la fuente ("Fuente: loyalty-program — Niveles del p
 
 | Aspecto | Decisión |
 |---|---|
-| **Modelo de embeddings** | Se lee de `EMBEDDING_MODEL` (modelo dedicado de embeddings, proporcionado por 4Geeks). **ID usado: _completar tras la primera ejecución_.** |
-| **Modelo de generación** | Se lee de `GENERATION_MODEL` (modelo de chat, proporcionado por 4Geeks). **ID usado: _completar tras la primera ejecución_.** |
+| **Modelo de embeddings** | `text-embedding-3-small`, modelo dedicado de embeddings proporcionado por 4Geeks para el curso. Se lee de `EMBEDDING_MODEL` (ese es el valor por defecto). |
+| **Modelo de generación** | `gpt-4o-mini`, modelo de chat proporcionado por 4Geeks para el curso. Se lee de `GENERATION_MODEL` o `LLM_MODEL` (ese es el valor por defecto). Temperatura 0 para ceñirse al contexto. |
+| **Endpoint** | API compatible con OpenAI: clave en `LLM_API_KEY` y URL opcional en `LLM_API_URL` (o `LLM_BASE_URL`). |
 | **Separación** | Los dos IDs deben ser distintos: `load_settings()` lanza `RagConfigError` si coinciden (hay un test). El modelo de generación nunca calcula embeddings. |
 | **Una sola `embed()`** | La misma función embebe los chunks al indexar y la pregunta al consultar, así ambos viven en el mismo espacio vectorial. |
 | **Dimensión del vector** | No se escribe a mano: `setup()` la mide con el primer embedding y crea la colección con ese tamaño (si cambia el modelo y cambia la dimensión, recrea la colección). **Valor medido: _completar tras la primera ejecución_.** |
@@ -201,8 +202,8 @@ Los resultados se guardan en `data/eval/rag_eval_results.json`.
 ## 7. Cómo ejecutarlo
 
 ```bash
-# 1. Variables en .env (ver services/api/.env.example): QDRANT_URL, QDRANT_API_KEY, EMBEDDING_MODEL,
-#    GENERATION_MODEL, LLM_BASE_URL, LLM_API_KEY
+# 1. Variables en .env (ver services/api/.env.example): QDRANT_URL, QDRANT_API_KEY y LLM_API_KEY
+#    (opcionales: LLM_API_URL, EMBEDDING_MODEL, GENERATION_MODEL)
 uv run python -m data.process.rag                # setup(): indexa y muestra el nº de chunks (idempotente)
 uv run python -m scripts.evaluate_rag --answers  # Recall@3, umbral y fidelidad
 uv run pytest tests/pipelines/test_rag.py -v     # pruebas unitarias (sin Qdrant ni LLM reales)

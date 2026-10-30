@@ -4,12 +4,13 @@ Todo lo que cambia entre entornos (URLs, claves, IDs de modelo) viene del entorn
 mano en el código. Los clientes se crean de forma perezosa (la primera vez que se usan) para que importar los
 módulos del RAG no exija claves ni red: así los tests unitarios corren sin `.env`.
 
-Variables de entorno:
+Variables de entorno (los nombres LLM_API_KEY / LLM_API_URL / LLM_MODEL son los del tutorial del curso):
 
     QDRANT_URL, QDRANT_API_KEY      Qdrant (Cloud). La clave es opcional para un Qdrant local sin autenticación.
-    EMBEDDING_MODEL                 ID del modelo de embeddings (dedicado, proporcionado por 4Geeks).
-    GENERATION_MODEL                ID del modelo de generación (chat/completion, proporcionado por 4Geeks).
-    LLM_BASE_URL, LLM_API_KEY       Endpoint compatible con la API de OpenAI y su clave (ambos modelos).
+    LLM_API_KEY                     Clave del endpoint de modelos (obligatoria).
+    LLM_API_URL (o LLM_BASE_URL)    URL base del endpoint compatible con OpenAI. Si falta, se usa la de OpenAI.
+    EMBEDDING_MODEL                 ID del modelo de embeddings (dedicado). Por defecto text-embedding-3-small.
+    GENERATION_MODEL (o LLM_MODEL)  ID del modelo de generación (chat). Por defecto gpt-4o-mini.
     EMBEDDING_BASE_URL,             Opcionales: si el modelo de embeddings vive en otro endpoint o usa otra clave.
     EMBEDDING_API_KEY
     RAG_MIN_SCORE                   Umbral mínimo de similitud coseno (por defecto, el calibrado en rag-design.md).
@@ -33,6 +34,10 @@ SOURCE_DOCUMENTS = ("loyalty-program", "waste-protocol", "menu-allergens", "supp
 # se puede sobrescribir con RAG_MIN_SCORE sin tocar el código.
 DEFAULT_MIN_SCORE = 0.30
 DEFAULT_K = 5
+
+# Modelos por defecto: los del tutorial del curso. Se pueden cambiar por variable de entorno sin tocar el código.
+DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
+DEFAULT_GENERATION_MODEL = "gpt-4o-mini"
 
 
 class RagConfigError(RuntimeError):
@@ -61,8 +66,17 @@ def _load_dotenv() -> None:
     load_dotenv(REPO_ROOT / ".env", override=False)
 
 
+def _first(*names: str) -> str | None:
+    """Valor de la primera variable de entorno definida (no vacía) entre `names`, o None."""
+    for name in names:
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            return value
+    return None
+
+
 def _required(name: str) -> str:
-    value = (os.environ.get(name) or "").strip()
+    value = _first(name)
     if not value:
         raise RagConfigError(f"Falta la variable de entorno {name} (defínela en tu .env).")
     return value
@@ -80,12 +94,12 @@ def ensure_distinct_models(embedding_model: str, generation_model: str) -> None:
 def load_settings() -> RagSettings:
     """Lee y valida toda la configuración. Lanza `RagConfigError` con un mensaje accionable si algo falta."""
     _load_dotenv()
-    embedding_model = _required("EMBEDDING_MODEL")
-    generation_model = _required("GENERATION_MODEL")
+    embedding_model = _first("EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL
+    generation_model = _first("GENERATION_MODEL", "LLM_MODEL") or DEFAULT_GENERATION_MODEL
     ensure_distinct_models(embedding_model, generation_model)
 
     llm_api_key = _required("LLM_API_KEY")
-    llm_base_url = (os.environ.get("LLM_BASE_URL") or "").strip() or None
+    llm_base_url = _first("LLM_BASE_URL", "LLM_API_URL")
     raw_min_score = (os.environ.get("RAG_MIN_SCORE") or "").strip()
     try:
         min_score = float(raw_min_score) if raw_min_score else DEFAULT_MIN_SCORE
