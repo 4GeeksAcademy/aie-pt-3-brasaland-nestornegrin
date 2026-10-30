@@ -299,7 +299,11 @@ def embed(text: str) -> list[float]:
     if not cleaned:
         raise ValueError("embed() necesita un texto no vacío.")
     settings = load_settings()
-    response = get_embedding_client().embeddings.create(model=settings.embedding_model, input=cleaned)
+    # encoding_format="float": el SDK de OpenAI pide por defecto base64 y lo decodifica; con otros modelos o
+    # proxies (aquí, el de 4Geeks) eso puede dar vectores mal decodificados, así que se piden números normales.
+    response = get_embedding_client().embeddings.create(
+        model=settings.embedding_model, input=cleaned, encoding_format="float"
+    )
     return [float(value) for value in response.data[0].embedding]
 
 

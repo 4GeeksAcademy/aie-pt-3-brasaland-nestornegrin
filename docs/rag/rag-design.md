@@ -115,9 +115,9 @@ son los que permiten citar la fuente ("Fuente: loyalty-program — Niveles del p
 
 | Aspecto | Decisión |
 |---|---|
-| **Modelo de embeddings** | `text-embedding-3-small`, modelo dedicado de embeddings proporcionado por 4Geeks para el curso. Se lee de `EMBEDDING_MODEL` (ese es el valor por defecto). |
-| **Modelo de generación** | `gpt-4o-mini`, modelo de chat proporcionado por 4Geeks para el curso. Se lee de `GENERATION_MODEL` o `LLM_MODEL` (ese es el valor por defecto). Temperatura 0 para ceñirse al contexto. |
-| **Endpoint** | API compatible con OpenAI: clave en `LLM_API_KEY` y URL opcional en `LLM_API_URL` (o `LLM_BASE_URL`). |
+| **Modelo de embeddings** | `madrid-spain/openrouter/perplexity/pplx-embed-v1-0.6b`, modelo dedicado de embeddings proporcionado por 4Geeks (uno de los modelos permitidos a este equipo). Se lee de `EMBEDDING_MODEL`; no hay valor por defecto. Se piden vectores en formato `float`. |
+| **Modelo de generación** | _completar: ID elegido entre los modelos de chat de 4Geeks_. Se lee de `GENERATION_MODEL` o `LLM_MODEL`; no hay valor por defecto. Temperatura 0 para ceñirse al contexto. |
+| **Endpoint** | Gateway de 4Geeks compatible con OpenAI: clave en `LLM_API_KEY` y URL en `LLM_API_URL` (o `LLM_BASE_URL`). Cada equipo tiene una lista de modelos permitidos; pedir otro devuelve 403. |
 | **Separación** | Los dos IDs deben ser distintos: `load_settings()` lanza `RagConfigError` si coinciden (hay un test). El modelo de generación nunca calcula embeddings. |
 | **Una sola `embed()`** | La misma función embebe los chunks al indexar y la pregunta al consultar, así ambos viven en el mismo espacio vectorial. |
 | **Dimensión del vector** | No se escribe a mano: `setup()` la mide con el primer embedding y crea la colección con ese tamaño (si cambia el modelo y cambia la dimensión, recrea la colección). **Valor medido: _completar tras la primera ejecución_.** |
@@ -202,8 +202,8 @@ Los resultados se guardan en `data/eval/rag_eval_results.json`.
 ## 7. Cómo ejecutarlo
 
 ```bash
-# 1. Variables en .env (ver services/api/.env.example): QDRANT_URL, QDRANT_API_KEY y LLM_API_KEY
-#    (opcionales: LLM_API_URL, EMBEDDING_MODEL, GENERATION_MODEL)
+# 1. Variables en .env (ver services/api/.env.example): QDRANT_URL, QDRANT_API_KEY, LLM_API_KEY, LLM_API_URL,
+#    EMBEDDING_MODEL y GENERATION_MODEL
 uv run python -m data.process.rag                # setup(): indexa y muestra el nº de chunks (idempotente)
 uv run python -m scripts.evaluate_rag --answers  # Recall@3, umbral y fidelidad
 uv run pytest tests/pipelines/test_rag.py -v     # pruebas unitarias (sin Qdrant ni LLM reales)

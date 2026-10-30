@@ -252,6 +252,10 @@ def test_embedding_and_generation_models_must_be_different(no_dotenv):
 
 
 def test_missing_configuration_raises_a_clear_error(no_dotenv):
+    with pytest.raises(rag_config.RagConfigError, match="EMBEDDING_MODEL"):
+        rag_config.load_settings()
+    no_dotenv.setenv("EMBEDDING_MODEL", "emb")
+    no_dotenv.setenv("GENERATION_MODEL", "chat")
     with pytest.raises(rag_config.RagConfigError, match="LLM_API_KEY"):
         rag_config.load_settings()
     no_dotenv.setenv("LLM_API_KEY", "k")
@@ -259,14 +263,34 @@ def test_missing_configuration_raises_a_clear_error(no_dotenv):
         rag_config.load_settings()
 
 
-def test_models_default_to_the_course_models_and_are_distinct(no_dotenv):
+def test_model_ids_are_required_and_never_defaulted(no_dotenv):
     no_dotenv.setenv("QDRANT_URL", "https://q")
     no_dotenv.setenv("LLM_API_KEY", "k")
+    with pytest.raises(rag_config.RagConfigError, match="EMBEDDING_MODEL"):
+        rag_config.load_settings()
+    no_dotenv.setenv("EMBEDDING_MODEL", "emb")
+    with pytest.raises(rag_config.RagConfigError, match="GENERATION_MODEL"):
+        rag_config.load_settings()
+    no_dotenv.setenv("GENERATION_MODEL", "chat")
     settings = rag_config.load_settings()
-    assert settings.embedding_model == "text-embedding-3-small"
-    assert settings.generation_model == "gpt-4o-mini"
-    assert settings.embedding_model != settings.generation_model
-    assert settings.llm_base_url is None  # sin URL propia se usa la del SDK (OpenAI)
+    assert (settings.embedding_model, settings.generation_model) == ("emb", "chat")
+    assert settings.llm_base_url is None  # sin URL propia se usa la del SDK
+
+
+def test_embed_asks_for_plain_float_vectors(no_dotenv, monkeypatch):
+    for name, value in {"QDRANT_URL": "https://q", "LLM_API_KEY": "k", "EMBEDDING_MODEL": "emb",
+                        "GENERATION_MODEL": "chat"}.items():
+        no_dotenv.setenv(name, value)
+    calls = []
+
+    class FakeEmbeddings:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(data=[SimpleNamespace(embedding=[1, 2, 3])])
+
+    monkeypatch.setattr(process, "get_embedding_client", lambda: SimpleNamespace(embeddings=FakeEmbeddings()))
+    assert process.embed("  hola   mundo ") == [1.0, 2.0, 3.0]
+    assert calls == [{"model": "emb", "input": "hola mundo", "encoding_format": "float"}]
 
 
 def test_course_variable_names_are_accepted_as_aliases(no_dotenv):

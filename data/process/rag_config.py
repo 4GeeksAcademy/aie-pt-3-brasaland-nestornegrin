@@ -9,8 +9,8 @@ Variables de entorno (los nombres LLM_API_KEY / LLM_API_URL / LLM_MODEL son los 
     QDRANT_URL, QDRANT_API_KEY      Qdrant (Cloud). La clave es opcional para un Qdrant local sin autenticación.
     LLM_API_KEY                     Clave del endpoint de modelos (obligatoria).
     LLM_API_URL (o LLM_BASE_URL)    URL base del endpoint compatible con OpenAI. Si falta, se usa la de OpenAI.
-    EMBEDDING_MODEL                 ID del modelo de embeddings (dedicado). Por defecto text-embedding-3-small.
-    GENERATION_MODEL (o LLM_MODEL)  ID del modelo de generación (chat). Por defecto gpt-4o-mini.
+    EMBEDDING_MODEL                 ID del modelo de embeddings (dedicado). Obligatorio.
+    GENERATION_MODEL (o LLM_MODEL)  ID del modelo de generación (chat). Obligatorio.
     EMBEDDING_BASE_URL,             Opcionales: si el modelo de embeddings vive en otro endpoint o usa otra clave.
     EMBEDDING_API_KEY
     RAG_MIN_SCORE                   Umbral mínimo de similitud coseno (por defecto, el calibrado en rag-design.md).
@@ -35,9 +35,8 @@ SOURCE_DOCUMENTS = ("loyalty-program", "waste-protocol", "menu-allergens", "supp
 DEFAULT_MIN_SCORE = 0.30
 DEFAULT_K = 5
 
-# Modelos por defecto: los del tutorial del curso. Se pueden cambiar por variable de entorno sin tocar el código.
-DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
-DEFAULT_GENERATION_MODEL = "gpt-4o-mini"
+# No hay modelos por defecto a propósito: cada equipo de 4Geeks tiene su propia lista de modelos permitidos (el
+# servidor responde 403 con esa lista si se pide otro), así que los IDs se definen siempre en el `.env`.
 
 
 class RagConfigError(RuntimeError):
@@ -94,8 +93,10 @@ def ensure_distinct_models(embedding_model: str, generation_model: str) -> None:
 def load_settings() -> RagSettings:
     """Lee y valida toda la configuración. Lanza `RagConfigError` con un mensaje accionable si algo falta."""
     _load_dotenv()
-    embedding_model = _first("EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL
-    generation_model = _first("GENERATION_MODEL", "LLM_MODEL") or DEFAULT_GENERATION_MODEL
+    embedding_model = _required("EMBEDDING_MODEL")
+    generation_model = _first("GENERATION_MODEL", "LLM_MODEL")
+    if not generation_model:
+        raise RagConfigError("Falta la variable de entorno GENERATION_MODEL (o LLM_MODEL): el ID del modelo de chat.")
     ensure_distinct_models(embedding_model, generation_model)
 
     llm_api_key = _required("LLM_API_KEY")
