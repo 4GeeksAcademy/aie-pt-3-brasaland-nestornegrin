@@ -20,3 +20,10 @@ Output of the sales forecast model (`scripts/train_sales_forecast.py`): `metrics
 validation, dataset fingerprint), `predictions.csv`, `forecast.png`, and the trend / seasonality / residual decomposition of the training months
 (`decomposition.csv`, `decomposition.png`). Regenerate with
 `uv run python scripts/train_sales_forecast.py`; see `scripts/sales_forecast/README.es.md` for the explanation.
+
+## RAG evaluation (`test-queries.json`, `rag_eval_results.json`)
+
+`test-queries.json` has 16 questions about the four documents in `docs/company-knowledge-base/` (12 answerable with
+their expected chunk and answer, 2 off-topic and 2 with no answer in the documents). `scripts/evaluate_rag.py` measures
+Recall@3 (BRIEFING target ≥ 80 %), recommends the similarity threshold and, with `--answers`, checks answer
+faithfulness. Run it with `uv run python -m scripts.evaluate_rag --answers`.

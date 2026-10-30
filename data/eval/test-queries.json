@@ -1,0 +1,130 @@
+[
+  {
+    "id": "q01",
+    "type": "answerable",
+    "question": "¿Cuántos puntos necesito para llegar al nivel Oro?",
+    "expected_source_document": "loyalty-program",
+    "expected_section": "Niveles del programa",
+    "expected_answer": "50 puntos o más: el nivel Oro empieza en 50+ puntos."
+  },
+  {
+    "id": "q02",
+    "type": "answerable",
+    "question": "¿Desde cuántos puntos puedo empezar a redimirlos y de cuánto en cuánto?",
+    "expected_source_document": "loyalty-program",
+    "expected_section": "Redención de puntos",
+    "expected_answer": "Desde 15 puntos acumulados, en incrementos de 5 puntos."
+  },
+  {
+    "id": "q03",
+    "type": "answerable",
+    "question": "¿Puedo compartir mi cuenta de Brasa Points con un familiar?",
+    "expected_source_document": "loyalty-program",
+    "expected_section": "Preguntas frecuentes de clientes",
+    "expected_answer": "No: cada cuenta es individual y no transferible entre personas."
+  },
+  {
+    "id": "q04",
+    "type": "answerable",
+    "question": "¿Cuándo tengo que escribir una nota explicativa por desperdicio de carne en un turno?",
+    "expected_source_document": "waste-protocol",
+    "expected_section": "Procedimiento diario",
+    "expected_answer": "Cuando el desperdicio de proteína cárnica supera 2 kg en un solo turno."
+  },
+  {
+    "id": "q05",
+    "type": "answerable",
+    "question": "¿En qué casos hay que escalar un problema de desperdicio directamente a Felipe Guerrero?",
+    "expected_source_document": "waste-protocol",
+    "expected_section": "Escalamiento a Felipe Guerrero",
+    "expected_answer": "Más de 5 kg de proteína cárnica premium (lomo, costilla) en una semana en un mismo local, o tres semanas consecutivas de merma no explicada en el mismo local."
+  },
+  {
+    "id": "q06",
+    "type": "answerable",
+    "question": "¿Cuál es la meta de desperdicio de un local y cuándo entra en plan de mejora?",
+    "expected_source_document": "waste-protocol",
+    "expected_section": "Meta operativa y plan de mejora",
+    "expected_answer": "Meta: desperdicio por debajo del 4% del costo de insumos mensual. Plan de mejora: más del 6% durante dos meses consecutivos."
+  },
+  {
+    "id": "q07",
+    "type": "answerable",
+    "question": "¿La Costilla BBQ tiene alérgenos?",
+    "expected_source_document": "menu-allergens",
+    "expected_section": "Alérgenos declarados por plato",
+    "expected_answer": "Sí: contiene soya (salsa) y puede contener trazas de maní en algunas líneas de producción de la salsa importada."
+  },
+  {
+    "id": "q08",
+    "type": "answerable",
+    "question": "¿Existe una versión sin gluten certificada de la Costilla BBQ?",
+    "expected_source_document": "menu-allergens",
+    "expected_section": "Costillas BBQ: sin versión sin gluten certificada",
+    "expected_answer": "No existe versión sin gluten certificada, por la salsa importada; esto debe comunicarse siempre que se pregunte."
+  },
+  {
+    "id": "q09",
+    "type": "answerable",
+    "question": "Un cliente con alergia severa pregunta si hay riesgo de contaminación cruzada, ¿qué le digo?",
+    "expected_source_document": "menu-allergens",
+    "expected_section": "Protocolo ante alergias reportadas",
+    "expected_answer": "Nunca se garantiza cero riesgo de contaminación cruzada y el mesero debe comunicarlo explícitamente si la alergia es severa."
+  },
+  {
+    "id": "q10",
+    "type": "answerable",
+    "question": "¿Cada cuánto se hace el pedido de vegetales y frutas y en cuánto llega?",
+    "expected_source_document": "supplier-ordering",
+    "expected_section": "Frecuencia de pedido por categoría",
+    "expected_answer": "Dos veces por semana (lunes y jueves), con entrega en 24 horas."
+  },
+  {
+    "id": "q11",
+    "type": "answerable",
+    "question": "¿Cuál es el recargo de un pedido de emergencia y quién lo aprueba?",
+    "expected_source_document": "supplier-ordering",
+    "expected_section": "Stock mínimo y pedido de emergencia",
+    "expected_answer": "Recargo del 8% sobre el precio de lista; requiere aprobación de Lucía Fernández (Gerente de Compras) si supera 500 USD."
+  },
+  {
+    "id": "q12",
+    "type": "answerable",
+    "question": "¿A qué hora tengo que generar el pedido semanal a proveedores?",
+    "expected_source_document": "supplier-ordering",
+    "expected_section": "Responsable y horario del pedido semanal",
+    "expected_answer": "Los lunes antes de las 10:00 a.m. (hora local)."
+  },
+  {
+    "id": "q13",
+    "type": "off_topic",
+    "question": "¿Cuál es la capital de Francia?",
+    "expected_source_document": null,
+    "expected_section": null,
+    "expected_answer": "No hay información suficiente en la base de conocimiento."
+  },
+  {
+    "id": "q14",
+    "type": "off_topic",
+    "question": "¿Cómo se prepara una receta de pasta carbonara?",
+    "expected_source_document": null,
+    "expected_section": null,
+    "expected_answer": "No hay información suficiente en la base de conocimiento."
+  },
+  {
+    "id": "q15",
+    "type": "unanswerable",
+    "question": "¿Cuánto cuesta la Ensalada Tropical?",
+    "expected_source_document": null,
+    "expected_section": null,
+    "expected_answer": "No hay información suficiente: los documentos no indican precios del menú."
+  },
+  {
+    "id": "q16",
+    "type": "unanswerable",
+    "question": "¿Cuántos días de vacaciones tienen los empleados de Brasaland?",
+    "expected_source_document": null,
+    "expected_section": null,
+    "expected_answer": "No hay información suficiente en la base de conocimiento."
+  }
+]
