@@ -8,3 +8,10 @@ Each subfolder or file under `data/pipelines/` should represent **one pipeline o
 - **Recommendation**: document pipelines as you add them—their goal, data sources and sinks, dependencies, and how to run them in development, testing, and production.
 
 > _Spanish version: [README.es.md](./README.es.md)._
+
+## RAG — retrieval and generation (`rag.py`)
+
+Milestone 7: `retrieve()` searches Qdrant and drops anything below `min_score`; `generate_answer()` builds the prompt
+with the BRIEFING's voice and audience and calls the generation LLM; `query()` is `retrieve()` + `generate_answer()`
+and is the only function external consumers call (the `POST /knowledge/query` endpoint). Design in
+`docs/rag/rag-design.md`.
