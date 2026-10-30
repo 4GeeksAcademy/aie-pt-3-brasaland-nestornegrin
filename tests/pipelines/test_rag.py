@@ -216,6 +216,38 @@ def test_query_without_context_still_goes_through_the_model(monkeypatch):
     assert "Nunca inventes datos de la empresa" in captured[0][0]["content"]
 
 
+def _fake_generation_client(contents: list):
+    """Cliente de chat simulado que devuelve, en orden, los `content` indicados (None = respuesta vacía)."""
+    calls: list[dict] = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=contents[len(calls) - 1]))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    return client, calls
+
+
+def _patch_generation(monkeypatch, client):
+    monkeypatch.setattr(pipeline, "load_settings", lambda: SimpleNamespace(generation_model="modelo-chat"))
+    monkeypatch.setattr(pipeline, "get_generation_client", lambda: client)
+
+
+def test_complete_retries_once_when_the_model_returns_no_content(monkeypatch):
+    client, calls = _fake_generation_client([None, "  Respuesta válida.  "])
+    _patch_generation(monkeypatch, client)
+    assert pipeline.complete([{"role": "user", "content": "hola"}]) == "Respuesta válida."
+    assert len(calls) == 2 and calls[0]["model"] == "modelo-chat" and calls[0]["temperature"] == 0.0
+
+
+def test_complete_raises_instead_of_returning_a_blank_answer(monkeypatch):
+    client, calls = _fake_generation_client([None, ""])
+    _patch_generation(monkeypatch, client)
+    with pytest.raises(pipeline.EmptyCompletionError):
+        pipeline.complete([{"role": "user", "content": "hola"}])
+    assert len(calls) == pipeline.EMPTY_COMPLETION_ATTEMPTS
+
+
 def test_generate_answer_prompt_carries_the_briefing_voice_and_the_sources():
     captured: list[list[dict]] = []
     pipeline.generate_answer("¿Cuántos puntos para Oro?", CONTEXT,

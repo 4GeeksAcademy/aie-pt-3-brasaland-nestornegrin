@@ -142,16 +142,33 @@ def build_messages(question: str, context: list[dict]) -> list[dict]:
     ]
 
 
+class EmptyCompletionError(RuntimeError):
+    """El modelo de generación devolvió una respuesta vacía incluso tras reintentar."""
+
+
+# Algunos modelos de razonamiento del gateway devuelven `content=None` de forma intermitente (gastan la respuesta
+# "pensando"). Se reintenta una vez; si sigue vacía se lanza un error claro en vez de devolver un texto en blanco.
+EMPTY_COMPLETION_ATTEMPTS = 2
+
+
 def complete(messages: list[dict]) -> str:
     """Llamada al modelo de generación (`GENERATION_MODEL`, distinto del de embeddings). Temperatura 0: aquí
-    se busca fidelidad al contexto, no creatividad."""
+    se busca fidelidad al contexto, no creatividad. Nunca devuelve una cadena vacía: reintenta y, si no hay
+    contenido, lanza `EmptyCompletionError`."""
     settings = load_settings()
-    response = get_generation_client().chat.completions.create(
-        model=settings.generation_model,
-        messages=messages,
-        temperature=0.0,
-    )
-    return (response.choices[0].message.content or "").strip()
+    client = get_generation_client()
+    for attempt in range(1, EMPTY_COMPLETION_ATTEMPTS + 1):
+        response = client.chat.completions.create(
+            model=settings.generation_model,
+            messages=messages,
+            temperature=0.0,
+        )
+        content = (response.choices[0].message.content or "").strip()
+        if content:
+            return content
+        logger.warning("complete: respuesta vacía del modelo %s (intento %d/%d)",
+                       settings.generation_model, attempt, EMPTY_COMPLETION_ATTEMPTS)
+    raise EmptyCompletionError("El modelo de generación devolvió una respuesta vacía.")
 
 
 def generate_answer(
