@@ -83,3 +83,11 @@ Recuperación y cambio de contraseña (ver `.env.example`):
 
 Categorías válidas: `Carnes`, `Vegetales`, `Lácteos`, `Bebidas`, `Empaques`.
 Estados válidos: `Activo`, `Suspendido`.
+
+## Base de conocimiento (Hito 7 — RAG)
+
+- `POST /knowledge/query` recibe `{"question": "..."}` y responde `{"answer": "..."}` con el texto que redacta el
+  modelo de generación a partir del contexto recuperado de Qdrant. No devuelve chunks ni puntuaciones; no exige sesión.
+  El router (`app/routes/knowledge.py`) solo valida y llama a `query()` de `data/pipelines/rag.py`. Códigos: `422`
+  petición inválida, `502` Qdrant o el LLM no responden, `503` faltan variables de entorno del RAG. Diseño y variables en
+  `docs/rag/rag-design.md`.
