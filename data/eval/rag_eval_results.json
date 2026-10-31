@@ -1,0 +1,599 @@
+{
+  "retrieval": {
+    "recall_at_3": 1.0,
+    "recall_target": 0.8,
+    "recall_ok": true,
+    "answerable_questions": 12,
+    "threshold": {
+      "min_score": 0.406,
+      "separable": true,
+      "lowest_positive": 0.5285,
+      "highest_negative": 0.2842
+    },
+    "rows": [
+      {
+        "id": "q01",
+        "type": "answerable",
+        "question": "¿Cuántos puntos necesito para llegar al nivel Oro?",
+        "top_score": 0.5413,
+        "top_results": [
+          {
+            "source_document": "loyalty-program",
+            "section": "Niveles del programa",
+            "score": 0.5413
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Redención de puntos",
+            "score": 0.4174
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Acumulación y vigencia de puntos",
+            "score": 0.4046
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.5413
+      },
+      {
+        "id": "q02",
+        "type": "answerable",
+        "question": "¿Desde cuántos puntos puedo empezar a redimirlos y de cuánto en cuánto?",
+        "top_score": 0.5285,
+        "top_results": [
+          {
+            "source_document": "loyalty-program",
+            "section": "Redención de puntos",
+            "score": 0.5285
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Acumulación y vigencia de puntos",
+            "score": 0.3595
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Preguntas frecuentes de clientes",
+            "score": 0.3371
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.5285
+      },
+      {
+        "id": "q03",
+        "type": "answerable",
+        "question": "¿Puedo compartir mi cuenta de Brasa Points con un familiar?",
+        "top_score": 0.6941,
+        "top_results": [
+          {
+            "source_document": "loyalty-program",
+            "section": "Preguntas frecuentes de clientes",
+            "score": 0.6941
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Acumulación y vigencia de puntos",
+            "score": 0.5413
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Tarjeta física y app digital",
+            "score": 0.5106
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.6941
+      },
+      {
+        "id": "q04",
+        "type": "answerable",
+        "question": "¿Cuándo tengo que escribir una nota explicativa por desperdicio de carne en un turno?",
+        "top_score": 0.5679,
+        "top_results": [
+          {
+            "source_document": "waste-protocol",
+            "section": "Procedimiento diario",
+            "score": 0.5679
+          },
+          {
+            "source_document": "waste-protocol",
+            "section": "Causas aceptadas sin nota adicional",
+            "score": 0.5114
+          },
+          {
+            "source_document": "waste-protocol",
+            "section": "Categorías de desperdicio",
+            "score": 0.4151
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.5679
+      },
+      {
+        "id": "q05",
+        "type": "answerable",
+        "question": "¿En qué casos hay que escalar un problema de desperdicio directamente a Felipe Guerrero?",
+        "top_score": 0.6584,
+        "top_results": [
+          {
+            "source_document": "waste-protocol",
+            "section": "Escalamiento a Felipe Guerrero",
+            "score": 0.6584
+          },
+          {
+            "source_document": "waste-protocol",
+            "section": "Categorías de desperdicio",
+            "score": 0.4108
+          },
+          {
+            "source_document": "waste-protocol",
+            "section": "Procedimiento diario",
+            "score": 0.4106
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.6584
+      },
+      {
+        "id": "q06",
+        "type": "answerable",
+        "question": "¿Cuál es la meta de desperdicio de un local y cuándo entra en plan de mejora?",
+        "top_score": 0.7011,
+        "top_results": [
+          {
+            "source_document": "waste-protocol",
+            "section": "Meta operativa y plan de mejora",
+            "score": 0.7011
+          },
+          {
+            "source_document": "waste-protocol",
+            "section": "Categorías de desperdicio",
+            "score": 0.4424
+          },
+          {
+            "source_document": "waste-protocol",
+            "section": "Procedimiento diario",
+            "score": 0.4402
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.7011
+      },
+      {
+        "id": "q07",
+        "type": "answerable",
+        "question": "¿La Costilla BBQ tiene alérgenos?",
+        "top_score": 0.7697,
+        "top_results": [
+          {
+            "source_document": "menu-allergens",
+            "section": "Costillas BBQ: sin versión sin gluten certificada",
+            "score": 0.7697
+          },
+          {
+            "source_document": "menu-allergens",
+            "section": "Alérgenos declarados por plato",
+            "score": 0.634
+          },
+          {
+            "source_document": "menu-allergens",
+            "section": "Normativa y criterio de alérgenos",
+            "score": 0.4414
+          }
+        ],
+        "rank_of_expected": 2,
+        "score_of_expected": 0.634
+      },
+      {
+        "id": "q08",
+        "type": "answerable",
+        "question": "¿Existe una versión sin gluten certificada de la Costilla BBQ?",
+        "top_score": 0.846,
+        "top_results": [
+          {
+            "source_document": "menu-allergens",
+            "section": "Costillas BBQ: sin versión sin gluten certificada",
+            "score": 0.846
+          },
+          {
+            "source_document": "menu-allergens",
+            "section": "Alérgenos declarados por plato",
+            "score": 0.5145
+          },
+          {
+            "source_document": "menu-allergens",
+            "section": "Normativa y criterio de alérgenos",
+            "score": 0.2464
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.846
+      },
+      {
+        "id": "q09",
+        "type": "answerable",
+        "question": "Un cliente con alergia severa pregunta si hay riesgo de contaminación cruzada, ¿qué le digo?",
+        "top_score": 0.5816,
+        "top_results": [
+          {
+            "source_document": "menu-allergens",
+            "section": "Protocolo ante alergias reportadas",
+            "score": 0.5816
+          },
+          {
+            "source_document": "menu-allergens",
+            "section": "Normativa y criterio de alérgenos",
+            "score": 0.4141
+          },
+          {
+            "source_document": "menu-allergens",
+            "section": "Alérgenos declarados por plato",
+            "score": 0.3224
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.5816
+      },
+      {
+        "id": "q10",
+        "type": "answerable",
+        "question": "¿Cada cuánto se hace el pedido de vegetales y frutas y en cuánto llega?",
+        "top_score": 0.6874,
+        "top_results": [
+          {
+            "source_document": "supplier-ordering",
+            "section": "Frecuencia de pedido por categoría",
+            "score": 0.6874
+          },
+          {
+            "source_document": "supplier-ordering",
+            "section": "Responsable y horario del pedido semanal",
+            "score": 0.3635
+          },
+          {
+            "source_document": "supplier-ordering",
+            "section": "Stock mínimo y pedido de emergencia",
+            "score": 0.348
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.6874
+      },
+      {
+        "id": "q11",
+        "type": "answerable",
+        "question": "¿Cuál es el recargo de un pedido de emergencia y quién lo aprueba?",
+        "top_score": 0.5391,
+        "top_results": [
+          {
+            "source_document": "supplier-ordering",
+            "section": "Stock mínimo y pedido de emergencia",
+            "score": 0.5391
+          },
+          {
+            "source_document": "supplier-ordering",
+            "section": "Responsable y horario del pedido semanal",
+            "score": 0.286
+          },
+          {
+            "source_document": "waste-protocol",
+            "section": "Procedimiento diario",
+            "score": 0.2491
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.5391
+      },
+      {
+        "id": "q12",
+        "type": "answerable",
+        "question": "¿A qué hora tengo que generar el pedido semanal a proveedores?",
+        "top_score": 0.7462,
+        "top_results": [
+          {
+            "source_document": "supplier-ordering",
+            "section": "Responsable y horario del pedido semanal",
+            "score": 0.7462
+          },
+          {
+            "source_document": "supplier-ordering",
+            "section": "Frecuencia de pedido por categoría",
+            "score": 0.594
+          },
+          {
+            "source_document": "supplier-ordering",
+            "section": "Stock mínimo y pedido de emergencia",
+            "score": 0.4919
+          }
+        ],
+        "rank_of_expected": 1,
+        "score_of_expected": 0.7462
+      },
+      {
+        "id": "q13",
+        "type": "off_topic",
+        "question": "¿Cuál es la capital de Francia?",
+        "top_score": 0.0718,
+        "top_results": [
+          {
+            "source_document": "loyalty-program",
+            "section": "Preguntas frecuentes de clientes",
+            "score": 0.0718
+          },
+          {
+            "source_document": "waste-protocol",
+            "section": "Categorías de desperdicio",
+            "score": 0.0611
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Redención de puntos",
+            "score": 0.0542
+          }
+        ]
+      },
+      {
+        "id": "q14",
+        "type": "off_topic",
+        "question": "¿Cómo se prepara una receta de pasta carbonara?",
+        "top_score": 0.2842,
+        "top_results": [
+          {
+            "source_document": "waste-protocol",
+            "section": "Procedimiento diario",
+            "score": 0.2842
+          },
+          {
+            "source_document": "menu-allergens",
+            "section": "Alérgenos declarados por plato",
+            "score": 0.2325
+          },
+          {
+            "source_document": "menu-allergens",
+            "section": "Protocolo ante alergias reportadas",
+            "score": 0.228
+          }
+        ]
+      },
+      {
+        "id": "q15",
+        "type": "unanswerable",
+        "question": "¿Cuánto cuesta la Ensalada Tropical?",
+        "top_score": 0.3618,
+        "top_results": [
+          {
+            "source_document": "menu-allergens",
+            "section": "Alérgenos declarados por plato",
+            "score": 0.3618
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Niveles del programa",
+            "score": 0.209
+          },
+          {
+            "source_document": "supplier-ordering",
+            "section": "Frecuencia de pedido por categoría",
+            "score": 0.1944
+          }
+        ]
+      },
+      {
+        "id": "q16",
+        "type": "unanswerable",
+        "question": "¿Cuántos días de vacaciones tienen los empleados de Brasaland?",
+        "top_score": 0.4661,
+        "top_results": [
+          {
+            "source_document": "loyalty-program",
+            "section": "Acumulación y vigencia de puntos",
+            "score": 0.4661
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Niveles del programa",
+            "score": 0.3413
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Preguntas frecuentes de clientes",
+            "score": 0.3393
+          }
+        ]
+      }
+    ]
+  },
+  "answers": {
+    "min_score": 0.45,
+    "faithful": true,
+    "honest_when_unknown": true,
+    "no_forbidden_allergen_phrases": true,
+    "rows": [
+      {
+        "id": "q01",
+        "type": "answerable",
+        "question": "¿Cuántos puntos necesito para llegar al nivel Oro?",
+        "chunks_used": [
+          "loyalty-program — Niveles del programa"
+        ],
+        "answer": "Necesitas acumular **50 o más puntos** para llegar al nivel Oro, donde obtienes 15% de descuento permanente y acceso al menú de temporada antes que el público general.\n\nFuente: loyalty-program — Niveles del programa",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q02",
+        "type": "answerable",
+        "question": "¿Desde cuántos puntos puedo empezar a redimirlos y de cuánto en cuánto?",
+        "chunks_used": [
+          "loyalty-program — Redención de puntos"
+        ],
+        "answer": "Puedes empezar a redimir desde **15 puntos** acumulados, y en incrementos de **5 puntos**. Cada 5 puntos redimidos equivalen a **20.000 COP (20 USD)** de descuento en la cuenta.\n\nFuente: loyalty-program — Redención de puntos",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q03",
+        "type": "answerable",
+        "question": "¿Puedo compartir mi cuenta de Brasa Points con un familiar?",
+        "chunks_used": [
+          "loyalty-program — Preguntas frecuentes de clientes",
+          "loyalty-program — Acumulación y vigencia de puntos",
+          "loyalty-program — Tarjeta física y app digital",
+          "loyalty-program — Redención de puntos",
+          "loyalty-program — Niveles del programa"
+        ],
+        "answer": "No, cada cuenta de Brasa Points es individual y no transferible entre personas.\n\nFuente: loyalty-program — Preguntas frecuentes de clientes",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q04",
+        "type": "answerable",
+        "question": "¿Cuándo tengo que escribir una nota explicativa por desperdicio de carne en un turno?",
+        "chunks_used": [
+          "waste-protocol — Procedimiento diario",
+          "waste-protocol — Causas aceptadas sin nota adicional"
+        ],
+        "answer": "Cuando el desperdicio supere 2 kg de proteína cárnica en un solo turno: en ese caso la nota explicativa es obligatoria y se registra al cierre de turno en la app de operaciones.\n\nAdemás, ten en cuenta que estas causas se aceptan sin nota adicional: vencimiento de vegetales frescos y errores de preparación durante las primeras 2 semanas de entrenamiento del personal nuevo.\n\nFuente: waste-protocol — Procedimiento diario",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q05",
+        "type": "answerable",
+        "question": "¿En qué casos hay que escalar un problema de desperdicio directamente a Felipe Guerrero?",
+        "chunks_used": [
+          "waste-protocol — Escalamiento a Felipe Guerrero"
+        ],
+        "answer": "Hay dos casos que se escalan directamente a Felipe Guerrero:\n\n- Desperdicio de proteína cárnica premium (lomo, costilla) superior a 5 kg en una semana en un mismo local.\n- Tres semanas consecutivas de merma no explicada en el mismo local.\n\nFuente: waste-protocol — Escalamiento a Felipe Guerrero",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q06",
+        "type": "answerable",
+        "question": "¿Cuál es la meta de desperdicio de un local y cuándo entra en plan de mejora?",
+        "chunks_used": [
+          "waste-protocol — Meta operativa y plan de mejora"
+        ],
+        "answer": "La meta es mantener el desperdicio total por debajo del 4% del costo de insumos mensual por local. Un local entra en plan de mejora con Operaciones si supera el 6% durante dos meses consecutivos.\n\nFuente: waste-protocol — Meta operativa y plan de mejora",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q07",
+        "type": "answerable",
+        "question": "¿La Costilla BBQ tiene alérgenos?",
+        "chunks_used": [
+          "menu-allergens — Costillas BBQ: sin versión sin gluten certificada",
+          "menu-allergens — Alérgenos declarados por plato"
+        ],
+        "answer": "Sí. La Costillas BBQ Brasaland contiene soya (por la salsa) y puede contener trazas de maní en algunas líneas de producción de la salsa importada. Además, no existe versión sin gluten certificada de este plato debido a esa salsa importada, dato que siempre debemos comunicar cuando se pregunta.\n\nFuente: menu-allergens — Alérgenos declarados por plato\nFuente: menu-allergens — Costillas BBQ: sin versión sin gluten certificada",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q08",
+        "type": "answerable",
+        "question": "¿Existe una versión sin gluten certificada de la Costilla BBQ?",
+        "chunks_used": [
+          "menu-allergens — Costillas BBQ: sin versión sin gluten certificada",
+          "menu-allergens — Alérgenos declarados por plato"
+        ],
+        "answer": "No existe versión sin gluten certificada de la Costilla BBQ, debido a la salsa importada. Esto debemos comunicarlo siempre que se pregunte.\n\nFuente: menu-allergens — Costillas BBQ: sin versión sin gluten certificada",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q09",
+        "type": "answerable",
+        "question": "Un cliente con alergia severa pregunta si hay riesgo de contaminación cruzada, ¿qué le digo?",
+        "chunks_used": [
+          "menu-allergens — Protocolo ante alergias reportadas"
+        ],
+        "answer": "El mesero debe comunicarle abiertamente que **nunca se garantiza \"cero riesgo de contaminación cruzada\"**. Además, antes de iniciar la preparación, cocina usa utensilios y superficies limpios, separados del área general, y el mesero informa a cocina desde el inicio.\n\nAsí que le dices al cliente algo como: \"Tenemos protocolo de limpieza y utensilios separados, pero no podemos garantizar cero riesgo de contaminación cruzada\".\n\nFuente: menu-allergens — Protocolo ante alergias reportadas",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q10",
+        "type": "answerable",
+        "question": "¿Cada cuánto se hace el pedido de vegetales y frutas y en cuánto llega?",
+        "chunks_used": [
+          "supplier-ordering — Frecuencia de pedido por categoría"
+        ],
+        "answer": "El pedido de vegetales y frutas se hace dos veces por semana, los lunes y jueves, con entrega en 24 horas.\n\nFuente: supplier-ordering — Frecuencia de pedido por categoría",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q11",
+        "type": "answerable",
+        "question": "¿Cuál es el recargo de un pedido de emergencia y quién lo aprueba?",
+        "chunks_used": [
+          "supplier-ordering — Stock mínimo y pedido de emergencia"
+        ],
+        "answer": "Un pedido de emergencia tiene un recargo del **8% sobre el precio de lista**. Si supera los 500 USD (o su equivalente en COP), requiere aprobación de **Lucía Fernández (Gerente de Compras)**.\n\nFuente: supplier-ordering — Stock mínimo y pedido de emergencia",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q12",
+        "type": "answerable",
+        "question": "¿A qué hora tengo que generar el pedido semanal a proveedores?",
+        "chunks_used": [
+          "supplier-ordering — Responsable y horario del pedido semanal",
+          "supplier-ordering — Frecuencia de pedido por categoría",
+          "supplier-ordering — Stock mínimo y pedido de emergencia"
+        ],
+        "answer": "Los lunes antes de las 10:00 a.m. (hora local), a cargo del gerente de local.\n\nFuente: supplier-ordering — Responsable y horario del pedido semanal",
+        "unsupported_numbers": [],
+        "forbidden_phrases": []
+      },
+      {
+        "id": "q13",
+        "type": "off_topic",
+        "question": "¿Cuál es la capital de Francia?",
+        "chunks_used": [],
+        "answer": "No tengo información suficiente en la base de conocimiento de Brasaland para responder esa pregunta.",
+        "unsupported_numbers": [],
+        "forbidden_phrases": [],
+        "admits_no_information": true
+      },
+      {
+        "id": "q14",
+        "type": "off_topic",
+        "question": "¿Cómo se prepara una receta de pasta carbonara?",
+        "chunks_used": [],
+        "answer": "No tengo información suficiente en la base de conocimiento de Brasaland para responder eso.",
+        "unsupported_numbers": [],
+        "forbidden_phrases": [],
+        "admits_no_information": true
+      },
+      {
+        "id": "q15",
+        "type": "unanswerable",
+        "question": "¿Cuánto cuesta la Ensalada Tropical?",
+        "chunks_used": [],
+        "answer": "No tengo información suficiente en la base de conocimiento de Brasaland para responder eso.",
+        "unsupported_numbers": [],
+        "forbidden_phrases": [],
+        "admits_no_information": true
+      },
+      {
+        "id": "q16",
+        "type": "unanswerable",
+        "question": "¿Cuántos días de vacaciones tienen los empleados de Brasaland?",
+        "chunks_used": [
+          "loyalty-program — Acumulación y vigencia de puntos"
+        ],
+        "answer": "No tengo información suficiente en la base de conocimiento de Brasaland para responder eso.",
+        "unsupported_numbers": [],
+        "forbidden_phrases": [],
+        "admits_no_information": true
+      }
+    ]
+  }
+}
