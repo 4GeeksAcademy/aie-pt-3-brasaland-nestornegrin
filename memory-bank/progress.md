@@ -244,3 +244,25 @@
   ticket), rechazo de folds barajados o solapados, features sin fuga entre folds, resumen media ± desviación, curva de
   aprendizaje y diagnóstico. En total 32 pruebas en `tests/pipelines/`. No hay CI configurado en el repo (sin
   `.github/workflows`): se ejecutan con `uv run pytest tests/pipelines -v`.
+
+## RAG y base de conocimiento (Hito 7, ticket "feat: rag knowledge base")
+
+- Rama `feature/rag-knowledge-base` (sale de `feature/regression-model-eval`: los PRs #23 y #24 seguían abiertos).
+  Qdrant Cloud, colección `brasaland_knowledge`; SDKs directos (`qdrant-client`, `openai` contra un endpoint compatible)
+  sin LangChain ni LlamaIndex. Dependencias añadidas con `uv add` en la raíz y en `services/api`.
+- Documentos fuente (los cuatro del BRIEFING) copiados a `docs/company-knowledge-base/`; el chunking por bloques
+  semánticos da 17 chunks (loyalty 5, waste 5, allergens 4, supplier 3) con el payload del BRIEFING (`company`,
+  `source_document`, `section`, `language`, `chunk_index`, `text`).
+- `data/process/rag.py` (`setup()` idempotente con IDs uuid5 + upsert + borrado de huérfanos, `embed()`, chunking) y
+  `data/process/rag_config.py` (variables de entorno, clientes perezosos, los dos modelos deben ser distintos);
+  `data/pipelines/rag.py` (`retrieve()` con `min_score`, `generate_answer()` con la voz de vendedor entrenado,
+  `query()` = `retrieve()` + `generate_answer()`).
+- `POST /knowledge/query` en `services/api/app/routes/knowledge.py` (solo valida y llama a `query()`; responde solo
+  `{"answer"}`; 422 / 502 / 503). Página `/knowledge` en `uis/backoffice` con estados de carga y error y modo oscuro
+  (clases `dark:`), enlace "Asistente" en el menú.
+- Evaluación: `data/eval/test-queries.json` (16 preguntas) y `scripts/evaluate_rag.py` (Recall@3, umbral recomendado,
+  fidelidad numérica, honestidad y frases prohibidas en alérgenos). Diseño en `docs/rag/rag-design.md`.
+- Pruebas: `tests/pipelines/test_rag.py` (59, con Qdrant en memoria, cliente simulado y LLM simulado, sin servicios
+  reales), `services/api/tests/test_knowledge.py` (9), `uis/backoffice/__tests__/knowledge.test.ts` (6).
+- Pendiente de ejecutar con las claves reales (no se puede desde el entorno del agente): `setup()`, Recall@3, umbral
+  definitivo e IDs de los modelos en `rag-design.md`.

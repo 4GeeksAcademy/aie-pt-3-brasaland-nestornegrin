@@ -49,3 +49,8 @@ Este es un **monorepo por dominio de negocio**, no un monorepo de librerías gen
 - La raíz del monorepo tiene un `pyproject.toml` (gestionado con `uv`, Python >= 3.12) para el código de ciencia de
   datos de `scripts/` y sus pruebas en `tests/pipelines/` (scikit-learn, xgboost, statsmodels, pandas, matplotlib, pytest). Es
   independiente del de `services/api`. Se ejecuta con `uv run`, nunca con `pip`.
+- **RAG (Hito 7):** Qdrant Cloud (`QDRANT_URL`, `QDRANT_API_KEY` en el `.env` de la raíz), un modelo de embeddings y
+  otro de generación (`EMBEDDING_MODEL`, `GENERATION_MODEL`, sin valores por defecto y siempre distintos: cada equipo
+  de 4Geeks tiene su lista de modelos permitidos) a través del gateway compatible con OpenAI (`LLM_API_KEY`, `LLM_API_URL`). Código en `data/process/rag.py` y `data/pipelines/rag.py`; el endpoint
+  `POST /knowledge/query` solo llama a `query()`. Detalle en `docs/rag/rag-design.md`. Sin LangChain ni LlamaIndex.
+
