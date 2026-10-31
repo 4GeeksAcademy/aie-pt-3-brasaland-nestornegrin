@@ -602,3 +602,11 @@ def test_retrieval_and_answer_evaluation_run_on_an_in_memory_index(indexed_clien
     )
     assert len(answers["rows"]) == len(queries)
     assert answers["faithful"] and answers["honest_when_unknown"]
+
+
+def test_evaluation_uses_the_configured_threshold_by_default(monkeypatch):
+    monkeypatch.delenv("RAG_MIN_SCORE", raising=False)
+    monkeypatch.setattr(rag_config, "load_settings", lambda: (_ for _ in ()).throw(rag_config.RagConfigError("x")))
+    assert evaluate_rag.configured_min_score() == rag_config.DEFAULT_MIN_SCORE == 0.45
+    monkeypatch.setattr(rag_config, "load_settings", lambda: SimpleNamespace(min_score=0.5))
+    assert evaluate_rag.configured_min_score() == 0.5

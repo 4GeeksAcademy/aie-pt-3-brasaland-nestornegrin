@@ -4,7 +4,7 @@ Uso (necesita el `.env` con Qdrant y los modelos, y haber ejecutado `setup()` an
 
     uv run python -m scripts.evaluate_rag                  # Recall@3 + umbral recomendado
     uv run python -m scripts.evaluate_rag --answers        # además genera las respuestas y revisa su fidelidad
-    uv run python -m scripts.evaluate_rag --min-score 0.4  # fija el umbral en vez de usar el calibrado
+    uv run python -m scripts.evaluate_rag --min-score 0.4  # fija otro umbral en vez del configurado (0,45 por defecto)
 
 Qué mide, con las preguntas de `data/eval/test-queries.json`:
 
@@ -29,6 +29,16 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+def configured_min_score() -> float:
+    """Umbral que usa `retrieve()` en producción: `RAG_MIN_SCORE` si está definido, o `DEFAULT_MIN_SCORE`."""
+    from data.process.rag_config import DEFAULT_MIN_SCORE, load_settings
+
+    try:
+        return load_settings().min_score
+    except Exception:  # noqa: BLE001 - sin .env completo se usa el valor por defecto
+        return DEFAULT_MIN_SCORE
+
 
 QUERIES_PATH = REPO_ROOT / "data" / "eval" / "test-queries.json"
 RESULTS_PATH = REPO_ROOT / "data" / "eval" / "rag_eval_results.json"
@@ -204,7 +214,7 @@ def run_answer_eval(queries: list[dict], *, min_score: float, client=None, embed
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--answers", action="store_true", help="genera también las respuestas y revisa su fidelidad")
-    parser.add_argument("--min-score", type=float, default=None, help="umbral a usar (por defecto, el recomendado)")
+    parser.add_argument("--min-score", type=float, default=None, help="umbral a usar (por defecto, el configurado: RAG_MIN_SCORE o DEFAULT_MIN_SCORE)")
     parser.add_argument("--out", type=Path, default=RESULTS_PATH, help="dónde guardar el JSON de resultados")
     args = parser.parse_args(argv)
 
@@ -221,10 +231,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Umbral recomendado: {threshold}")
 
     if args.answers:
-        chosen = args.min_score if args.min_score is not None else (threshold or {}).get("min_score")
-        if chosen is None:
-            print("No hay umbral: pasa --min-score.")
-            return 2
+        # Se evalúa con el umbral que usa el sistema real; el "recomendado" de arriba solo es una guía.
+        chosen = args.min_score if args.min_score is not None else configured_min_score()
         answers = run_answer_eval(queries, min_score=chosen)
         result["answers"] = answers
         print(f"\nRespuestas con umbral {chosen}: fieles={answers['faithful']}, "
