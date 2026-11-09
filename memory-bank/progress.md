@@ -285,3 +285,13 @@
 - Pruebas: `test_agent_tools.py` (18), `test_agent_routing.py` (16), `test_agent_tools_evals.py` (12 evals) y
   `services/api/tests/test_agent_tools_integration.py` (4, contra los routers reales). Total raíz: 177 passed.
 - Variables: `AGENT_API_BASE_URL`, `AGENT_API_EMAIL`, `AGENT_API_PASSWORD`. Diseño en `docs/agent/README.md`.
+
+## Servidor MCP con OAuth (ticket "MCP Server con OAuth")
+- `mcps/brasaland_mcp/`: servidor FastMCP, transporte **Streamable HTTP stateless**, OAuth 2.1 con **MCP Auth** (no la auth de FastMCP),
+  proveedor Auth0. 5 tools (`incidents_get/list/create/update_ticket_status`, `inventory_get_stock`), scopes por tool
+  (`tickets:read`, `tickets:write`, `inventory:read`), inventario de solo lectura con rechazo explícito (`READ_ONLY_VIOLATION`),
+  códigos de error distintos y un log de auditoría JSONL por invocación. Docs en `mcps/brasaland_mcp/README.md`.
+- Agente migrado: `services/agent/mcp_tools.py` (`langchain-mcp-adapters` + token OAuth por client credentials) reemplaza a las tools
+  directas, que se eliminaron de `tools.py`. Variables: `MCP_SERVER_URL`, `AGENT_MCP_*`.
+- Dependencias: `fastmcp>=3,<4` (la 4.x exige `mcp` 2.x, incompatible con `langchain-mcp-adapters`), `mcpauth==0.2.0b1` (pre-release con Protected Resource Metadata).
+- Pruebas: `tests/mcps/` (servidor real por HTTP y agente vía MCP) y `services/api/tests/test_mcp_integration.py` (contrato de dominio y routers reales).
