@@ -1,0 +1,64 @@
+{
+  "results": [
+    {
+      "eval": "routing:ticket_question_uses_tool",
+      "passed": true,
+      "detail": "fuentes=[{'source': 'tool:tickets', 'node': 'lookup_tickets', 'order': 3, 'outcome': 'ok', 'error': None}]"
+    },
+    {
+      "eval": "routing:knowledge_question_uses_rag",
+      "passed": true,
+      "detail": "fuentes=[{'source': 'rag', 'node': 'retrieve_context', 'order': 3, 'chunks': 1, 'error': None}]"
+    },
+    {
+      "eval": "routing:mixed_question_uses_both_in_order",
+      "passed": true,
+      "detail": "fuentes=[{'source': 'tool:tickets', 'node': 'lookup_tickets', 'order': 3, 'outcome': 'ok', 'error': None}, {'source': 'rag', 'node': 'retrieve_context', 'order': 4, 'chunks': 2, 'error': None}]"
+    },
+    {
+      "eval": "fallback:service_timeout",
+      "passed": true,
+      "detail": "outcome=timeout respuesta='No pude confirmar el estado del ticket 482 ahora mismo: el gestor de incidentes no está disponible o no respondió a tiempo. Inténtalo de nuevo en unos minutos.'"
+    },
+    {
+      "eval": "fallback:service_down",
+      "passed": true,
+      "detail": "outcome=unavailable respuesta='No pude confirmar el estado del ticket 482 ahora mismo: el gestor de incidentes no está disponible o no respondió a tiempo. Inténtalo de nuevo en unos minutos.'"
+    },
+    {
+      "eval": "fallback:service_error",
+      "passed": true,
+      "detail": "outcome=unavailable respuesta='No pude confirmar el estado del ticket 482 ahora mismo: el gestor de incidentes no está disponible o no respondió a tiempo. Inténtalo de nuevo en unos minutos.'"
+    },
+    {
+      "eval": "fallback:ticket_not_found",
+      "passed": true,
+      "detail": "No encuentro el ticket 9999 en el gestor de incidentes; revisa que el número sea correcto."
+    },
+    {
+      "eval": "fallback:mixed_question_partial_answer",
+      "passed": true,
+      "detail": "respuesta=' 12 ahora mismo: el gestor de incidentes no está disponible o no respondió a tiempo. Inténtalo de nuevo en unos minutos.'"
+    },
+    {
+      "eval": "read_only:no_writes_to_services",
+      "passed": true,
+      "detail": "peticiones=[('GET', '/api/incidents/12'), ('GET', '/api/incidents/482'), ('GET', '/inventory/products'), ('POST', '/auth/login')]"
+    },
+    {
+      "eval": "inventory:routing_and_data",
+      "passed": true,
+      "detail": "fuentes=[{'source': 'tool:inventory', 'node': 'lookup_inventory', 'order': 3, 'outcome': 'ok', 'error': None}]"
+    },
+    {
+      "eval": "inventory:fallback_timeout",
+      "passed": true,
+      "detail": "No pude confirmar el stock del producto «pollo» ahora mismo: el gestor de inventario no está disponible o no respondió a tiempo. Inténtalo de nuevo en unos minutos."
+    },
+    {
+      "eval": "inventory:fallback_down",
+      "passed": true,
+      "detail": "No pude confirmar el stock del producto «pollo» ahora mismo: el gestor de inventario no está disponible o no respondió a tiempo. Inténtalo de nuevo en unos minutos."
+    }
+  ]
+}
