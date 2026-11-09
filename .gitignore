@@ -2,3 +2,6 @@ __pycache__/
 *.egg-info/
 .coverage
 .venv/
+
+# Trazas de ejecución del agente (se generan en cada corrida)
+data/traces/

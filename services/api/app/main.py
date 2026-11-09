@@ -28,6 +28,7 @@ from app.profiles.routes import create_router as create_profiles_router
 from app.suppliers.repository import SupplierRepository
 from app.routes.suppliers import create_router
 from app.routes.knowledge import create_router as create_knowledge_router
+from services.agent.router import create_router as create_agent_router  # tras knowledge: añade la raíz del repo a sys.path
 from app.users.routes import create_router as create_users_router
 from app.inventory.routes import create_router as create_inventory_router
 from app.database import engine
@@ -56,6 +57,7 @@ app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 app.include_router(create_incidents_router(incident_repository))
 app.include_router(create_knowledge_router())  # POST /knowledge/query (Hito 7 — RAG)
+app.include_router(create_agent_router())  # POST /agent/query (agente LangGraph; compila el grafo al arrancar)
 
 # Inventory (Supabase/SQLModel) - create schema, then mount routes.
 SQLModel.metadata.create_all(engine)

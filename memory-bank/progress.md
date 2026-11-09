@@ -266,3 +266,14 @@
   reales), `services/api/tests/test_knowledge.py` (9), `uis/backoffice/__tests__/knowledge.test.ts` (6).
 - Pendiente de ejecutar con las claves reales (no se puede desde el entorno del agente): `setup()`, Recall@3, umbral
   definitivo e IDs de los modelos en `rag-design.md`.
+
+## Agente LangGraph base (ticket "LangGraph agent base", parte 1)
+- `services/agent/`: grafo LangGraph (`receive_question` → `retrieve_context` → `generate_answer`, con ramas
+  `no_information` y `reject_question`), estado mínimo (`question`, `context`, `answer`, `status`), compilación
+  explícita con `AgentGraphError`, checkpoints (memoria o SQLite con `AGENT_CHECKPOINT_DB`) y trace JSON por corrida
+  (`data/traces/agent/`). Reutiliza `retrieve()` y `generate_answer()`; ningún nodo llama a `query()`.
+- `POST /agent/query` (`services/agent/router.py`, montado en `services/api/app/main.py`): 422 / 503 / 502 sin stack trace.
+- CLI: `python -m services.agent "<pregunta>" --export <archivo>`. Diseño en `docs/agent/README.md`.
+- Pruebas: `tests/pipelines/test_agent_graph.py` (24), `tests/pipelines/test_agent_evals.py` (9, contra el trace),
+  `services/api/tests/test_agent_endpoint.py` (10). Total raíz: 131 passed.
+- Pendiente con servicios reales: ejecutar una corrida completa y exportar el trace al PR.
