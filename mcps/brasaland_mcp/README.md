@@ -34,7 +34,7 @@ Los nombres de campo, IDs y valores de dominio son **los de las APIs reales** (`
 | Tool | Scope | Qué hace | Entrada | Salida |
 |---|---|---|---|---|
 | `incidents_get_ticket` | `tickets:read` | Consulta un ticket | `ticket_id: int` | `Ticket` |
-| `incidents_list_tickets` | `tickets:read` | Lista tickets (filtro por estado) | `status?`, `limit` (1-10) | `{total, tickets[Ticket]}` |
+| `incidents_list_tickets` | `tickets:read` | Lista tickets (filtro por estado) | `status?`, `limit` (1-25) | `{total, tickets[Ticket]}` |
 | `incidents_create_ticket` | `tickets:write` | Crea un ticket (`POST /api/incidents`) | `title`, `description`, `category` (Queja \| Solicitud \| Fallo operativo), `origin` (customer \| branch \| internal), `branch` (central o una sede) | `Ticket` |
 | `incidents_update_ticket_status` | `tickets:write` | Cambia el estado con el ciclo de vida (`PATCH /api/incidents/{id}/status`) | `ticket_id`, `status` (open \| in_progress \| resolved \| discarded) | `Ticket` |
 | `inventory_get_stock` | `inventory:read` | Stock por producto (**solo lectura**) | `product_name?`, `product_id?`, `limit` | `{total, products[{id, name, sku, restaurant, current_stock}]}` |
@@ -85,9 +85,15 @@ Una línea JSON por invocación (también las rechazadas) en `MCP_AUDIT_LOG` (`d
 ## Validación en MCP Playground (URL pública, no localhost)
 1. API y MCP en marcha; puerto 8001 público; `curl -i https://<codespace>-8001.app.github.dev/mcp` debe dar **401** con `WWW-Authenticate`.
 2. Playground → *Add server* → pegar la URL pública `.../mcp` → completar el login OAuth de Auth0 → *Discovery*: 5 tools con sus esquemas.
-3. Flujo por tool: `incidents_create_ticket` → `incidents_get_ticket` → `incidents_list_tickets` → `incidents_update_ticket_status` (`open → in_progress → resolved`) → `inventory_get_stock`.
-4. Intento de escritura sobre inventario: invocar `inventory_get_stock` con `{"product_id": 1, "quantity": 5}` → `[READ_ONLY_VIOLATION]`.
-5. Con un token sin `tickets:write`, `incidents_create_ticket` → `[FORBIDDEN_SCOPE]`.
+   [MCP Playground](https://mcpplaygroundonline.com) no hace login OAuth: se pega un token Bearer en *Add auth headers* (`Authorization: Bearer <token>`).
+   Sin cabecera, el servidor responde 401 y el Playground muestra "This server requires authentication".
+3. Token de pruebas: aplicación M2M `brasaland-playground` autorizada con los tres scopes; se obtiene con `client_credentials` (`POST <issuer>/oauth/token`, `audience` = `MCP_PUBLIC_URL`).
+4. Flujo por tool: `incidents_create_ticket` → `incidents_get_ticket` → `incidents_list_tickets` → `incidents_update_ticket_status` (`open → in_progress → resolved`) → `inventory_get_stock`.
+5. Transición inválida: pedir `open` sobre un ticket `resolved` → `[INVALID_TRANSITION]`.
+6. Intento de escritura sobre inventario: `inventory_get_stock` con `quantity` (o una tool `inventory_update_stock`) → `[READ_ONLY_VIOLATION]`. El formulario del Playground solo envía los campos declarados, así que este caso se lanza con un cliente MCP (`fastmcp.Client`) contra la misma URL pública.
+7. Autorización: con el token del agente (solo `tickets:read inventory:read`), `incidents_create_ticket` e `incidents_update_ticket_status` → `[FORBIDDEN_SCOPE]`.
+
+> **Auth0 y los scopes de M2M:** en *client credentials* Auth0 **ignora el parámetro `scope`** y devuelve todos los permisos concedidos a la aplicación. Para probar `FORBIDDEN_SCOPE` hace falta una aplicación con menos permisos (el agente), no pedir menos scopes en la petición.
 
 ## Pruebas
 ```bash
