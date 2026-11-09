@@ -64,12 +64,12 @@ def stub_point(score: float, payload: dict) -> SimpleNamespace:
 
 
 # --------------------------------------------------------------------------------------------------------------
-# Backend HTTP falso (SOLO para pruebas): sirve los mismos contratos que el gestor de incidentes y de inventario reales
-# (`GET /api/incidents[/{id}]`, `GET /inventory/products`, `POST /auth/login`) y registra cada petición. La
-# implementación del agente nunca simula datos: lee del backend por HTTP; en las pruebas, ese backend es este.
-# El contrato contra el backend REAL se verifica en `services/api/tests/test_agent_tools_integration.py`.
+# Servidor MCP falso (SOLO para pruebas): responde a las mismas tools que `mcps/brasaland_mcp` (mismos nombres,
+# argumentos y códigos de error) con datos en memoria y registra cada invocación. La implementación del agente nunca
+# simula datos: pide las tools al servidor MCP; en las pruebas rápidas, ese servidor es este doble. El servidor MCP REAL
+# (HTTP + OAuth) y el agente hablando con él se prueban en `tests/mcps/`.
 # --------------------------------------------------------------------------------------------------------------
-import httpx  # noqa: E402
+from services.agent.mcp_tools import McpCallError  # noqa: E402
 
 TICKETS = [
     {"id": 482, "title": "Nevera de cocina sin enfriar", "description": "La nevera 2 no baja de 9 °C.",
@@ -88,50 +88,64 @@ PRODUCTS = [
 ]
 
 
+class FakeGateway:
+    """Sustituye a `McpGateway`: misma interfaz `call(tool, arguments)`, datos del `FakeBackend`."""
+
+    def __init__(self, backend: "FakeBackend"):
+        self.backend = backend
+
+    def call(self, tool: str, arguments: dict):
+        backend = self.backend
+        backend.requests.append(("MCP", tool))
+        if not backend.token_valid:
+            raise McpCallError("MCP_UNAUTHORIZED", "token rechazado")
+        if backend.mode == "timeout":
+            raise McpCallError("BACKEND_TIMEOUT", "simulado")
+        if backend.mode in ("down", "error"):
+            raise McpCallError("BACKEND_UNAVAILABLE", "simulado")
+        if tool == "incidents_get_ticket":
+            found = next((t for t in backend.tickets if t["id"] == arguments["ticket_id"]), None)
+            if found is None:
+                raise McpCallError("NOT_FOUND", "Incidencia no encontrada")
+            return found
+        if tool == "incidents_list_tickets":
+            rows = [t for t in backend.tickets if not arguments.get("status") or t["status"] == arguments["status"]]
+            return {"total": len(rows), "tickets": rows[: arguments.get("limit", 10)]}
+        if tool == "inventory_get_stock":
+            rows = list(backend.products)
+            if arguments.get("product_id") is not None:
+                rows = [r for r in rows if r["id"] == arguments["product_id"]]
+            if arguments.get("product_name"):
+                needle = _fold(arguments["product_name"])
+                rows = [r for r in rows if needle in _fold(r["name"])]
+            if not rows and (arguments.get("product_id") is not None or arguments.get("product_name")):
+                raise McpCallError("NOT_FOUND", "Producto no encontrado")
+            return {"total": len(rows), "products": rows[: arguments.get("limit", 10)]}
+        raise McpCallError("MCP_TOOL_NOT_FOUND", tool)
+
+
+def _fold(text: str) -> str:
+    normalized = unicodedata.normalize("NFD", text.lower())
+    return "".join(char for char in normalized if unicodedata.category(char) != "Mn").strip()
+
+
 class FakeBackend:
-    """Backend HTTP falso con modos de fallo: `mode` = "ok" | "timeout" | "down" | "error"."""
+    """Doble del servidor MCP con modos de fallo: `mode` = "ok" | "timeout" | "down" | "error"."""
 
     def __init__(self, mode: str = "ok", tickets=None, products=None, token_valid: bool = True):
         self.mode = mode
         self.tickets = TICKETS if tickets is None else tickets
         self.products = PRODUCTS if products is None else products
         self.token_valid = token_valid
-        self.requests: list[tuple[str, str]] = []  # (método, ruta)
+        self.requests: list[tuple[str, str]] = []  # ("MCP", nombre de la tool) por cada invocación
 
-    def handler(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append((request.method, request.url.path))
-        if self.mode == "timeout":
-            raise httpx.ReadTimeout("simulado", request=request)
-        if self.mode == "down":
-            raise httpx.ConnectError("simulado", request=request)
-        if request.url.path == "/auth/login":
-            return httpx.Response(200 if self.token_valid else 401, json={"access_token": "jwt-de-prueba"})
-        if request.headers.get("authorization") != "Bearer jwt-de-prueba":
-            return httpx.Response(401, json={"detail": "Credenciales inválidas"})
-        if self.mode == "error":
-            return httpx.Response(500, json={"detail": "boom"})
-        path = request.url.path
-        if path == "/api/incidents":
-            status = request.url.params.get("status")
-            return httpx.Response(200, json=[t for t in self.tickets if not status or t["status"] == status])
-        if path.startswith("/api/incidents/"):
-            found = next((t for t in self.tickets if str(t["id"]) == path.rsplit("/", 1)[1]), None)
-            return httpx.Response(200, json=found) if found else httpx.Response(404, json={"detail": "no existe"})
-        if path == "/inventory/products":
-            return httpx.Response(200, json=self.products)
-        return httpx.Response(404)
-
-    def client(self, **kwargs):
-        from services.agent.tools import BackendClient
-
-        kwargs.setdefault("email", "agente@brasaland.test")
-        kwargs.setdefault("password", "clave-de-prueba")
-        return BackendClient(base_url="http://backend.test", transport=httpx.MockTransport(self.handler), **kwargs)
+    def client(self) -> FakeGateway:
+        return FakeGateway(self)
 
     def dependencies(self, rag: "SpyDependencies | None" = None) -> AgentDependencies:
-        from services.agent.tools import InventoryTool, TicketTool
+        from services.agent.mcp_tools import McpInventoryTool, McpTicketTool
 
         rag = rag or SpyDependencies()
-        client = self.client()
+        gateway = self.client()
         return AgentDependencies(retrieve_fn=rag.retrieve, generate_fn=rag.generate,
-                                 ticket_fn=TicketTool(client), inventory_fn=InventoryTool(client))
+                                 ticket_fn=McpTicketTool(gateway), inventory_fn=McpInventoryTool(gateway))

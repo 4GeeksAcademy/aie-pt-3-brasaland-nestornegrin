@@ -5,3 +5,6 @@ __pycache__/
 
 # Trazas de ejecución del agente (se generan en cada corrida)
 data/traces/
+
+# Log de auditoría del servidor MCP (una línea JSON por invocación de tool)
+data/logs/
