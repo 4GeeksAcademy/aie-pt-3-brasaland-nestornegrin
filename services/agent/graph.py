@@ -1,14 +1,17 @@
 """Construcción y compilación del grafo del agente.
 
-    START -> receive_question --(pregunta válida)--> retrieve_context --(hay contexto)--> generate_answer -> END
-                  |                                        |
-                  +--(vacía o demasiado larga)--> reject_question -> END
-                                                           +--(nada supera el umbral)--> no_information -> END
+    START -> receive_question --(válida)--> route_question --(según la pregunta; en este orden)-->
+                  |                                  lookup_tickets? -> lookup_inventory? -> retrieve_context?
+                  |                                                                  |
+                  +--(vacía o larga)--> reject_question -> END          (hay evidencia)  -> generate_answer  -> END
+                                                                        (una tool falló) -> tool_fallback   -> END
+                                                                        (RAG sin nada)   -> no_information  -> END
 
-Las aristas que salen de `receive_question` y de `retrieve_context` son CONDICIONALES (decide una función sobre el
-estado, con las salidas declaradas), no una secuencia fija. El grafo se compila siempre de forma explícita con
-`compile_graph()` antes de ejecutar nada: un nodo sin conexión, una arista a un nodo que no existe o la falta de un
-nodo esperado se detectan al arrancar el servicio, con un `AgentGraphError` claro, y no en la primera petición real.
+Las aristas que salen de `receive_question`, `route_question` y de cada nodo de recopilación son CONDICIONALES (decide
+una función sobre el estado, con las salidas declaradas), no una secuencia fija: el enrutador elige entre RAG, tool de
+tickets, tool de inventario o varias a la vez, y el final depende de si hay evidencia o de si una tool falló. El grafo se
+compila siempre de forma explícita con `compile_graph()` antes de ejecutar nada: un nodo sin conexión, una arista a un
+nodo que no existe o la falta de un nodo esperado se detectan al arrancar el servicio, con un `AgentGraphError` claro.
 """
 from __future__ import annotations
 
@@ -21,23 +24,38 @@ from langgraph.graph import END, START, StateGraph
 
 from .nodes import (
     NODE_GENERATE,
+    NODE_INVENTORY,
     NODE_NAMES,
     NODE_NO_INFORMATION,
     NODE_RECEIVE,
     NODE_REJECT,
     NODE_RETRIEVE,
+    NODE_ROUTE,
+    NODE_TICKETS,
+    NODE_TOOL_FALLBACK,
     ROUTE_GENERATE,
+    ROUTE_INVENTORY,
     ROUTE_NO_INFORMATION,
     ROUTE_REJECT,
     ROUTE_RETRIEVE,
+    ROUTE_ROUTE,
+    ROUTE_TICKETS,
+    ROUTE_TOOL_FALLBACK,
     AgentDependencies,
     make_generate_node,
+    make_inventory_node,
     make_retrieve_node,
+    make_route_node,
+    make_tickets_node,
     no_information,
     receive_question,
     reject_question,
+    route_after_inventory,
     route_after_receive,
     route_after_retrieve,
+    route_after_route,
+    route_after_tickets,
+    tool_fallback,
 )
 from .state import AgentState
 from .tracing import TraceRecorder, traced_node
@@ -56,26 +74,32 @@ def build_graph(
 
     nodes = {
         NODE_RECEIVE: receive_question,
+        NODE_ROUTE: make_route_node(deps),
+        NODE_TICKETS: make_tickets_node(deps),
+        NODE_INVENTORY: make_inventory_node(deps),
         NODE_RETRIEVE: make_retrieve_node(deps),
         NODE_GENERATE: make_generate_node(deps),
         NODE_NO_INFORMATION: no_information,
+        NODE_TOOL_FALLBACK: tool_fallback,
         NODE_REJECT: reject_question,
     }
     for name, function in nodes.items():
         builder.add_node(name, traced_node(name, function, recorder_for))
 
+    # Salidas posibles al terminar de recopilar (las comparten todos los nodos de recopilación).
+    finish = {ROUTE_GENERATE: NODE_GENERATE, ROUTE_TOOL_FALLBACK: NODE_TOOL_FALLBACK,
+              ROUTE_NO_INFORMATION: NODE_NO_INFORMATION}
+    sources = {ROUTE_TICKETS: NODE_TICKETS, ROUTE_INVENTORY: NODE_INVENTORY, ROUTE_RETRIEVE: NODE_RETRIEVE}
+
     builder.add_edge(START, NODE_RECEIVE)
+    builder.add_conditional_edges(NODE_RECEIVE, route_after_receive, {ROUTE_ROUTE: NODE_ROUTE, ROUTE_REJECT: NODE_REJECT})
+    builder.add_conditional_edges(NODE_ROUTE, route_after_route, {**sources, **finish})
     builder.add_conditional_edges(
-        NODE_RECEIVE,
-        route_after_receive,
-        {ROUTE_RETRIEVE: NODE_RETRIEVE, ROUTE_REJECT: NODE_REJECT},
-    )
-    builder.add_conditional_edges(
-        NODE_RETRIEVE,
-        route_after_retrieve,
-        {ROUTE_GENERATE: NODE_GENERATE, ROUTE_NO_INFORMATION: NODE_NO_INFORMATION},
-    )
-    for terminal in (NODE_GENERATE, NODE_NO_INFORMATION, NODE_REJECT):
+        NODE_TICKETS, route_after_tickets,
+        {ROUTE_INVENTORY: NODE_INVENTORY, ROUTE_RETRIEVE: NODE_RETRIEVE, **finish})
+    builder.add_conditional_edges(NODE_INVENTORY, route_after_inventory, {ROUTE_RETRIEVE: NODE_RETRIEVE, **finish})
+    builder.add_conditional_edges(NODE_RETRIEVE, route_after_retrieve, finish)
+    for terminal in (NODE_GENERATE, NODE_NO_INFORMATION, NODE_TOOL_FALLBACK, NODE_REJECT):
         builder.add_edge(terminal, END)
     return builder
 

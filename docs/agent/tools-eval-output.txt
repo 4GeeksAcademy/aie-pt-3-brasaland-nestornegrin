@@ -1,0 +1,22 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.1, pytest-9.1.1, pluggy-1.7.0 -- /workspaces/aie-pt-3-brasaland-nestornegrin/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /workspaces/aie-pt-3-brasaland-nestornegrin
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, anyio-4.15.1
+collecting ... collected 12 items
+
+tests/pipelines/test_agent_tools_evals.py::test_eval_ticket_question_is_resolved_by_the_tool_not_the_rag PASSED [  8%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_knowledge_question_is_resolved_by_the_rag_not_a_tool PASSED [ 16%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_mixed_question_uses_both_sources_in_order PASSED [ 25%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_tool_failure_falls_back_honestly_without_inventing_a_status[timeout-timeout] PASSED [ 33%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_tool_failure_falls_back_honestly_without_inventing_a_status[down-unavailable] PASSED [ 41%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_tool_failure_falls_back_honestly_without_inventing_a_status[error-unavailable] PASSED [ 50%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_unknown_ticket_is_reported_as_not_found PASSED [ 58%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_failed_tool_does_not_hide_the_rag_part_of_a_mixed_question PASSED [ 66%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_a_whole_run_only_reads PASSED [ 75%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_inventory_question_uses_the_inventory_tool PASSED [ 83%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_inventory_failure_falls_back_honestly[timeout] PASSED [ 91%]
+tests/pipelines/test_agent_tools_evals.py::test_eval_inventory_failure_falls_back_honestly[down] PASSED [100%]
+
+============================== 12 passed in 1.99s ==============================

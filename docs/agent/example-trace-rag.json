@@ -1,0 +1,265 @@
+{
+  "run_id": "20261109T142209-b5b4c114",
+  "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+  "status": "answered",
+  "started_at": "2026-11-09T14:22:09.680+00:00",
+  "finished_at": "2026-11-09T14:23:00.971+00:00",
+  "duration_ms": 51291.37,
+  "node_order": [
+    "receive_question",
+    "route_question",
+    "retrieve_context",
+    "generate_answer"
+  ],
+  "route": {
+    "sources": [
+      "rag"
+    ],
+    "reason": "La pregunta es de conocimiento (políticas, procedimientos, menú...): se resuelve con el RAG.",
+    "ticket_query": null,
+    "inventory_query": null,
+    "cues": {
+      "ticket_id": null,
+      "ticket_word": false,
+      "live_state": true,
+      "inventory": false,
+      "knowledge": true
+    }
+  },
+  "sources_used": [
+    {
+      "source": "rag",
+      "node": "retrieve_context",
+      "order": 3,
+      "chunks": 2,
+      "error": null
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "node": "receive_question",
+      "started_at": "2026-11-09T14:22:09.683+00:00",
+      "input": {
+        "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?"
+      },
+      "output": {
+        "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+        "status": "received"
+      },
+      "error": null,
+      "duration_ms": 0.004
+    },
+    {
+      "order": 2,
+      "node": "route_question",
+      "started_at": "2026-11-09T14:22:09.684+00:00",
+      "input": {
+        "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+        "status": "received"
+      },
+      "output": {
+        "route": {
+          "sources": [
+            "rag"
+          ],
+          "reason": "La pregunta es de conocimiento (políticas, procedimientos, menú...): se resuelve con el RAG.",
+          "ticket_query": null,
+          "inventory_query": null,
+          "cues": {
+            "ticket_id": null,
+            "ticket_word": false,
+            "live_state": true,
+            "inventory": false,
+            "knowledge": true
+          }
+        }
+      },
+      "error": null,
+      "duration_ms": 0.079
+    },
+    {
+      "order": 3,
+      "node": "retrieve_context",
+      "started_at": "2026-11-09T14:22:09.684+00:00",
+      "input": {
+        "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+        "status": "received",
+        "route": {
+          "sources": [
+            "rag"
+          ],
+          "reason": "La pregunta es de conocimiento (políticas, procedimientos, menú...): se resuelve con el RAG.",
+          "ticket_query": null,
+          "inventory_query": null,
+          "cues": {
+            "ticket_id": null,
+            "ticket_word": false,
+            "live_state": true,
+            "inventory": false,
+            "knowledge": true
+          }
+        }
+      },
+      "output": {
+        "context": [
+          {
+            "source_document": "loyalty-program",
+            "section": "Niveles del programa",
+            "chunk_index": 1
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Redención de puntos",
+            "chunk_index": 2
+          }
+        ]
+      },
+      "error": null,
+      "duration_ms": 44859.977
+    },
+    {
+      "order": 4,
+      "node": "generate_answer",
+      "started_at": "2026-11-09T14:22:54.546+00:00",
+      "input": {
+        "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+        "context": [
+          {
+            "source_document": "loyalty-program",
+            "section": "Niveles del programa",
+            "chunk_index": 1
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Redención de puntos",
+            "chunk_index": 2
+          }
+        ],
+        "status": "received",
+        "route": {
+          "sources": [
+            "rag"
+          ],
+          "reason": "La pregunta es de conocimiento (políticas, procedimientos, menú...): se resuelve con el RAG.",
+          "ticket_query": null,
+          "inventory_query": null,
+          "cues": {
+            "ticket_id": null,
+            "ticket_word": false,
+            "live_state": true,
+            "inventory": false,
+            "knowledge": true
+          }
+        }
+      },
+      "output": {
+        "answer": "Para el nivel Oro necesitas **50 puntos o más**. Te da **15% de descuento permanente** y acceso al menú de temporada antes que el público general.\n\nFuente: loyalty-program — Niveles del programa",
+        "status": "answered"
+      },
+      "error": null,
+      "duration_ms": 6422.525
+    }
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_id": "1f1dc48f-2f0c-68d4-bfff-d007997ce4ea",
+      "step": -1,
+      "next": [
+        "__start__"
+      ],
+      "state_keys": []
+    },
+    {
+      "checkpoint_id": "1f1dc48f-2f0e-6968-8000-2b895ea37718",
+      "step": 0,
+      "next": [
+        "receive_question"
+      ],
+      "state_keys": [
+        "question"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc48f-2f11-6289-8001-eaa0a2bb310d",
+      "step": 1,
+      "next": [
+        "route_question"
+      ],
+      "state_keys": [
+        "question",
+        "status"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc48f-2f13-6844-8002-cf45aa9fc53a",
+      "step": 2,
+      "next": [
+        "retrieve_context"
+      ],
+      "state_keys": [
+        "question",
+        "route",
+        "status"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc490-dae7-60b6-8003-74d33f90e0c3",
+      "step": 3,
+      "next": [
+        "generate_answer"
+      ],
+      "state_keys": [
+        "context",
+        "question",
+        "route",
+        "status"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc491-182a-6166-8004-f5f1274c4f49",
+      "step": 4,
+      "next": [],
+      "state_keys": [
+        "answer",
+        "context",
+        "question",
+        "route",
+        "status"
+      ]
+    }
+  ],
+  "final_state": {
+    "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+    "context": [
+      {
+        "source_document": "loyalty-program",
+        "section": "Niveles del programa",
+        "chunk_index": 1
+      },
+      {
+        "source_document": "loyalty-program",
+        "section": "Redención de puntos",
+        "chunk_index": 2
+      }
+    ],
+    "answer": "Para el nivel Oro necesitas **50 puntos o más**. Te da **15% de descuento permanente** y acceso al menú de temporada antes que el público general.\n\nFuente: loyalty-program — Niveles del programa",
+    "status": "answered",
+    "route": {
+      "sources": [
+        "rag"
+      ],
+      "reason": "La pregunta es de conocimiento (políticas, procedimientos, menú...): se resuelve con el RAG.",
+      "ticket_query": null,
+      "inventory_query": null,
+      "cues": {
+        "ticket_id": null,
+        "ticket_word": false,
+        "live_state": true,
+        "inventory": false,
+        "knowledge": true
+      }
+    }
+  },
+  "error": null
+}

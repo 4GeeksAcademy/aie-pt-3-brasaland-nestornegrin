@@ -1,6 +1,6 @@
 """Endpoint del agente: `POST /agent/query`.
 
-Recibe `{"question": "..."}` y responde `{"answer", "status", "run_id"}`. Este router NO contiene lógica de negocio:
+Recibe `{"question": "..."}` y responde `{"answer", "status", "run_id", "sources"}`. Este router NO contiene lógica de negocio:
 valida la forma de la petición, invoca el grafo a través de `AgentService` y traduce los fallos a mensajes claros.
 `run_id` identifica el trace de la corrida (lo guarda el servidor, no se devuelve por HTTP).
 
@@ -37,6 +37,7 @@ class AgentAnswer(BaseModel):
     answer: str
     status: str
     run_id: str
+    sources: list[str] = []  # fuentes consultadas, en orden: "rag", "tool:tickets", "tool:inventory"
 
 
 def create_router(
@@ -66,7 +67,7 @@ def create_router(
             raise HTTPException(status_code=502, detail="El agente no pudo responder en este momento.") from error
         if run.status == STATUS_INVALID_QUESTION:
             raise HTTPException(status_code=422, detail=run.answer)
-        return AgentAnswer(answer=run.answer, status=run.status, run_id=run.run_id)
+        return AgentAnswer(answer=run.answer, status=run.status, run_id=run.run_id, sources=run.sources)
 
     return router
 

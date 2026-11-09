@@ -277,3 +277,11 @@
 - Pruebas: `tests/pipelines/test_agent_graph.py` (24), `tests/pipelines/test_agent_evals.py` (9, contra el trace),
   `services/api/tests/test_agent_endpoint.py` (10). Total raíz: 131 passed.
 - Pendiente con servicios reales: ejecutar una corrida completa y exportar el trace al PR.
+
+## Agente LangGraph — tools externas (ticket "LangGraph agent base", parte 2)
+- `services/agent/tools.py` (tools de solo lectura de tickets e inventario, contrato pydantic, timeout 4 s, login JWT
+  desde el entorno, nunca lanzan), `routing.py` (enrutador RAG / tool / ambos), nuevos nodos `route_question`,
+  `lookup_tickets`, `lookup_inventory`, `tool_fallback`; el trace incluye `route` y `sources_used`.
+- Pruebas: `test_agent_tools.py` (18), `test_agent_routing.py` (16), `test_agent_tools_evals.py` (12 evals) y
+  `services/api/tests/test_agent_tools_integration.py` (4, contra los routers reales). Total raíz: 177 passed.
+- Variables: `AGENT_API_BASE_URL`, `AGENT_API_EMAIL`, `AGENT_API_PASSWORD`. Diseño en `docs/agent/README.md`.

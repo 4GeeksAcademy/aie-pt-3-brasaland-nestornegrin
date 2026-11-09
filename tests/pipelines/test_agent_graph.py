@@ -44,7 +44,8 @@ def service(spy, tmp_path) -> AgentService:
 # Estado
 # --------------------------------------------------------------------------------------------------------------
 def test_state_is_minimal_and_has_no_conversation_history():
-    assert set(get_type_hints(AgentState)) == {"question", "context", "answer", "status"}
+    # Parte 1: 4 campos. Parte 2 añade `route` y `tool_results` (los leen las aristas, la generación y el fallback).
+    assert set(get_type_hints(AgentState)) == {"question", "context", "answer", "status", "route", "tool_results"}
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -63,23 +64,25 @@ def test_reject_question_says_why():
 
 
 def test_routing_depends_on_the_state_not_on_a_fixed_sequence():
-    assert nodes.route_after_receive({"status": STATUS_RECEIVED}) == nodes.ROUTE_RETRIEVE
+    assert nodes.route_after_receive({"status": STATUS_RECEIVED}) == nodes.ROUTE_ROUTE
     assert nodes.route_after_receive({"status": STATUS_INVALID_QUESTION}) == nodes.ROUTE_REJECT
-    assert nodes.route_after_retrieve({"context": [chunk("a", "b", "c")]}) == nodes.ROUTE_GENERATE
-    assert nodes.route_after_retrieve({"context": []}) == nodes.ROUTE_NO_INFORMATION
-    assert nodes.route_after_retrieve({}) == nodes.ROUTE_NO_INFORMATION
+    rag_only = {"route": {"sources": ["rag"]}}
+    assert nodes.route_after_route(rag_only) == nodes.ROUTE_RETRIEVE
+    assert nodes.route_after_retrieve({**rag_only, "context": [chunk("a", "b", "c")]}) == nodes.ROUTE_GENERATE
+    assert nodes.route_after_retrieve({**rag_only, "context": []}) == nodes.ROUTE_NO_INFORMATION
+    assert nodes.route_after_retrieve(rag_only) == nodes.ROUTE_NO_INFORMATION
 
 
 def test_graph_has_the_expected_nodes_and_conditional_edges(service):
     drawable = service.graph.get_graph()
     assert set(drawable.nodes) - {"__start__", "__end__"} == set(nodes.NODE_NAMES)
     conditional = {(edge.source, edge.target) for edge in drawable.edges if edge.conditional}
-    assert conditional == {
-        (nodes.NODE_RECEIVE, nodes.NODE_RETRIEVE),
-        (nodes.NODE_RECEIVE, nodes.NODE_REJECT),
-        (nodes.NODE_RETRIEVE, nodes.NODE_GENERATE),
-        (nodes.NODE_RETRIEVE, nodes.NODE_NO_INFORMATION),
-    }
+    assert {(nodes.NODE_RECEIVE, nodes.NODE_ROUTE), (nodes.NODE_RECEIVE, nodes.NODE_REJECT)} <= conditional
+    for source in (nodes.NODE_ROUTE, nodes.NODE_TICKETS, nodes.NODE_INVENTORY, nodes.NODE_RETRIEVE):
+        assert {(source, nodes.NODE_GENERATE), (source, nodes.NODE_TOOL_FALLBACK),
+                (source, nodes.NODE_NO_INFORMATION)} <= conditional
+    assert {(nodes.NODE_ROUTE, nodes.NODE_TICKETS), (nodes.NODE_ROUTE, nodes.NODE_INVENTORY),
+            (nodes.NODE_ROUTE, nodes.NODE_RETRIEVE), (nodes.NODE_TICKETS, nodes.NODE_RETRIEVE)} <= conditional
 
 
 def test_answered_path_runs_each_step_once_and_hands_the_retrieved_context_to_generation(service, spy):
@@ -87,7 +90,7 @@ def test_answered_path_runs_each_step_once_and_hands_the_retrieved_context_to_ge
     assert run.status == STATUS_ANSWERED and run.answer == spy.answer
     assert spy.retrieve_calls == ["¿Cuántos puntos para Oro?"]  # la pregunta llega recortada
     assert spy.generate_calls == [("¿Cuántos puntos para Oro?", spy.context)]  # mismo contexto que produjo retrieve
-    assert run.trace["node_order"] == [nodes.NODE_RECEIVE, nodes.NODE_RETRIEVE, nodes.NODE_GENERATE]
+    assert run.trace["node_order"] == [nodes.NODE_RECEIVE, nodes.NODE_ROUTE, nodes.NODE_RETRIEVE, nodes.NODE_GENERATE]
 
 
 def test_without_context_the_agent_answers_honestly_and_never_calls_generation(tmp_path):
@@ -95,7 +98,7 @@ def test_without_context_the_agent_answers_honestly_and_never_calls_generation(t
     run = AgentService(spy.deps, checkpointer=InMemorySaver(), trace_store=TraceStore(tmp_path)).run("¿Capital de Francia?")
     assert run.status == STATUS_NO_INFORMATION and run.answer == nodes.NO_INFORMATION_ANSWER
     assert spy.generate_calls == []
-    assert run.trace["node_order"] == [nodes.NODE_RECEIVE, nodes.NODE_RETRIEVE, nodes.NODE_NO_INFORMATION]
+    assert run.trace["node_order"] == [nodes.NODE_RECEIVE, nodes.NODE_ROUTE, nodes.NODE_RETRIEVE, nodes.NODE_NO_INFORMATION]
 
 
 @pytest.mark.parametrize("question", ["", "   ", None])
@@ -220,8 +223,8 @@ def test_every_run_saves_a_trace_that_can_be_read_afterwards(service):
     saved = service.trace_store.load(run.run_id)
     assert saved["run_id"] == run.run_id and saved["status"] == STATUS_ANSWERED
     assert [step["node"] for step in saved["steps"]] == saved["node_order"]
-    assert [step["order"] for step in saved["steps"]] == [1, 2, 3]
-    retrieve_step = saved["steps"][1]
+    assert [step["order"] for step in saved["steps"]] == [1, 2, 3, 4]
+    retrieve_step = saved["steps"][2]
     assert retrieve_step["output"]["context"] == [
         {"source_document": "loyalty-program", "section": "Niveles", "chunk_index": 0}
     ]  # referencias, no el texto de los documentos
@@ -245,7 +248,7 @@ def test_a_failing_node_is_recorded_in_the_trace_and_reported_with_its_run_id(tm
     saved = store.load(caught.value.run_id)
     assert saved["status"] == "error" and saved["error"]["type"] == "RuntimeError"
     assert saved["steps"][-1]["node"] == nodes.NODE_GENERATE and "secreto-interno" in saved["steps"][-1]["error"]
-    assert saved["node_order"] == [nodes.NODE_RECEIVE, nodes.NODE_RETRIEVE, nodes.NODE_GENERATE]
+    assert saved["node_order"] == [nodes.NODE_RECEIVE, nodes.NODE_ROUTE, nodes.NODE_RETRIEVE, nodes.NODE_GENERATE]
 
 
 def test_trace_store_lists_runs_and_rejects_unsafe_ids(service, tmp_path):

@@ -70,6 +70,10 @@ def _record(name: str, passed: bool, detail: str) -> None:
     _RESULTS.append({"eval": name, "passed": passed, "detail": detail})
 
 
+def _step(trace: dict, node: str) -> dict:
+    return next(step for step in trace["steps"] if step["node"] == node)
+
+
 def _doc_text(source: str) -> str:
     return next(p for p in Path(DOCS_DIR).glob("*.es.md") if source in p.name).read_text(encoding="utf-8")
 
@@ -90,7 +94,7 @@ def test_eval_answer_is_anchored_in_the_knowledge_base(agent, case_id, question,
     run = agent.run(question)
     trace = agent.trace_store.load(run.run_id)
 
-    retrieved = trace["steps"][1]["output"]["context"]  # lo que recuperó, según el trace
+    retrieved = _step(trace, nodes.NODE_RETRIEVE)["output"]["context"]  # lo que recuperó, según el trace
     retrieved_sources = {item["source_document"] for item in retrieved}
     ok = (
         trace["status"] == STATUS_ANSWERED
@@ -112,9 +116,9 @@ def test_eval_out_of_scope_question_is_answered_honestly_without_generation(agen
     ok = (
         trace["status"] == STATUS_NO_INFORMATION
         and nodes.NODE_GENERATE not in trace["node_order"]
-        and trace["node_order"] == [nodes.NODE_RECEIVE, nodes.NODE_RETRIEVE, nodes.NODE_NO_INFORMATION]
+        and trace["node_order"] == [nodes.NODE_RECEIVE, nodes.NODE_ROUTE, nodes.NODE_RETRIEVE, nodes.NODE_NO_INFORMATION]
         and trace["final_state"]["answer"] == nodes.NO_INFORMATION_ANSWER
-        and trace["steps"][1]["output"]["context"] == []
+        and _step(trace, nodes.NODE_RETRIEVE)["output"]["context"] == []
     )
     _record("no_information_without_generation", ok, f"ruta={trace['node_order']}")
     assert ok
