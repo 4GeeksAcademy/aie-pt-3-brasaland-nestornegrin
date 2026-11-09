@@ -7,6 +7,10 @@ corrida falle (con el nodo que falló), y se puede leer después con `TraceStore
 Para no inflar el trace con texto de los documentos, el contexto recuperado se resume como referencias
 (documento, sección y número de chunk): lo que importa para explicar una respuesta es QUÉ se recuperó, y el texto
 completo ya está en la base de conocimiento.
+
+Desde la Parte 2 el trace dice además QUÉ FUENTES se usaron y en qué orden: `route` (lo que decidió el enrutador y por
+qué) y `sources_used` (cada fuente que de verdad se consultó, en orden de ejecución: `tool:tickets`, `tool:inventory`
+y/o `rag`, con su resultado), sin tener que deducirlo de los pasos.
 """
 from __future__ import annotations
 
@@ -19,6 +23,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+
+from .nodes import NODE_BY_SOURCE, NODE_RETRIEVE, NODE_ROUTE
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +115,27 @@ class TraceRecorder:
         self.finished_at = utc_now()
         self.duration_ms = round((time.perf_counter() - self._t0) * 1000, 3)
 
+    def route(self) -> dict | None:
+        step = next((step for step in self.steps if step["node"] == NODE_ROUTE), None)
+        return ((step or {}).get("output") or {}).get("route")
+
+    def sources_used(self) -> list[dict]:
+        """Fuentes consultadas, en el orden en que se ejecutaron (RAG y/o tools, con su resultado)."""
+        labels = {node: ("rag" if source == "rag" else f"tool:{source}") for source, node in NODE_BY_SOURCE.items()}
+        used = []
+        for step in self.steps:
+            label = labels.get(step["node"])
+            if label is None:
+                continue
+            output = step.get("output") or {}
+            if step["node"] == NODE_RETRIEVE:
+                detail = {"chunks": len(output.get("context", [])), "error": step["error"]}
+            else:
+                last = (output.get("tool_results") or [{}])[-1]
+                detail = {"outcome": last.get("outcome"), "error": step["error"]}
+            used.append({"source": label, "node": step["node"], "order": step["order"], **detail})
+        return used
+
     def to_dict(self) -> dict:
         return {
             "run_id": self.run_id,
@@ -118,6 +145,8 @@ class TraceRecorder:
             "finished_at": self.finished_at,
             "duration_ms": self.duration_ms,
             "node_order": [step["node"] for step in self.steps],
+            "route": self.route(),
+            "sources_used": self.sources_used(),
             "steps": self.steps,
             "checkpoints": self.checkpoints,
             "final_state": self.final_state,
