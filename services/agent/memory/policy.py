@@ -82,7 +82,17 @@ def forbidden_reasons(text: str) -> list[str]:
         reasons.append("dato_personal_identificable")
     if _CUSTOMER.search(clean) and _CUSTOMER_DATA.search(clean):
         reasons.append("datos_de_clientes_brasa_points")
-    return reasons
+    # Hito 8 · Parte 2 (BRIEFING §3): lo que el agente nunca revela tampoco se guarda en su memoria, porque luego se
+    # devolvería como «recuerdo». Import perezoso: la memoria funciona igual si el paquete de guardrails no se usa.
+    from ..guardrails import sensitive
+
+    if sensitive.recipe_request(text) or "receta_con_cantidades" in sensitive.sensitive_text_reasons(text):
+        reasons.append("receta_o_formula_propietaria")
+    if sensitive.commercial_request(text) or "precio_o_contrato_de_proveedor" in sensitive.sensitive_text_reasons(text):
+        reasons.append("contrato_o_precio_de_proveedor")
+    if sensitive.employee_request(text):
+        reasons.append("nomina_o_evaluacion_de_empleado")
+    return list(dict.fromkeys(reasons))
 
 
 def _significant_tokens(text: str) -> list[str]:

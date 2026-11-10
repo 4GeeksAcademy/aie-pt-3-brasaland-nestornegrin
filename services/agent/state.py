@@ -20,10 +20,12 @@ STATUS_NO_INFORMATION = "no_information"  # ningún fragmento superó el umbral:
 STATUS_INVALID_QUESTION = "invalid_question"  # pregunta vacía o demasiado larga: no se recupera nada
 STATUS_TOOL_FALLBACK = "tool_fallback"  # la tool falló o el recurso no existe: respuesta honesta, sin inventar
 
+STATUS_BLOCKED = "blocked"  # un guardrail rechazó el mensaje (jailbreak, dato confidencial, tarea personal, crisis)
+STATUS_REDIRECTED = "redirected"  # small talk / trivia: respuesta breve + reconducción a operaciones
 STATUS_MEMORY_DECISION = "memory_decision"  # el mensaje solo respondía a una propuesta de memoria (sí / no / edición)
 
 FINAL_STATUSES = (STATUS_ANSWERED, STATUS_NO_INFORMATION, STATUS_INVALID_QUESTION, STATUS_TOOL_FALLBACK,
-                  STATUS_MEMORY_DECISION)
+                  STATUS_MEMORY_DECISION, STATUS_BLOCKED, STATUS_REDIRECTED)
 
 
 class AgentState(TypedDict, total=False):
@@ -42,3 +44,11 @@ class AgentState(TypedDict, total=False):
     proposal_raw: dict  # `propuesta_memoria` tal como la devolvió el modelo (aún sin validar)
     memory_resolution: dict  # qué pasó con la propuesta pendiente al llegar este mensaje
     memory_proposal: dict  # propuesta nueva abierta en este turno (queda pendiente de confirmación)
+    # Guardrails (Hito 8 · Parte 2): solo se usan cuando el agente se construye con `AgentDependencies.guardrails`.
+    guardrails_enabled: bool
+    original_question: str  # el mensaje tal como llegó (la memoria puede recortarlo a «el resto» de la pregunta)
+    language: str  # es | en, detectado del mensaje
+    scope: str  # domain | unanchored | casual
+    guard: dict  # decisión de la guardia de entrada: {"action", "refusal"}
+    safe_context: list[dict]  # fragmentos del RAG y de las tools ya saneados (lo único que ve el modelo)
+    guardrails: list[dict]  # intervenciones de esta corrida: {"guardrail", "kind", "reason", "action"}

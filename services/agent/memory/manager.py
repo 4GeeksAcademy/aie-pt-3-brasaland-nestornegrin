@@ -80,6 +80,9 @@ class AgentMemory:
         self.classify_fn = classify_fn
 
     # --- lectura --------------------------------------------------------------------------------------------
+    def has_pending(self, conversation_id: str) -> bool:
+        return bool(self.store.get_pending(conversation_id))
+
     def recall(self, question: str) -> list[dict]:
         return self.store.recall(question)
 

@@ -33,6 +33,7 @@ from .nodes import (
     NODE_ROUTE,
     NODE_TICKETS,
     NODE_TOOL_FALLBACK,
+    ROUTE_CASUAL as ROUTE_NO_EVIDENCE_CASUAL,
     ROUTE_GENERATE,
     ROUTE_INVENTORY,
     ROUTE_NO_INFORMATION,
@@ -56,6 +57,26 @@ from .nodes import (
     route_after_route,
     route_after_tickets,
     tool_fallback,
+)
+from .guardrail_nodes import (
+    GUARD_NODE_NAMES,
+    NODE_CASUAL,
+    NODE_INPUT_GUARD,
+    NODE_ISOLATE,
+    NODE_OUTPUT_GUARD,
+    NODE_REFUSE,
+    ROUTE_BLOCK,
+    ROUTE_CASUAL,
+    ROUTE_CONTINUE,
+    ROUTE_END,
+    ROUTE_PROPOSE,
+    make_casual_node,
+    make_input_guard_node,
+    make_isolate_node,
+    make_output_guard_node,
+    make_route_after_output,
+    refuse_request,
+    route_after_input_guard,
 )
 from .memory_nodes import (
     MEMORY_NODE_NAMES,
@@ -90,6 +111,7 @@ def build_graph(
                                    -> route_question -> recall_memory -> fuentes... -> generate_answer -> propose_memory -> END
     Sin `deps.memory` el grafo es el de siempre."""
     memory = deps.memory is not None
+    guard = deps.guardrails is not None
     builder = StateGraph(AgentState)
 
     nodes = {
@@ -109,6 +131,9 @@ def build_graph(
     # Salidas posibles al terminar de recopilar (las comparten todos los nodos de recopilación).
     finish = {ROUTE_GENERATE: NODE_GENERATE, ROUTE_TOOL_FALLBACK: NODE_TOOL_FALLBACK,
               ROUTE_NO_INFORMATION: NODE_NO_INFORMATION}
+    if guard:  # con guardrails, lo que se genera pasa antes por el aislamiento del contenido externo
+        finish[ROUTE_GENERATE] = NODE_ISOLATE
+        finish[ROUTE_NO_EVIDENCE_CASUAL] = NODE_CASUAL
     sources = {ROUTE_TICKETS: NODE_TICKETS, ROUTE_INVENTORY: NODE_INVENTORY, ROUTE_RETRIEVE: NODE_RETRIEVE}
 
     if memory:
@@ -116,9 +141,21 @@ def build_graph(
                                NODE_RECALL: make_recall_node(deps), NODE_PROPOSE: make_propose_node(deps)}.items():
             builder.add_node(name, traced_node(name, function, recorder_for))
 
+    first = NODE_RESOLVE if memory else NODE_ROUTE
+    if guard:
+        for name, function in {NODE_INPUT_GUARD: make_input_guard_node(deps), NODE_REFUSE: refuse_request,
+                               NODE_CASUAL: make_casual_node(deps), NODE_ISOLATE: make_isolate_node(deps),
+                               NODE_OUTPUT_GUARD: make_output_guard_node(deps)}.items():
+            builder.add_node(name, traced_node(name, function, recorder_for))
+
     builder.add_edge(START, NODE_RECEIVE)
     builder.add_conditional_edges(
-        NODE_RECEIVE, route_after_receive, {ROUTE_ROUTE: NODE_RESOLVE if memory else NODE_ROUTE, ROUTE_REJECT: NODE_REJECT})
+        NODE_RECEIVE, route_after_receive, {ROUTE_ROUTE: NODE_INPUT_GUARD if guard else first, ROUTE_REJECT: NODE_REJECT})
+    if guard:
+        builder.add_conditional_edges(
+            NODE_INPUT_GUARD, route_after_input_guard,
+            {ROUTE_CONTINUE: first, ROUTE_BLOCK: NODE_REFUSE, ROUTE_CASUAL: NODE_CASUAL})
+        builder.add_edge(NODE_ISOLATE, NODE_GENERATE)
     if memory:
         builder.add_conditional_edges(NODE_RESOLVE, route_after_resolve, {ROUTE_ROUTE: NODE_ROUTE, ROUTE_ACK: NODE_MEMORY_ACK})
         builder.add_edge(NODE_ROUTE, NODE_RECALL)
@@ -131,14 +168,24 @@ def build_graph(
     builder.add_conditional_edges(NODE_INVENTORY, route_after_inventory, {ROUTE_RETRIEVE: NODE_RETRIEVE, **finish})
     builder.add_conditional_edges(NODE_RETRIEVE, route_after_retrieve, finish)
     terminals = [NODE_REJECT]
+    if guard:
+        terminals.append(NODE_REFUSE)
+        # La respuesta del modelo (y la del small talk) se valida antes de entregarla y, con memoria, antes de proponer.
+        builder.add_edge(NODE_CASUAL, NODE_OUTPUT_GUARD)
+        builder.add_conditional_edges(NODE_OUTPUT_GUARD, make_route_after_output(deps),
+                                      {ROUTE_PROPOSE: NODE_PROPOSE, ROUTE_END: END} if memory else {ROUTE_END: END})
     if memory:
         # Toda respuesta con contenido pasa por `propose_memory`: antepone lo que pasó con la propuesta anterior (si el
         # usuario la contestó y además preguntó otra cosa) y añade la propuesta nueva (si el modelo la hizo y la política la acepta).
-        for answering in (NODE_GENERATE, NODE_NO_INFORMATION, NODE_TOOL_FALLBACK):
+        for answering in (NODE_NO_INFORMATION, NODE_TOOL_FALLBACK) + (() if guard else (NODE_GENERATE,)):
             builder.add_edge(answering, NODE_PROPOSE)
+        if guard:
+            builder.add_edge(NODE_GENERATE, NODE_OUTPUT_GUARD)
         terminals += [NODE_PROPOSE, NODE_MEMORY_ACK]
     else:
-        terminals += [NODE_GENERATE, NODE_NO_INFORMATION, NODE_TOOL_FALLBACK]
+        terminals += [NODE_NO_INFORMATION, NODE_TOOL_FALLBACK] + ([] if guard else [NODE_GENERATE])
+        if guard:
+            builder.add_edge(NODE_GENERATE, NODE_OUTPUT_GUARD)
     for terminal in terminals:
         builder.add_edge(terminal, END)
     return builder
@@ -179,7 +226,9 @@ def compile_graph(builder: StateGraph, checkpointer=None):
     except Exception as error:  # noqa: BLE001 - LangGraph lanza ValueError con el motivo estructural
         raise AgentGraphError(f"El grafo del agente no compila: {error}") from error
     check_connectivity(compiled)
-    expected = set(NODE_NAMES) | (set(MEMORY_NODE_NAMES) if "resolve_pending" in compiled.get_graph().nodes else set())
+    present = compiled.get_graph().nodes
+    expected = (set(NODE_NAMES) | (set(MEMORY_NODE_NAMES) if "resolve_pending" in present else set())
+                | (set(GUARD_NODE_NAMES) if "input_guard" in present else set()))
     missing = expected - set(compiled.get_graph().nodes)
     if missing:
         raise AgentGraphError(f"Al grafo del agente le faltan nodos: {sorted(missing)}")

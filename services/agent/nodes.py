@@ -40,6 +40,7 @@ from .tools import (
 )
 
 if TYPE_CHECKING:
+    from .guardrails import Guardrails
     from .memory import AgentMemory, StructuredAnswer
 
 # Nombres de nodos (no pueden coincidir con claves del estado: LangGraph lo rechaza).
@@ -68,6 +69,7 @@ ROUTE_RETRIEVE = SOURCE_RAG
 ROUTE_GENERATE = "generate"
 ROUTE_NO_INFORMATION = "no_information"
 ROUTE_TOOL_FALLBACK = "tool_fallback"
+ROUTE_CASUAL = "casual"  # guardrails: nada ancla el mensaje al dominio y no hay evidencia → small talk con reconducción
 
 MAX_QUESTION_LENGTH = 1000
 NO_INFORMATION_ANSWER = "No tengo información suficiente en la base de conocimiento de Brasaland para responder eso."
@@ -86,6 +88,8 @@ class AgentDependencies:
     router_fn: Callable[[str], RoutePlan] = plan_route
     # Memoria (Hito 8). Sin `memory` el agente se comporta exactamente como antes (sin nodos ni llamadas extra).
     memory: "AgentMemory | None" = None
+    # Guardrails (Hito 8 · Parte 2). Sin `guardrails` no hay nodos ni llamadas extra y el agente se comporta como antes.
+    guardrails: "Guardrails | None" = None
     structured_fn: Callable[[str, list[dict], list[dict]], "StructuredAnswer"] | None = None
 
 
@@ -101,12 +105,22 @@ def default_dependencies() -> AgentDependencies:
         from .memory import AgentMemory, generate_structured
 
         memory, structured_fn = AgentMemory(), generate_structured
+    guardrails = None
+    from .guardrails import Guardrails, guardrails_enabled
+
+    if guardrails_enabled():  # AGENT_GUARDRAILS_ENABLED=0 vuelve al agente sin guardrails
+        from .guardrails import secure_generate_answer
+
+        guardrails, generate_answer = Guardrails(), secure_generate_answer
+        if structured_fn is not None:
+            structured_fn = lambda q, c, m: generate_structured(q, c, m, secure=True)  # noqa: E731
     return AgentDependencies(
         retrieve_fn=lambda question: retrieve(question),
         generate_fn=generate_answer,
         ticket_fn=McpTicketTool(gateway),
         inventory_fn=McpInventoryTool(gateway),
         memory=memory,
+        guardrails=guardrails,
         structured_fn=structured_fn,
     )
 
@@ -241,9 +255,16 @@ def failed_tools(state: AgentState) -> list[dict]:
     return [entry for entry in state.get("tool_results", []) if entry["outcome"] != ToolOutcome.OK.value]
 
 
+def answer_context(state: AgentState) -> list[dict]:
+    """Lo que ve el modelo: con guardrails, los fragmentos ya saneados por `isolate_external`; sin ellos, los de siempre."""
+    if "safe_context" in state:
+        return state["safe_context"]
+    return [*state.get("context", []), *tool_chunks(state.get("tool_results", []))]
+
+
 def make_generate_node(deps: AgentDependencies) -> Callable[[AgentState], dict]:
     def generate_answer(state: AgentState) -> dict:
-        context = [*state.get("context", []), *tool_chunks(state.get("tool_results", []))]
+        context = answer_context(state)
         answer = deps.generate_fn(state["question"], context)
         notices = [failure_message(entry) for entry in failed_tools(state)]  # una tool falló pero hay otra evidencia
         if notices:
@@ -284,6 +305,9 @@ def route_after_gathering(state: AgentState) -> str:
         return ROUTE_GENERATE
     if failed_tools(state):
         return ROUTE_TOOL_FALLBACK
+    # Con guardrails, un mensaje que nada ancla al dominio y sin evidencia es small talk / trivia: respuesta breve + reconducción.
+    if state.get("guardrails_enabled") and state.get("scope") in ("unanchored", "casual"):
+        return ROUTE_CASUAL
     # Con memoria, una corrección sin evidencia previa («el proveedor entrega los miércoles») sigue a la generación:
     # es la única llamada que puede devolver `propuesta_memoria`. Sin memoria, "no tengo información" como siempre.
     return ROUTE_GENERATE if state.get("memory_enabled") else ROUTE_NO_INFORMATION

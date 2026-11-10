@@ -46,6 +46,7 @@ class AgentAnswer(BaseModel):
     run_id: str
     sources: list[str] = []  # fuentes consultadas, en orden: "rag", "tool:tickets", "tool:inventory"
     conversation_id: str | None = None
+    guardrails: list[dict] = []  # intervenciones de los guardrails en este turno (tipo de fallo incluido)
     memory: dict | None = None  # {"resolution": {...}, "proposal": {...}}: qué pasó con la propuesta y si hay una nueva
 
 
@@ -77,7 +78,16 @@ def create_router(
         if run.status == STATUS_INVALID_QUESTION:
             raise HTTPException(status_code=422, detail=run.answer)
         return AgentAnswer(answer=run.answer, status=run.status, run_id=run.run_id, sources=run.sources,
-                           conversation_id=run.conversation_id, memory=run.memory)
+                           conversation_id=run.conversation_id, memory=run.memory,
+                           guardrails=run.guardrails or [])
+
+    @router.get("/guardrails/summary")
+    def guardrails_summary() -> dict:
+        """Cuántas veces disparó cada guardrail en esta sesión (contadores en memoria del proceso)."""
+        guardrails = service.deps.guardrails
+        if guardrails is None:
+            return {"enabled": False}
+        return {"enabled": True, **guardrails.monitor.summary()}
 
     return router
 
