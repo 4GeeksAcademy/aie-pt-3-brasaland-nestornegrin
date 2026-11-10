@@ -318,3 +318,9 @@
 - Código en `services/agent/guardrails/` y `services/agent/guardrail_nodes.py`; 114 pruebas deterministas en
   `tests/pipelines/test_agent_guardrails.py` (+3 de endpoint). `AGENT_GUARDRAILS_ENABLED=0` desactiva todo.
 - Docs: `docs/agent/guardrails.md` (+ `guardrails-evidence.md`). La política de memoria también rechaza recetas, precios de proveedor y evaluaciones.
+
+## Recepción y enrutamiento de RFPs (Hito 9 · Parte 1, rama `feature/rfp-intake`)
+- Grafo propio `data/pipelines/rfp_intake/` (convert→classify→measure→metadata→orchestrate→workers en paralelo→synthesize), separado del grafo CX.
+  Estados `analizando` → `analisis_completo` | `descartado`; verificadores en código contra invención de cifras; handoff `schema_version 1`.
+- Backend en `services/api/app/rfp/` (SQLModel/Supabase, `POST /rfp/tickets` 202 + polling, reprocess); UI en `uis/backoffice` (`/rfp`).
+- Dependencias nuevas (raíz y `services/api`): `markitdown[pdf]`, `py-readability-metrics`. Docs: `docs/agent/rfp-intake.md`.

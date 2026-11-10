@@ -9,3 +9,6 @@ data/traces/
 # Log de auditoría del servidor MCP (una línea JSON por invocación de tool)
 data/logs/
 data/memory/
+
+# RFPs subidos en runtime (Hito 9)
+data/raw/rfp/
