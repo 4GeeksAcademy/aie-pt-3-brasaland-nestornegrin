@@ -5,7 +5,7 @@ export type TicketStatus = "analizando" | "descartado" | "analisis_completo";
 // «processing» lo deriva el backend del latido del pipeline: running | failed | stalled | idle.
 export type Processing = "running" | "failed" | "stalled" | "idle";
 
-export interface KeyAspect { aspect: string; detail: string; source_excerpt?: string; unverified_numbers?: string[] }
+export interface KeyAspect { aspect: string; detail: string; source_excerpt?: string; unverified_numbers?: string[]; inferred?: boolean }
 export interface RfpSection {
   department_id: string; department: string; owner: string; reason: string | null;
   key_aspects: KeyAspect[]; asks: string[]; figures: Record<string, string>; open_questions: string[]; excerpts: string[];

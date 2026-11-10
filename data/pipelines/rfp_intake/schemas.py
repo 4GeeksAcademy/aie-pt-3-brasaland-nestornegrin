@@ -58,6 +58,7 @@ class KeyAspect(_Strict):
     detail: str = ""
     source_excerpt: str = ""  # cita textual del documento que lo respalda
     unverified_numbers: list[str] = Field(default_factory=list)  # cifras que el modelo escribió y NO aparecen en la RFP
+    inferred: bool = False  # True si la cita NO figura textualmente en el PDF (el aspecto es una inferencia del worker, no un dato del documento)
 
 
 class Finding(_Strict):

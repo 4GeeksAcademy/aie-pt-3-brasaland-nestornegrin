@@ -147,7 +147,7 @@ function TicketPanel({ detail, onRetry }: { detail: TicketDetail; onRetry: (id: 
                 {s.reason && <p className="mt-1 text-xs text-zinc-500">{s.reason}</p>}
                 <h4 className="mt-3 text-xs font-bold uppercase">Aspectos clave</h4>
                 <ul className="list-disc pl-5 text-sm">
-                  {s.key_aspects.map((a, i) => <li key={i}><b>{a.aspect}:</b> {a.detail}{a.unverified_numbers?.length ? <em className="text-amber-800"> (cifra sin verificar: {a.unverified_numbers.join(", ")})</em> : null}</li>)}
+                  {s.key_aspects.map((a, i) => <li key={i}><b>{a.aspect}:</b> {a.detail}{a.unverified_numbers?.length ? <em className="text-amber-800"> (cifra sin verificar: {a.unverified_numbers.join(", ")})</em> : null}{a.inferred ? <em className="text-zinc-500"> (inferido, no figura textual en el PDF)</em> : null}</li>)}
                 </ul>
                 {s.asks.length > 0 && <><h4 className="mt-3 text-xs font-bold uppercase">Qué pedirle a {s.owner}</h4><ul className="list-disc pl-5 text-sm">{s.asks.map((a, i) => <li key={i}>{a}</li>)}</ul></>}
                 {s.open_questions.length > 0 && <><h4 className="mt-3 text-xs font-bold uppercase">Preguntas abiertas</h4><ul className="list-disc pl-5 text-sm">{s.open_questions.map((q, i) => <li key={i}>{q}</li>)}</ul></>}

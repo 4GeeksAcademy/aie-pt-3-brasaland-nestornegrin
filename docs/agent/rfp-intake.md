@@ -33,7 +33,7 @@ uis/backoffice  /rfp ──POST PDF──▶ services/api  /rfp/tickets ──20
 | Clasificador | Propone `is_rfp` y 4 señales | `decide_rfp`: RFP = `is_rfp` **y** servicio **y** alcance/volumen **y** (fecha **o** presupuesto) |
 | Extractor | Cliente, ubicación, servicio, alcance, fecha, presupuesto | Cada dato debe aparecer en el documento; si no, se descarta y pasa a `open_questions` |
 | Orquestador | Qué departamentos aplican y con qué extractos | Extractos textuales; departamentos inexistentes se descartan; `marketing` forzado |
-| Worker (×N) | `key_aspects`, qué pedir, cifras, preguntas abiertas | Toda cifra se busca en el documento: la no verificable se marca y se elimina del estado compartido |
+| Worker (×N) | `key_aspects`, qué pedir, cifras, preguntas abiertas | Toda cifra se busca en el documento (la no verificable se marca y se elimina del estado compartido); la cita de cada aspecto debe figurar textual en el PDF, si no el aspecto queda `inferred: true` y sin cita |
 | Synthesizer | Resumen para Ventas (qué pedir y a quién) | Si el modelo falla, texto determinista; el handoff se construye en código |
 
 El texto del PDF es un dato no confiable: va dentro de `<documento>…</documento>` con la regla de no obedecer instrucciones del documento.

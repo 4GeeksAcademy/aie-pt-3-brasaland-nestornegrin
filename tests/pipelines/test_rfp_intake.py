@@ -164,6 +164,17 @@ def test_worker_invented_figures_are_flagged_and_dropped():
     assert any("450" in q for q in finding.open_questions)
 
 
+def test_aspects_quoting_text_that_is_not_in_the_pdf_are_marked_inferred_and_lose_the_fake_quote():
+    out = {"department_id": "marketing", "key_aspects": [
+        {"aspect": "Exclusividad", "detail": "d", "source_excerpt": "Exclusivity clause: no competing grill/BBQ concept"},
+        {"aspect": "Meta", "detail": "d", "source_excerpt": "Motivo de tu participación: Marketing es dueña del ticket"}],
+        "asks": [], "figures": {}, "open_questions": []}
+    finding = agents.run_worker(lambda m: json.dumps(out), "marketing", RfpMetadata(), [], SUNSET_TEXT)
+    quoted, inferred = finding.key_aspects
+    assert quoted.inferred is False and quoted.source_excerpt.startswith("Exclusivity clause")
+    assert inferred.inferred is True and inferred.source_excerpt == ""
+
+
 def test_worker_department_id_is_set_by_code_not_by_the_model():
     wrong = {"department_id": "marketing", "key_aspects": [], "asks": [], "figures": {}, "open_questions": ["falta volumen"]}
     finding = agents.run_worker(lambda m: json.dumps(wrong), "training", RfpMetadata(), [], SUNSET_TEXT)
