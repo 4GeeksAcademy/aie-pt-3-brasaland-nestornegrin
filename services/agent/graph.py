@@ -57,6 +57,20 @@ from .nodes import (
     route_after_tickets,
     tool_fallback,
 )
+from .memory_nodes import (
+    MEMORY_NODE_NAMES,
+    NODE_MEMORY_ACK,
+    NODE_PROPOSE,
+    NODE_RECALL,
+    NODE_RESOLVE,
+    ROUTE_ACK,
+    acknowledge_memory,
+    make_memory_generate_node,
+    make_propose_node,
+    make_recall_node,
+    make_resolve_node,
+    route_after_resolve,
+)
 from .state import AgentState
 from .tracing import TraceRecorder, traced_node
 
@@ -69,7 +83,13 @@ def build_graph(
     deps: AgentDependencies,
     recorder_for: Callable[[str], TraceRecorder | None] = lambda run_id: None,
 ) -> StateGraph:
-    """Define nodos y aristas (sin compilar). `recorder_for(run_id)` devuelve el recorder del trace de esa corrida."""
+    """Define nodos y aristas (sin compilar). `recorder_for(run_id)` devuelve el recorder del trace de esa corrida.
+
+    Con `deps.memory` se añaden los nodos de memoria (ver `memory_nodes.py`):
+        receive -> resolve_pending -> (solo era la respuesta a la propuesta) acknowledge_memory -> END
+                                   -> route_question -> recall_memory -> fuentes... -> generate_answer -> propose_memory -> END
+    Sin `deps.memory` el grafo es el de siempre."""
+    memory = deps.memory is not None
     builder = StateGraph(AgentState)
 
     nodes = {
@@ -78,7 +98,7 @@ def build_graph(
         NODE_TICKETS: make_tickets_node(deps),
         NODE_INVENTORY: make_inventory_node(deps),
         NODE_RETRIEVE: make_retrieve_node(deps),
-        NODE_GENERATE: make_generate_node(deps),
+        NODE_GENERATE: make_memory_generate_node(deps) if memory else make_generate_node(deps),
         NODE_NO_INFORMATION: no_information,
         NODE_TOOL_FALLBACK: tool_fallback,
         NODE_REJECT: reject_question,
@@ -91,15 +111,35 @@ def build_graph(
               ROUTE_NO_INFORMATION: NODE_NO_INFORMATION}
     sources = {ROUTE_TICKETS: NODE_TICKETS, ROUTE_INVENTORY: NODE_INVENTORY, ROUTE_RETRIEVE: NODE_RETRIEVE}
 
+    if memory:
+        for name, function in {NODE_RESOLVE: make_resolve_node(deps), NODE_MEMORY_ACK: acknowledge_memory,
+                               NODE_RECALL: make_recall_node(deps), NODE_PROPOSE: make_propose_node(deps)}.items():
+            builder.add_node(name, traced_node(name, function, recorder_for))
+
     builder.add_edge(START, NODE_RECEIVE)
-    builder.add_conditional_edges(NODE_RECEIVE, route_after_receive, {ROUTE_ROUTE: NODE_ROUTE, ROUTE_REJECT: NODE_REJECT})
-    builder.add_conditional_edges(NODE_ROUTE, route_after_route, {**sources, **finish})
+    builder.add_conditional_edges(
+        NODE_RECEIVE, route_after_receive, {ROUTE_ROUTE: NODE_RESOLVE if memory else NODE_ROUTE, ROUTE_REJECT: NODE_REJECT})
+    if memory:
+        builder.add_conditional_edges(NODE_RESOLVE, route_after_resolve, {ROUTE_ROUTE: NODE_ROUTE, ROUTE_ACK: NODE_MEMORY_ACK})
+        builder.add_edge(NODE_ROUTE, NODE_RECALL)
+        builder.add_conditional_edges(NODE_RECALL, route_after_route, {**sources, **finish})
+    else:
+        builder.add_conditional_edges(NODE_ROUTE, route_after_route, {**sources, **finish})
     builder.add_conditional_edges(
         NODE_TICKETS, route_after_tickets,
         {ROUTE_INVENTORY: NODE_INVENTORY, ROUTE_RETRIEVE: NODE_RETRIEVE, **finish})
     builder.add_conditional_edges(NODE_INVENTORY, route_after_inventory, {ROUTE_RETRIEVE: NODE_RETRIEVE, **finish})
     builder.add_conditional_edges(NODE_RETRIEVE, route_after_retrieve, finish)
-    for terminal in (NODE_GENERATE, NODE_NO_INFORMATION, NODE_TOOL_FALLBACK, NODE_REJECT):
+    terminals = [NODE_REJECT]
+    if memory:
+        # Toda respuesta con contenido pasa por `propose_memory`: antepone lo que pasó con la propuesta anterior (si el
+        # usuario la contestó y además preguntó otra cosa) y añade la propuesta nueva (si el modelo la hizo y la política la acepta).
+        for answering in (NODE_GENERATE, NODE_NO_INFORMATION, NODE_TOOL_FALLBACK):
+            builder.add_edge(answering, NODE_PROPOSE)
+        terminals += [NODE_PROPOSE, NODE_MEMORY_ACK]
+    else:
+        terminals += [NODE_GENERATE, NODE_NO_INFORMATION, NODE_TOOL_FALLBACK]
+    for terminal in terminals:
         builder.add_edge(terminal, END)
     return builder
 
@@ -139,7 +179,8 @@ def compile_graph(builder: StateGraph, checkpointer=None):
     except Exception as error:  # noqa: BLE001 - LangGraph lanza ValueError con el motivo estructural
         raise AgentGraphError(f"El grafo del agente no compila: {error}") from error
     check_connectivity(compiled)
-    missing = set(NODE_NAMES) - set(compiled.get_graph().nodes)
+    expected = set(NODE_NAMES) | (set(MEMORY_NODE_NAMES) if "resolve_pending" in compiled.get_graph().nodes else set())
+    missing = expected - set(compiled.get_graph().nodes)
     if missing:
         raise AgentGraphError(f"Al grafo del agente le faltan nodos: {sorted(missing)}")
     return compiled

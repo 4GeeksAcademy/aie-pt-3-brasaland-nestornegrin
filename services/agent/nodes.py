@@ -18,8 +18,9 @@ Qdrant ni modelos reales.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from .routing import SOURCE_INVENTORY, SOURCE_ORDER, SOURCE_RAG, SOURCE_TICKETS, RoutePlan, plan_route
 from .state import (
@@ -37,6 +38,9 @@ from .tools import (
     TicketsResult,
     ToolOutcome,
 )
+
+if TYPE_CHECKING:
+    from .memory import AgentMemory, StructuredAnswer
 
 # Nombres de nodos (no pueden coincidir con claves del estado: LangGraph lo rechaza).
 NODE_RECEIVE = "receive_question"
@@ -80,6 +84,9 @@ class AgentDependencies:
     ticket_fn: Callable[[TicketQuery], TicketsResult] | None = None
     inventory_fn: Callable[[InventoryQuery], InventoryResult] | None = None
     router_fn: Callable[[str], RoutePlan] = plan_route
+    # Memoria (Hito 8). Sin `memory` el agente se comporta exactamente como antes (sin nodos ni llamadas extra).
+    memory: "AgentMemory | None" = None
+    structured_fn: Callable[[str, list[dict], list[dict]], "StructuredAnswer"] | None = None
 
 
 def default_dependencies() -> AgentDependencies:
@@ -89,11 +96,18 @@ def default_dependencies() -> AgentDependencies:
     from .mcp_tools import McpGateway, McpInventoryTool, McpTicketTool
 
     gateway = McpGateway()  # único camino a los datos operativos: el servidor MCP (no hay acceso directo al backend)
+    memory, structured_fn = None, None
+    if os.environ.get("AGENT_MEMORY_ENABLED", "1") != "0":  # interruptor para volver al agente sin memoria
+        from .memory import AgentMemory, generate_structured
+
+        memory, structured_fn = AgentMemory(), generate_structured
     return AgentDependencies(
         retrieve_fn=lambda question: retrieve(question),
         generate_fn=generate_answer,
         ticket_fn=McpTicketTool(gateway),
         inventory_fn=McpInventoryTool(gateway),
+        memory=memory,
+        structured_fn=structured_fn,
     )
 
 
@@ -258,7 +272,7 @@ def route_after_receive(state: AgentState) -> str:
 
 def has_evidence(state: AgentState) -> bool:
     """¿Hay algo real en lo que basar una respuesta? Fragmentos del RAG sobre el umbral o una tool que respondió."""
-    return bool(state.get("context")) or any(
+    return bool(state.get("context")) or bool(state.get("memories")) or any(
         entry["outcome"] == ToolOutcome.OK.value for entry in state.get("tool_results", [])
     )
 
@@ -268,7 +282,11 @@ def route_after_gathering(state: AgentState) -> str:
     fallback; sin evidencia ni fallo (el RAG no superó el umbral), 'no tengo información'. Nunca se genera en vacío."""
     if has_evidence(state):
         return ROUTE_GENERATE
-    return ROUTE_TOOL_FALLBACK if failed_tools(state) else ROUTE_NO_INFORMATION
+    if failed_tools(state):
+        return ROUTE_TOOL_FALLBACK
+    # Con memoria, una corrección sin evidencia previa («el proveedor entrega los miércoles») sigue a la generación:
+    # es la única llamada que puede devolver `propuesta_memoria`. Sin memoria, "no tengo información" como siempre.
+    return ROUTE_GENERATE if state.get("memory_enabled") else ROUTE_NO_INFORMATION
 
 
 def next_source(state: AgentState, after: str | None) -> str:
