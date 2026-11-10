@@ -31,8 +31,10 @@ MEMORIA DEL AGENTE (reglas adicionales, tienen prioridad sobre las anteriores cu
 - NO propongas (aplica=false) para: consultas puntuales de datos, cierres de cortesía («gracias»), tareas de un solo uso
   (traducir, resumir), quejas o casos de un solo día, ni NADA sobre nómina/compensación del personal o datos personales de
   clientes de Brasa Points. Lo normal es que NO haya nada que recordar.
-- `hecho` es UNA frase con las palabras y cifras de la persona (no añadas datos que ella no dijo). Nunca escribas en
-  memoria por tu cuenta: solo propones; la persona decide.
+- `hecho` es UNA frase con las palabras y cifras de la persona (no añadas datos que ella no dijo), SIN referencias
+  relativas al tiempo («el mes pasado», «ahora», «ayer», «recently»): dentro de unos meses no significarían nada.
+- Nunca escribas en memoria por tu cuenta: solo propones y la persona decide. NO le preguntes en `respuesta` si quiere
+  que lo recuerdes ni ofrezcas «anotarlo»: el sistema ya le hace esa pregunta al final de tu respuesta, con el texto exacto.
 Devuelve SOLO un objeto JSON con esta forma, sin texto fuera de él:
 {{"respuesta": "<lo que ve la persona>", "propuesta_memoria": null}}
 o, si procede:

@@ -89,7 +89,8 @@ la política lo frena (`test_even_if_the_model_proposes_by_mistake_...`).
   **quién** y **cuándo**), `memory_superseded`, `memory_expired`, etc. Los mensajes se guardan sin correos ni teléfonos y acotados.
   La tabla `proposals` conserva el hecho propuesto y la decisión, aprobada o rechazada.
 
-Evidencia: [`memory-evidence.md`](./memory-evidence.md) (dos ciclos completos).
+Evidencia: [`memory-evidence.md`](./memory-evidence.md) (dos ciclos, flujo con modelo guionizado) y
+[`memory-evidence-real.md`](./memory-evidence-real.md) (los dos ciclos con el modelo real, el registro de auditoría y lo que se corrigió a partir de ellos).
 
 ## 5. Consolidación y limpieza
 
@@ -146,7 +147,7 @@ La propuesta y la confirmación usan el idioma de la persona (español o inglés
   corrección que el agente aún no conoce. `AGENT_MEMORY_ENABLED=0` vuelve al comportamiento anterior.
 * El archivo SQLite vive en el disco del servicio; en un despliegue con varias réplicas habría que moverlo a Postgres/Redis (la interfaz está aislada).
 * La calidad del modelo real (qué propone y cómo clasifica) depende de `GENERATION_MODEL`; las pruebas automáticas usan un modelo guionizado
-  para verificar todo lo que lo rodea.
+  para verificar todo lo que lo rodea, y los dos ciclos reales están en `memory-evidence-real.md`.
 
 ## Variables y comandos
 | Variable | Por defecto | Qué hace |
@@ -155,12 +156,12 @@ La propuesta y la confirmación usan el idioma de la persona (español o inglés
 | `AGENT_MEMORY_DB` | `data/memory/agent_memory.sqlite` | Archivo del almacén |
 
 ```bash
-# Dos ciclos con el modelo real (API y MCP en marcha, .env cargado). Cambia el id de conversación para cada ciclo.
-python -m services.agent --conversation demo-aprobado-01 --user carlos.jimenez "En realidad el proveedor de vegetales de Medellín entrega los miércoles, no los martes."
-python -m services.agent --conversation demo-aprobado-01 --user carlos.jimenez "Sí, guárdalo"
-python -m services.agent --conversation demo-aprobado-02 --user carlos.jimenez "¿Qué día entrega el proveedor de vegetales de Medellín?"
-python -m services.agent --conversation demo-rechazado-01 --user ashley.r "La location de Miami Beach ahora cierra a las 11pm los fines de semana."
-python -m services.agent --conversation demo-rechazado-01 --user ashley.r "No, no lo guardes"
+# Dos ciclos con el modelo real (con el .env cargado; no hace falta la API ni el MCP). Cambia el id de conversación para cada ciclo.
+uv run --env-file .env python -m services.agent --conversation demo-aprobado-01 --user carlos.jimenez "En realidad el proveedor de vegetales de Medellín entrega los miércoles, no los martes."
+uv run --env-file .env python -m services.agent --conversation demo-aprobado-01 --user carlos.jimenez "Sí, guárdalo"
+uv run --env-file .env python -m services.agent --conversation demo-aprobado-02 --user carlos.jimenez "¿Qué día entrega el proveedor de vegetales de Medellín?"
+uv run --env-file .env python -m services.agent --conversation demo-rechazado-01 --user ashley.r "La location de Miami Beach ahora cierra a las 11pm los fines de semana."
+uv run --env-file .env python -m services.agent --conversation demo-rechazado-01 --user ashley.r "No, no lo guardes"
 python -m services.agent.memory events      # registro de auditoría
 python -m services.agent.memory list        # memoria activa
 python -m services.agent.memory consolidate # limpieza a demanda

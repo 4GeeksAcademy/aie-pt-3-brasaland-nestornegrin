@@ -306,5 +306,5 @@
   `AgentService.run(conversation_id, actor)`, `POST /agent/query` (`conversation_id`, `user`) y CLI (`--conversation`, `--user`) extendidos;
   `python -m services.agent.memory list|events|consolidate`.
 - Pruebas: `tests/pipelines/test_agent_memory.py` (62), `test_agent_memory_evidence.py` (1, con los 2 ciclos), 2 nuevas en `services/api/tests/test_agent_endpoint.py`.
-  Total: 294 en la raíz, 67 en `services/api`. Diseño y decisiones en `docs/agent/memory.md`; evidencia en `docs/agent/memory-evidence.md`.
-- Variables: `AGENT_MEMORY_ENABLED` (por defecto 1), `AGENT_MEMORY_DB`. Pendiente con el modelo real: los dos ciclos con `python -m services.agent`.
+  Total: 295 en la raíz, 67 en `services/api`. Diseño y decisiones en `docs/agent/memory.md`; evidencia en `docs/agent/memory-evidence.md`.
+- Variables: `AGENT_MEMORY_ENABLED` (por defecto 1), `AGENT_MEMORY_DB`. Dos ciclos con el modelo real documentados en `docs/agent/memory-evidence-real.md` (2026-11-10); de ellos salieron dos reglas de prompt (sin preguntar «¿lo anoto?» dentro de la respuesta y sin referencias relativas al tiempo).

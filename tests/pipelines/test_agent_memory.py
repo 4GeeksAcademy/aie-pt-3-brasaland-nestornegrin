@@ -214,6 +214,13 @@ def test_structured_generation_parses_answer_and_proposal_from_one_call():
     assert "<mensaje>" in calls[0][1]["content"] and "no oficiales" in calls[0][1]["content"]
 
 
+def test_prompt_keeps_the_proposal_timeless_and_leaves_the_question_to_the_system():
+    # Visto en la corrida real: el modelo guardaba «cambió el mes pasado» y además preguntaba él mismo si anotarlo.
+    rules = memory_llm.STRUCTURED_RULES
+    assert "SIN referencias" in rules and "el mes pasado" in rules
+    assert "NO le preguntes" in rules
+
+
 def test_structured_generation_fails_safe_when_the_model_returns_plain_text():
     result = generate_structured("hola", [], [], complete_fn=lambda messages: "Hola, ¿en qué te ayudo?")
     assert result.answer == "Hola, ¿en qué te ayudo?" and result.proposal is None
