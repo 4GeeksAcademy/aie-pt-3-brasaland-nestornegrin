@@ -295,3 +295,16 @@
   directas, que se eliminaron de `tools.py`. Variables: `MCP_SERVER_URL`, `AGENT_MCP_*`.
 - Dependencias: `fastmcp>=3,<4` (la 4.x exige `mcp` 2.x, incompatible con `langchain-mcp-adapters`), `mcpauth==0.2.0b1` (pre-release con Protected Resource Metadata).
 - Pruebas: `tests/mcps/` (servidor real por HTTP y agente vía MCP) y `services/api/tests/test_mcp_integration.py` (contrato de dominio y routers reales).
+
+## Memoria y auto-mejora del agente (Hito 8 · Parte 1, ticket #MEM-092)
+- `services/agent/memory/` (`models`, `policy`, `store`, `llm`, `manager`): memoria episódica en SQLite aparte de Qdrant (el RAG sigue de
+  solo lectura), política determinista de lo que **nunca** entra (BRIEFING: datos de clientes de Brasa Points, nómina/compensación, lo
+  puntual), propuesta en la misma respuesta con **una sola llamada** (`propuesta_memoria`), clasificador de intención
+  (aprobar/rechazar/editar/ambigua; silencio o ambigüedad = descarte), una propuesta pendiente por conversación (índice único),
+  auditoría solo-añadir (`memory_events`) y consolidación (sustitución por clave, duplicados, topes por location + categoría, TTL por categoría).
+- Grafo: nodos `resolve_pending`, `acknowledge_memory`, `recall_memory`, `propose_memory` (solo con `AgentDependencies.memory`); estado,
+  `AgentService.run(conversation_id, actor)`, `POST /agent/query` (`conversation_id`, `user`) y CLI (`--conversation`, `--user`) extendidos;
+  `python -m services.agent.memory list|events|consolidate`.
+- Pruebas: `tests/pipelines/test_agent_memory.py` (62), `test_agent_memory_evidence.py` (1, con los 2 ciclos), 2 nuevas en `services/api/tests/test_agent_endpoint.py`.
+  Total: 294 en la raíz, 67 en `services/api`. Diseño y decisiones en `docs/agent/memory.md`; evidencia en `docs/agent/memory-evidence.md`.
+- Variables: `AGENT_MEMORY_ENABLED` (por defecto 1), `AGENT_MEMORY_DB`. Pendiente con el modelo real: los dos ciclos con `python -m services.agent`.

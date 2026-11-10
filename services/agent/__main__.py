@@ -18,17 +18,21 @@ from .service import AgentExecutionError, AgentService
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m services.agent", description=__doc__.splitlines()[0])
     parser.add_argument("question")
+    parser.add_argument("--conversation", help="id de conversación (con memoria, enlaza con la propuesta pendiente)")
+    parser.add_argument("--user", help="quién escribe (queda en el registro de auditoría de la memoria)")
     parser.add_argument("--export", type=Path, help="copia el trace de la corrida a este archivo JSON")
     args = parser.parse_args(argv)
 
     service = AgentService()
     try:
-        run = service.run(args.question)
+        run = service.run(args.question, conversation_id=args.conversation, actor=args.user)
     except AgentExecutionError as error:
         print(f"La corrida {error.run_id} falló; el trace quedó en {service.trace_store.path_for(error.run_id)}",
               file=sys.stderr)
         return 1
     print(f"Estado: {run.status}\nRespuesta: {run.answer}\nRuta: {' -> '.join(run.trace['node_order'])}")
+    if run.conversation_id:
+        print(f"Conversación: {run.conversation_id}")
     print(f"Trace: {service.trace_store.path_for(run.run_id)}")
     if args.export:
         args.export.parent.mkdir(parents=True, exist_ok=True)

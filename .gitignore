@@ -8,3 +8,4 @@ data/traces/
 
 # Log de auditoría del servidor MCP (una línea JSON por invocación de tool)
 data/logs/
+data/memory/
