@@ -50,7 +50,10 @@ def test_state_is_minimal_and_has_no_conversation_history():
     base = {"question", "context", "answer", "status", "route", "tool_results"}
     memory = {"conversation_id", "actor", "run_id", "memory_enabled", "memories", "proposal_raw", "memory_resolution",
               "memory_proposal"}
-    assert set(get_type_hints(AgentState)) == base | memory
+    # Hito 8 · Parte 2 añade los de guardrails (los leen/escriben solo sus nodos): decisión de la guardia, alcance, contexto
+    # saneado e intervenciones. Tampoco guardan historial.
+    guardrails = {"guardrails_enabled", "original_question", "language", "scope", "guard", "safe_context", "guardrails"}
+    assert set(get_type_hints(AgentState)) == base | memory | guardrails
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -115,6 +118,7 @@ def test_empty_question_is_rejected_before_any_retrieval(service, spy, question)
 
 
 def test_nodes_reuse_the_rag_functions_and_never_the_monolithic_query(monkeypatch):
+    monkeypatch.setenv("AGENT_GUARDRAILS_ENABLED", "0")  # con guardrails la generación usa el prompt seguro (ver test_agent_guardrails)
     deps = nodes.default_dependencies()
     assert deps.generate_fn is pipeline.generate_answer
     monkeypatch.setattr(pipeline, "retrieve", lambda question, **kw: [chunk("a", "b", "texto")])

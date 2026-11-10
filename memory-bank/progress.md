@@ -308,3 +308,13 @@
 - Pruebas: `tests/pipelines/test_agent_memory.py` (62), `test_agent_memory_evidence.py` (1, con los 2 ciclos), 2 nuevas en `services/api/tests/test_agent_endpoint.py`.
   Total: 295 en la raíz, 67 en `services/api`. Diseño y decisiones en `docs/agent/memory.md`; evidencia en `docs/agent/memory-evidence.md`.
 - Variables: `AGENT_MEMORY_ENABLED` (por defecto 1), `AGENT_MEMORY_DB`. Dos ciclos con el modelo real documentados en `docs/agent/memory-evidence-real.md` (2026-11-10); de ellos salieron dos reglas de prompt (sin preguntar «¿lo anoto?» dentro de la respuesta y sin referencias relativas al tiempo).
+
+## Aseguramiento del agente: harness y guardrails (Hito 8 · Parte 2, ticket #SEC-114)
+- Mismo Manager support agent (`manager_support`), ahora con capas independientes: detector de cambio de instrucciones (13 familias,
+  robusto a ofuscación), datos confidenciales (receta madre, contratos/precios de proveedor, nómina/evaluaciones, PII) con estado por
+  conversación para la extracción gradual, uso personal/crisis, small talk con reconducción obligatoria, aislamiento del contenido
+  externo (RAG y tools), guardia de salida (fuga del prompt, datos sensibles, estructura) y monitor por tipo de fallo
+  (JSONL + `python -m services.agent.guardrails summary` + `GET /agent/guardrails/summary`).
+- Código en `services/agent/guardrails/` y `services/agent/guardrail_nodes.py`; 114 pruebas deterministas en
+  `tests/pipelines/test_agent_guardrails.py` (+3 de endpoint). `AGENT_GUARDRAILS_ENABLED=0` desactiva todo.
+- Docs: `docs/agent/guardrails.md` (+ `guardrails-evidence.md`). La política de memoria también rechaza recetas, precios de proveedor y evaluaciones.

@@ -35,6 +35,7 @@ class AgentRun:
     status: str
     trace: dict
     conversation_id: str | None = None  # con memoria: el cliente lo reenvía para que su respuesta enlace con la propuesta
+    guardrails: list | None = None  # intervenciones de los guardrails en este turno: {guardrail, kind, reason, action}
     memory: dict | None = None  # {"resolution": ..., "proposal": ...} de este turno (None si no hubo nada de memoria)
 
     @property
@@ -81,7 +82,7 @@ class AgentService:
         config = {"configurable": {"thread_id": run_id}}
         try:
             initial: dict = {"question": question}
-            if self.deps.memory is not None:
+            if self.deps.memory is not None or self.deps.guardrails is not None:
                 conversation_id = conversation_id or f"conv-{uuid.uuid4().hex[:16]}"
                 initial.update(conversation_id=conversation_id, actor=actor or "anonymous", run_id=run_id)
             final_state = self.graph.invoke(initial, config)
@@ -97,7 +98,8 @@ class AgentService:
         memory = {key: final_state[state_key] for key, state_key in
                   (("resolution", "memory_resolution"), ("proposal", "memory_proposal")) if final_state.get(state_key)}
         return AgentRun(run_id=run_id, answer=final_state["answer"], status=final_state["status"], trace=trace,
-                        conversation_id=conversation_id, memory=memory or None)
+                        conversation_id=conversation_id, memory=memory or None,
+                        guardrails=final_state.get("guardrails") or None)
 
     def _checkpoints_or_empty(self, config: dict) -> list[dict]:
         try:

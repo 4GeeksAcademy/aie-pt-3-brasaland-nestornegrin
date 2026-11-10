@@ -152,3 +152,9 @@ operativo repetible en la misma respuesta, clasifica la decisión del usuario y 
 nunca entra, consolidación y las decisiones del ticket en **[`memory.md`](./memory.md)**; dos ciclos completos en
 [`memory-evidence.md`](./memory-evidence.md). El grafo gana `resolve_pending`, `acknowledge_memory`, `recall_memory` y
 `propose_memory`; `POST /agent/query` acepta `conversation_id` y `user` y devuelve `conversation_id` y `memory`.
+
+## Guardrails y harness (Hito 8 · Parte 2, #SEC-114)
+El agente se asegura con varias capas independientes (detector de cambio de instrucciones, datos confidenciales con estado por
+conversación, uso personal, small talk con reconducción obligatoria, aislamiento del contenido externo, guardia de salida y
+monitor por tipo de fallo). Diseño, pruebas por criterio, variantes de jailbreak documentadas y límites en
+[`guardrails.md`](guardrails.md); tabla de intentos en [`guardrails-evidence.md`](guardrails-evidence.md).
