@@ -330,3 +330,9 @@
 - Cumplimiento determinista en código con una regla por lineamiento del BRIEFING §5; feedback concreto (regla, frase exacta, qué corregir).
 - Persistencia en PostgreSQL (`rfp_department_sections`, `rfp_tickets.part3_handoff`) + `schema_sync.ensure_columns`; `POST /rfp/tickets/{id}/generate`.
 - Estados: `generando_borrador`, `en_evaluación`, `needs_human_review` (sin estados de la Parte 3). Docs: `docs/agent/rfp-response.md`.
+
+## Aprobación humana y cierre de RFPs (Hito 9 · Parte 3, rama `feature/rfp-approval-completion`)
+- `data/pipelines/rfp_approval/`: una rama por departamento con `interrupt` + checkpointer (thread `rfp-{ticket}:{dept}`), coordinador de ticket (`rfp-{ticket}`), resume explícito validado, límite de rondas y escalada.
+- Nodo de arbitraje determinista con los triggers del BRIEFING §7 (`setup-sla-breach`, `cost-vs-feasibility`, `ceo-threshold`) y árbitro fijo; documento final consolidado (`rfp_final_documents`).
+- Trazabilidad de las tres partes (`rfp_trace_events`, `GET /rfp/tickets/{id}/trace`); estados `esperando_aprobación` y `terminado`.
+- E2E reproducible: `scripts/rfp_e2e.py` y `tests/pipelines/test_rfp_approval.py`. Docs: `docs/agent/rfp-approval.md`.

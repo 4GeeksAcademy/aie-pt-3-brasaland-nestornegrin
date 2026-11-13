@@ -1,4 +1,4 @@
-import { generateResponse, generationAction, isLive, MAX_PDF_BYTES, progressLabel, reprocessTicket, statusLabel, uploadRfp, validatePdf } from "../lib/rfp";
+import { canRetryClosing, canStartApproval, decideApproval, generateResponse, generationAction, isLive, MAX_PDF_BYTES, progressLabel, reprocessTicket, startApproval, statusLabel, uploadRfp, validatePdf } from "../lib/rfp";
 
 const pdf = (name: string, size = 10) => new File([new Uint8Array(size)], name, { type: "application/pdf" });
 
@@ -80,5 +80,44 @@ describe("Parte 2 — generación de respuestas", () => {
     await generateResponse(5); await generateResponse(5, true);
     expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toMatch(/\/rfp\/tickets\/5\/generate$/);
     expect((fetchMock.mock.calls[1] as unknown as [string])[0]).toMatch(/generate\?regenerate=true$/);
+  });
+});
+
+describe("Parte 3 — aprobación humana", () => {
+  test("polling mientras una decisión se procesa, no mientras se espera al humano", () => {
+    expect(isLive({ status: "esperando_aprobación", processing: "running" })).toBe(true);
+    expect(isLive({ status: "esperando_aprobación", processing: "idle" })).toBe(false);
+    expect(isLive({ status: "terminado", processing: "idle" })).toBe(false);
+  });
+  test("etiquetas y avance de la Parte 3", () => {
+    expect(statusLabel({ status: "esperando_aprobación", processing: "idle" })).toBe("Esperando aprobación");
+    expect(statusLabel({ status: "esperando_aprobación", processing: "running" })).toMatch(/Procesando/);
+    expect(statusLabel({ status: "esperando_aprobación", processing: "failed" })).toMatch(/cierre/);
+    expect(statusLabel({ status: "terminado", processing: "idle" })).toBe("Terminado");
+    expect(progressLabel({ total: 4, passed: 4, needs_review: 0, working: 0, errors: 0, approved: 2, awaiting: 2 }, "esperando_aprobación")).toBe("2/4 secciones aprobadas");
+  });
+  test("qué botones corresponden a cada estado", () => {
+    expect(canStartApproval({ status: "en_evaluación", processing: "idle" })).toBe(true);
+    expect(canStartApproval({ status: "needs_human_review", processing: "idle" })).toBe(true);
+    expect(canStartApproval({ status: "esperando_aprobación", processing: "idle" })).toBe(false);
+    expect(canRetryClosing({ status: "esperando_aprobación", processing: "failed" })).toBe(true);
+    expect(canRetryClosing({ status: "terminado", processing: "idle" })).toBe(false);
+    expect(generationAction({ status: "esperando_aprobación", processing: "idle" })).toBeNull();  // la Parte 2 queda cerrada
+  });
+  test("decideApproval reanuda la rama del departamento con JSON y propaga el error de validación", async () => {
+    const fetchMock = jest.fn(async () => ({ ok: true, status: 202, json: async () => ({}) }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await decideApproval(4, "operaciones", { action: "request_changes", approver: "Felipe Guerrero", comment: "Ajusta el plazo de montaje." });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toMatch(/\/rfp\/tickets\/4\/approvals\/operaciones$/);
+    expect(JSON.parse(init.body as string)).toMatchObject({ action: "request_changes", approver: "Felipe Guerrero" });
+    global.fetch = jest.fn(async () => ({ ok: false, status: 422, json: async () => ({ detail: "Solo Felipe Guerrero puede decidir." }) })) as unknown as typeof fetch;
+    await expect(decideApproval(4, "operaciones", { action: "approve", approver: "x" })).rejects.toThrow("Solo Felipe Guerrero");
+  });
+  test("startApproval llama al endpoint de apertura", async () => {
+    const fetchMock = jest.fn(async () => ({ ok: true, status: 202, json: async () => ({}) }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await startApproval(9);
+    expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toMatch(/\/rfp\/tickets\/9\/approval\/start$/);
   });
 });

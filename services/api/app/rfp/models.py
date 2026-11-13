@@ -37,6 +37,11 @@ class RfpTicket(SQLModel, table=True):
     # --- Parte 2: contrato hacia la Parte 3 y fin del ciclo generador-evaluador ---
     part3_handoff: dict | None = Field(default=None, sa_column=Column(JSON))
     response_completed_at: datetime | None = None
+    # --- Parte 3: aprobación humana y cierre ---
+    ceo_approval: dict | None = Field(default=None, sa_column=Column(JSON))  # {required, status, approver, round, history, branch…}
+    conflicts_log: list | None = Field(default=None, sa_column=Column(JSON))  # conflictos detectados por el árbitro (BRIEFING §7)
+    completed_at: datetime | None = None
+    closing_claimed: bool | None = False  # candado para que la síntesis final corra una sola vez
     uploaded_by: str | None = None
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
@@ -87,3 +92,37 @@ class RfpDepartmentSection(SQLModel, table=True):
     pending_items: list | None = Field(default_factory=list, sa_column=Column(JSON))
     evaluation_history: list | None = Field(default_factory=list, sa_column=Column(JSON))  # una entrada por iteración: borrador + EvaluationResult
     generation_error: str | None = None
+    # --- Parte 3: aprobación humana (cada departamento decide en su propia rama / checkpoint) ---
+    approval_comment: str | None = Field(default=None, sa_column=Column(Text))
+    approval_round: int | None = 0
+    approval_history: list | None = Field(default_factory=list, sa_column=Column(JSON))
+    escalated: bool | None = False  # límite de rondas agotado: escalada al árbitro fijo
+    approval_branch: str | None = "libre"  # libre | esperando (hay una interrupción pendiente en su checkpoint)
+
+
+class RfpTraceEvent(SQLModel, table=True):
+    """Un evento por ejecución de nodo de las tres partes: quién (agente), con qué entrada, qué salida y cuándo. `id` fija el orden."""
+    __tablename__ = "rfp_trace_events"
+
+    id: int | None = Field(default=None, primary_key=True)
+    ticket_id: int = Field(foreign_key="rfp_tickets.ticket_id", index=True)
+    part: int
+    agent: str = Field(index=True)
+    node: str
+    thread_id: str | None = None
+    input: dict | list | str | None = Field(default=None, sa_column=Column(JSON))
+    output: dict | list | str | None = Field(default=None, sa_column=Column(JSON))
+    ts: datetime = Field(default_factory=_now)
+
+
+class RfpFinalDocument(SQLModel, table=True):
+    """FinalDocument del BRIEFING §2.3: el documento consolidado con las secciones aprobadas."""
+    __tablename__ = "rfp_final_documents"
+
+    id: int | None = Field(default=None, primary_key=True)
+    ticket_id: int = Field(foreign_key="rfp_tickets.ticket_id", unique=True, index=True)
+    content: str = Field(sa_column=Column(Text))
+    sections: list = Field(default_factory=list, sa_column=Column(JSON))
+    total_estimated_value: float | None = None
+    compliance: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    generated_at: datetime = Field(default_factory=_now)

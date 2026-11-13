@@ -16,6 +16,8 @@ class Progress(BaseModel):
     needs_review: int
     working: int
     errors: int
+    approved: int = 0  # Parte 3: secciones con el visto bueno de su responsable
+    awaiting: int = 0  # Parte 3: secciones con una interrupción pendiente
 
 
 class TicketSummary(BaseModel):
@@ -51,6 +53,42 @@ class SectionOut(BaseModel):
     evaluation_results: dict | None = None
     evaluation_history: list | None = None
     generation_error: str | None = None
+    # --- Parte 3 ---
+    approver: str | None = None
+    approved_at: datetime | None = None
+    approval_comment: str | None = None
+    approval_round: int | None = None
+    approval_history: list | None = None
+    escalated: bool | None = None
+    approval_branch: str | None = None
+    review_packet: dict | None = None  # lo mínimo que el humano necesita ver para decidir (solo si hay una interrupción pendiente)
+
+
+class ApprovalIn(BaseModel):
+    action: str  # approve | reject | request_changes
+    approver: str  # el responsable nombrado del departamento (BRIEFING §2.1) o, escalado, la dueña del ticket
+    comment: str = ""
+    figures: dict[str, str] = {}
+
+
+class TraceEventOut(BaseModel):
+    seq: int
+    part: int
+    agent: str
+    node: str
+    thread_id: str | None = None
+    input: object | None = None
+    output: object | None = None
+    ts: str
+
+
+class FinalDocumentOut(BaseModel):
+    ticket_id: int
+    content: str
+    sections: list
+    total_estimated_value: float | None
+    compliance: dict
+    generated_at: datetime
 
 
 class TicketDetail(TicketSummary):
@@ -65,3 +103,9 @@ class TicketDetail(TicketSummary):
     handoff: dict | None
     part3_handoff: dict | None = None
     response_completed_at: datetime | None = None
+    # --- Parte 3 ---
+    ceo_approval: dict | None = None
+    ceo_packet: dict | None = None
+    conflicts: list | None = None
+    completed_at: datetime | None = None
+    has_final_document: bool = False

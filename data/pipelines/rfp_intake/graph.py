@@ -20,6 +20,7 @@ from typing import Annotated, Callable, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
+from data.pipelines import rfp_trace
 from . import agents
 from .convert import ConversionError, pdf_to_markdown
 from .readability_metrics import measure
@@ -49,10 +50,15 @@ class IntakeState(TypedDict, total=False):
 
 def build_graph(llm: agents.Llm, store: RfpStore, *, converter: Callable[[str | Path], object] = pdf_to_markdown,
                 measure_fn: Callable[[str], dict] = measure):
+    agent_of = {NODE_CONVERT: "converter", NODE_CLASSIFY: "classifier", NODE_DISCARD: "classifier", NODE_MEASURE: "readability-meter",
+                NODE_METADATA: "metadata-extractor", NODE_ORCHESTRATE: "orchestrator", NODE_SYNTHESIZE: "synthesizer"}
+
     def tracked(name: str, fn):
         def run(state):
             store.heartbeat(state["ticket_id"], name)  # latido: permite saber en qué nodo está (o murió) un ticket
-            return fn(state)
+            out = fn(state)
+            rfp_trace.emit(store, state["ticket_id"], part=1, agent=agent_of.get(name, name), node=name, input=state, output=out)
+            return out
         return run
 
     def convert(state: IntakeState) -> dict:
@@ -111,6 +117,9 @@ def build_graph(llm: agents.Llm, store: RfpStore, *, converter: Callable[[str | 
         store.heartbeat(payload["ticket_id"], f"{NODE_WORKER}:{a['department_id']}")
         finding = agents.run_worker(llm, a["department_id"], RfpMetadata.model_validate(payload["metadata"]), a["excerpts"],
                                     payload["markdown"], a.get("reason", ""))
+        rfp_trace.emit(store, payload["ticket_id"], part=1, agent=f"worker:{a['department_id']}", node=NODE_WORKER,
+                       input={"excerpts": a["excerpts"], "reason": a.get("reason")},
+                       output={"key_aspects": [x.aspect for x in finding.key_aspects], "figures": finding.figures})
         return {"findings": [finding.model_dump()]}
 
     def synthesize(state: IntakeState) -> dict:
