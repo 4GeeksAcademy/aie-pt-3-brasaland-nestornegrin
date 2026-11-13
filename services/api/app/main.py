@@ -31,6 +31,7 @@ from app.routes.knowledge import create_router as create_knowledge_router
 from services.agent.router import create_router as create_agent_router  # tras knowledge: añade la raíz del repo a sys.path
 from app.rfp import models as _rfp_models  # noqa: F401 - registra las tablas antes de create_all
 from app.rfp.routes import create_router as create_rfp_router
+from app.rfp.schema_sync import ensure_columns as ensure_rfp_columns
 from app.users.routes import create_router as create_users_router
 from app.inventory.routes import create_router as create_inventory_router
 from app.database import engine
@@ -63,6 +64,7 @@ app.include_router(create_agent_router())  # POST /agent/query (agente LangGraph
 
 # Inventory (Supabase/SQLModel) - create schema, then mount routes.
 SQLModel.metadata.create_all(engine)
+ensure_rfp_columns(engine)  # añade a las tablas rfp_* ya creadas las columnas nuevas (create_all no migra)
 app.include_router(create_inventory_router())
 app.include_router(create_rfp_router())  # /rfp/tickets (Hito 9 — recepción de RFPs)
 

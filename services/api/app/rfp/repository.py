@@ -12,6 +12,7 @@ from sqlalchemy import delete
 from sqlmodel import Session, select
 
 from data.pipelines.rfp_intake.departments import STATUS_ANALYZING, STATUS_COMPLETE, STATUS_DISCARDED
+from data.pipelines.rfp_response import config as part2
 
 from .models import RfpDepartmentSection, RfpMetadata, RfpTicket
 
@@ -95,6 +96,64 @@ class SqlRfpStore:
             s.commit()
 
     def fail(self, ticket_id: int, message: str) -> None:
+        self._update(ticket_id, processing_error=message[:2000])
+
+
+    # ---- contrato ResponseStore (Parte 2) ------------------------------------------------------------------
+    _SECTION_FIELDS = {"generation_status", "iterations", "needs_human_review", "draft_content", "pending_items", "evaluation_results",
+                       "evaluation_history", "generation_error"}
+
+    def get_part2_input(self, ticket_id: int) -> dict:
+        with self._session() as s:
+            t = s.get(RfpTicket, ticket_id)
+            if t is None:
+                raise KeyError(ticket_id)
+            sections = {r.department_id: {"department_id": r.department_id, "generation_status": r.generation_status,
+                                          "iterations": r.iterations, "needs_human_review": r.needs_human_review,
+                                          "draft_content": r.draft_content, "pending_items": r.pending_items,
+                                          "evaluation_results": r.evaluation_results, "evaluation_history": r.evaluation_history}
+                        for r in get_sections(s, ticket_id)}
+            return {"status": t.status, "handoff": t.handoff, "processing_error": t.processing_error, "sections": sections}
+
+    def begin_generation(self, ticket_id: int, departments: list[str], resume: bool) -> None:
+        with self._session() as s:
+            t = s.get(RfpTicket, ticket_id)
+            t.status, t.processing_error, t.part3_handoff, t.response_completed_at = part2.STATUS_GENERATING, None, None, None
+            t.current_node, t.heartbeat_at, t.updated_at = "generation:begin", _now(), _now()
+            s.add(t)
+            for row in get_sections(s, ticket_id):
+                if row.department_id in departments:
+                    row.generation_status, row.iterations, row.needs_human_review = part2.SECTION_PENDING, 0, False
+                    row.draft_content, row.evaluation_results, row.evaluation_history = None, None, []
+                    row.pending_items, row.generation_error = [], None
+                    s.add(row)
+            s.commit()
+
+    def section_update(self, ticket_id: int, department_id: str, **fields) -> None:
+        unknown = set(fields) - self._SECTION_FIELDS
+        if unknown:
+            raise ValueError(f"Campos de sección desconocidos: {sorted(unknown)}")
+        with self._session() as s:
+            row = s.exec(select(RfpDepartmentSection).where(RfpDepartmentSection.ticket_id == ticket_id,
+                                                            RfpDepartmentSection.department_id == department_id)).first()
+            for k, v in fields.items():
+                setattr(row, k, v)
+            s.add(row)
+            s.commit()
+
+    def mark_evaluating(self, ticket_id: int) -> None:
+        with self._session() as s:
+            t = s.get(RfpTicket, ticket_id)
+            if t.status == part2.STATUS_GENERATING:
+                t.status, t.updated_at = part2.STATUS_EVALUATING, _now()
+                s.add(t)
+                s.commit()
+
+    def complete_generation(self, ticket_id: int, status: str, part3_handoff: dict) -> None:
+        self._update(ticket_id, status=status, part3_handoff=part3_handoff, processing_error=None, response_completed_at=_now(),
+                     current_node="generation:complete", heartbeat_at=_now())
+
+    def fail_generation(self, ticket_id: int, message: str) -> None:
         self._update(ticket_id, processing_error=message[:2000])
 
 

@@ -1,4 +1,4 @@
-import { isLive, MAX_PDF_BYTES, reprocessTicket, statusLabel, uploadRfp, validatePdf } from "../lib/rfp";
+import { generateResponse, generationAction, isLive, MAX_PDF_BYTES, progressLabel, reprocessTicket, statusLabel, uploadRfp, validatePdf } from "../lib/rfp";
 
 const pdf = (name: string, size = 10) => new File([new Uint8Array(size)], name, { type: "application/pdf" });
 
@@ -48,5 +48,37 @@ describe("llamadas a la API", () => {
     await reprocessTicket(3); await reprocessTicket(3, true);
     expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toMatch(/\/rfp\/tickets\/3\/reprocess$/);
     expect((fetchMock.mock.calls[1] as unknown as [string])[0]).toMatch(/reprocess\?force=true$/);
+  });
+});
+
+describe("Parte 2 — generación de respuestas", () => {
+  test("hace polling también mientras se generan y evalúan los borradores", () => {
+    expect(isLive({ status: "generando_borrador", processing: "running" })).toBe(true);
+    expect(isLive({ status: "en_evaluación", processing: "running" })).toBe(true);
+    expect(isLive({ status: "en_evaluación", processing: "idle" })).toBe(false);
+    expect(isLive({ status: "needs_human_review", processing: "idle" })).toBe(false);
+  });
+  test("etiquetas de los estados de la Parte 2", () => {
+    expect(statusLabel({ status: "generando_borrador", processing: "running" })).toMatch(/Generando/);
+    expect(statusLabel({ status: "en_evaluación", processing: "running" })).toMatch(/Evaluando/);
+    expect(statusLabel({ status: "en_evaluación", processing: "idle" })).toBe("Respuesta evaluada");
+    expect(statusLabel({ status: "needs_human_review", processing: "idle" })).toMatch(/revisión humana/);
+    expect(statusLabel({ status: "generando_borrador", processing: "failed" })).toMatch(/Falló/);
+  });
+  test("avance y acción disponible", () => {
+    expect(progressLabel({ total: 4, passed: 3, needs_review: 1, working: 0, errors: 0 })).toBe("3/4 aprobadas · 1 por revisar");
+    expect(progressLabel(null)).toBeNull();
+    expect(generationAction({ status: "analisis_completo", processing: "idle" })).toEqual({ label: "Generar respuesta", regenerate: false });
+    expect(generationAction({ status: "en_evaluación", processing: "stalled" })?.regenerate).toBe(false);
+    expect(generationAction({ status: "needs_human_review", processing: "idle" })?.regenerate).toBe(true);
+    expect(generationAction({ status: "generando_borrador", processing: "running" })).toBeNull();
+    expect(generationAction({ status: "descartado", processing: "idle" })).toBeNull();
+  });
+  test("generateResponse usa ?regenerate=true solo cuando se pide", async () => {
+    const fetchMock = jest.fn(async () => ({ ok: true, status: 202, json: async () => ({}) }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await generateResponse(5); await generateResponse(5, true);
+    expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toMatch(/\/rfp\/tickets\/5\/generate$/);
+    expect((fetchMock.mock.calls[1] as unknown as [string])[0]).toMatch(/generate\?regenerate=true$/);
   });
 });
