@@ -22,6 +22,7 @@ from typing import Annotated, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
+from data.pipelines import rfp_trace
 from data.pipelines.rfp_intake.departments import DEPARTMENT_IDS
 
 from . import agents, config
@@ -64,6 +65,8 @@ def build_section_graph(llm: Llm, store: ResponseStore):
         store.section_update(t, dept, generation_status=config.SECTION_GENERATING, iterations=it)
         draft = agents.generate_section(llm, dept, state["payload"], state.get("draft"), state.get("feedback", "")).model_dump()
         store.section_update(t, dept, draft_content=draft["content"], pending_items=draft["pending_items"])
+        rfp_trace.emit(store, t, part=2, agent=f"generator:{dept}", node="generate", input={"iteration": it, "feedback": state.get("feedback", "")},
+                       output={"characters": len(draft["content"]), "pending_items": draft["pending_items"]})
         return {"iteration": it, "draft": draft}
 
     def to_eval(state: SectionState) -> dict:
@@ -80,17 +83,25 @@ def build_section_graph(llm: Llm, store: ResponseStore):
 
     def eval_readability(p: dict) -> dict:
         store.heartbeat(p["ticket_id"], f"eval-readability:{p['department_id']}")
-        return {"evaluations": [{"kind": "readability", "iteration": p["iteration"], "result": evaluate_readability(p["text"])}]}
+        result = evaluate_readability(p["text"])
+        rfp_trace.emit(store, p["ticket_id"], part=2, agent=f"evaluator-readability:{p['department_id']}", node="eval_readability",
+                       input={"iteration": p["iteration"]}, output={"pass": result["pass"], "score": result["score"]})
+        return {"evaluations": [{"kind": "readability", "iteration": p["iteration"], "result": result}]}
 
     def eval_relevance(p: dict) -> dict:
         store.heartbeat(p["ticket_id"], f"eval-relevance:{p['department_id']}")
-        return {"evaluations": [{"kind": "relevance", "iteration": p["iteration"],
-                                 "result": agents.evaluate_relevance(llm, p["key_aspects"], p["text"])}]}
+        result = agents.evaluate_relevance(llm, p["key_aspects"], p["text"])
+        rfp_trace.emit(store, p["ticket_id"], part=2, agent=f"evaluator-relevance:{p['department_id']}", node="eval_relevance",
+                       input={"iteration": p["iteration"], "aspects": len(p["key_aspects"])},
+                       output={"pass": result["pass"], "missing_aspects": result["missing_aspects"]})
+        return {"evaluations": [{"kind": "relevance", "iteration": p["iteration"], "result": result}]}
 
     def eval_compliance(p: dict) -> dict:
         store.heartbeat(p["ticket_id"], f"eval-compliance:{p['department_id']}")
-        return {"evaluations": [{"kind": "compliance", "iteration": p["iteration"],
-                                 "result": evaluate_compliance(p["text"], p["department_id"], set(p["allowed_numbers"]))}]}
+        result = evaluate_compliance(p["text"], p["department_id"], set(p["allowed_numbers"]))
+        rfp_trace.emit(store, p["ticket_id"], part=2, agent=f"evaluator-compliance:{p['department_id']}", node="eval_compliance",
+                       input={"iteration": p["iteration"]}, output={"pass": result["pass"], "rule_ids": result["rule_ids"]})
+        return {"evaluations": [{"kind": "compliance", "iteration": p["iteration"], "result": result}]}
 
     def decide(state: SectionState) -> dict:
         it = state["iteration"]
@@ -103,6 +114,8 @@ def build_section_graph(llm: Llm, store: ResponseStore):
         history = list(state.get("history", [])) + [{"iteration": it, "draft_content": state["draft"]["content"], "evaluation": evaluation}]
         store.section_update(state["ticket_id"], state["department_id"], evaluation_results=evaluation, evaluation_history=history)
         verdict = "pass" if evaluation["overall_pass"] else ("retry" if it < state["max_iterations"] else "exhausted")
+        rfp_trace.emit(store, state["ticket_id"], part=2, agent=f"evaluator-decision:{state['department_id']}", node="decide",
+                       input={"iteration": it, "max_iterations": state["max_iterations"]}, output={"verdict": verdict, "rule_ids": evaluation["compliance"]["rule_ids"]})
         return {"history": history, "verdict": verdict, "feedback": evaluation["feedback_for_generator"]}
 
     def finalize(state: SectionState) -> dict:
@@ -147,6 +160,8 @@ def build_graph(llm: Llm, store: ResponseStore):
         to_generate = [d for d in departments if d not in {k["department_id"] for k in kept}]
         store.begin_generation(t, to_generate, resume)
         store.heartbeat(t, "load")
+        rfp_trace.emit(store, t, part=2, agent="response-orchestrator", node="load", input={"mode": mode, "status": inp["status"]},
+                       output={"departments": departments, "to_generate": to_generate})
         carried = [{"department_id": k["department_id"], "draft": {"content": k.get("draft_content") or "", "pending_items": k.get("pending_items") or []},
                     "evaluation": k["evaluation_results"], "history": k.get("evaluation_history") or [], "iterations": k.get("iterations") or 0,
                     "needs_human_review": bool(k.get("needs_human_review"))} for k in kept]
@@ -175,6 +190,8 @@ def build_graph(llm: Llm, store: ResponseStore):
         review = any(s["needs_human_review"] for s in sections)
         status = config.STATUS_NEEDS_REVIEW if review else config.STATUS_EVALUATING
         store.heartbeat(t, "finish")
+        rfp_trace.emit(store, t, part=2, agent="response-orchestrator", node="finish", input={"sections": [s["department_id"] for s in sections]},
+                       output={"status": status, "needs_human_review": [s["department_id"] for s in sections if s["needs_human_review"]]})
         store.complete_generation(t, status, agents.build_part3_handoff(t, state["handoff"], sections, status))
         return {"outcome": "revision_humana" if review else "completo"}
 

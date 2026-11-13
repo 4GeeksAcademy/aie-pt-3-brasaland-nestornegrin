@@ -24,6 +24,7 @@ from app.rfp import models  # noqa: E402,F401
 from app.rfp import repository  # noqa: E402
 from app.rfp.repository import SqlRfpStore  # noqa: E402
 from app.rfp.routes import create_router  # noqa: E402
+from data.pipelines.rfp_approval import build_checkpointer  # noqa: E402
 
 
 class CombinedModel:
@@ -46,12 +47,14 @@ class CombinedModel:
 def env(tmp_path, monkeypatch):
     monkeypatch.setenv("RFP_RAW_DIR", str(tmp_path / "raw"))
     monkeypatch.setenv("RFP_AUTO_GENERATE", "0")  # los tests de la Parte 1 se detienen en analisis_completo; los de la Parte 2 lo activan
+    monkeypatch.setenv("RFP_AUTO_REVIEW", "0")  # y los de la Parte 3 activan también la apertura de las aprobaciones
     # SQLite en archivo (una conexión por hilo): los workers del grafo corren en paralelo y una conexión compartida no es segura.
     engine = create_engine(f"sqlite:///{tmp_path / 'rfp.db'}", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
     model = CombinedModel()
     app = FastAPI()
-    app.include_router(create_router(store_factory=lambda: SqlRfpStore(lambda: Session(engine)), llm=model))
+    app.include_router(create_router(store_factory=lambda: SqlRfpStore(lambda: Session(engine)), llm=model,
+                                         checkpointer=build_checkpointer(tmp_path / 'checkpoints.sqlite')))
     app.dependency_overrides[get_current_user] = lambda: {"email": "camila@brasaland.test"}
     app.dependency_overrides[get_db] = lambda: Session(engine)
     return TestClient(app), engine, model, tmp_path
@@ -158,7 +161,7 @@ def test_generation_chains_after_intake_and_the_detail_shows_drafts_and_evaluati
     upload(client, PDF_FORMAL)
     d = client.get("/rfp/tickets/1").json()
     assert d["status"] == "en_evaluación" and d["processing"] == "idle" and d["response_completed_at"]
-    assert d["progress"] == {"total": 4, "passed": 4, "needs_review": 0, "working": 0, "errors": 0}
+    assert d["progress"] == {"total": 4, "passed": 4, "needs_review": 0, "working": 0, "errors": 0, "approved": 0, "awaiting": 0}
     marketing = d["sections"][0]
     assert marketing["generation_status"] == "paso" and marketing["draft_content"] and marketing["needs_human_review"] is False
     assert marketing["evaluation_results"]["overall_pass"] is True and set(marketing["evaluation_results"]) >= {"readability", "relevance", "compliance"}
@@ -245,3 +248,130 @@ def test_ensure_columns_adds_the_part2_columns_to_a_table_created_by_part1(tmp_p
     cols = {c["name"] for c in inspect(engine).get_columns("rfp_tickets")}
     assert {"part3_handoff", "response_completed_at"} <= cols and any("part3_handoff" in a for a in added)
     assert ensure_columns(engine) == []  # idempotente
+
+
+# ---------------------------------------------------------------------------------------------- Parte 3
+OWNERS = {"marketing": "Camila Ospina", "operaciones": "Felipe Guerrero", "procurement": "Lucía Fernández", "training": "Jake Morrison",
+          "ceo": "Mariana Restrepo"}
+
+
+def approve(client, dept: str, action: str = "approve", comment: str = "", **extra):
+    return client.post(f"/rfp/tickets/1/approvals/{dept}", json={"action": action, "approver": OWNERS[dept], "comment": comment, **extra})
+
+
+@pytest.fixture
+def full(env, monkeypatch):
+    """Una RFP recorre las Partes 1 → 2 → 3 sola: queda esperando_aprobación con una rama pausada por departamento."""
+    monkeypatch.setenv("RFP_AUTO_GENERATE", "1")
+    monkeypatch.setenv("RFP_AUTO_REVIEW", "1")
+    client, engine, model, tmp = env
+    upload(client, PDF_FORMAL)
+    return client, engine, model, tmp
+
+
+def test_one_upload_runs_through_the_three_parts_and_waits_for_the_humans(full):
+    client, engine, _, _ = full
+    d = client.get("/rfp/tickets/1").json()
+    assert d["status"] == "esperando_aprobación" and d["processing"] == "idle" and d["current_node"] is None
+    assert d["progress"]["awaiting"] == 4 and d["progress"]["approved"] == 0 and d["ceo_approval"]["required"] is True
+    for s in d["sections"]:
+        packet = s["review_packet"]
+        assert s["approval_branch"] == "esperando" and packet["draft"] == s["draft_content"] and packet["owner"] == s["owner"]
+        assert packet["evaluation"]["cumplimiento"] is True and packet["actions"] == ["approve", "reject", "request_changes"]
+    assert client.get("/rfp/tickets/1/document").status_code == 404 and d["has_final_document"] is False
+
+
+def test_human_decisions_per_department_close_the_ticket_with_a_final_document(full):
+    client, _, _, _ = full
+    for dept in ("training", "procurement"):
+        assert approve(client, dept).status_code == 202
+    d = client.get("/rfp/tickets/1").json()
+    by = {s["department_id"]: s for s in d["sections"]}
+    assert by["training"]["approval_status"] == "aprobado" and by["training"]["approver"] == "Jake Morrison"
+    assert by["marketing"]["approval_branch"] == "esperando" and d["status"] == "esperando_aprobación"  # marketing sigue pausado
+    assert d["progress"]["approved"] == 2 and d["progress"]["awaiting"] == 2
+    assert approve(client, "marketing").status_code == 202 and approve(client, "operaciones").status_code == 202
+    d = client.get("/rfp/tickets/1").json()
+    assert d["status"] == "esperando_aprobación" and d["ceo_packet"]["owner"] == "Mariana Restrepo"  # solo falta la CEO (75.000 > 50.000 USD)
+    assert client.get("/rfp/tickets/1/document").status_code == 404
+    assert approve(client, "ceo").status_code == 202
+    d = client.get("/rfp/tickets/1").json()
+    assert d["status"] == "terminado" and d["completed_at"] and d["has_final_document"] is True
+    doc = client.get("/rfp/tickets/1/document").json()
+    assert doc["content"].startswith("# Propuesta económica — Sunset Bay Resorts, LLC") and doc["total_estimated_value"] == 75000
+    assert [s["department_id"] for s in doc["sections"]] == ["marketing", "operaciones", "procurement", "training"]
+
+
+def test_invalid_human_responses_are_refused_with_a_clear_status_and_change_nothing(full):
+    client, _, _, _ = full
+    wrong = client.post("/rfp/tickets/1/approvals/marketing", json={"action": "approve", "approver": "Felipe Guerrero"})
+    assert wrong.status_code == 422 and "Camila Ospina" in wrong.json()["detail"]
+    assert approve(client, "training", "reject", "no").status_code == 422  # rechazar exige explicar qué corregir
+    assert approve(client, "training", "aprobar").status_code == 422
+    assert client.post("/rfp/tickets/1/approvals/ventas", json={"action": "approve", "approver": "x"}).status_code == 422
+    assert approve(client, "ceo").status_code == 409  # todavía no le toca a la CEO
+    assert client.post("/rfp/tickets/99/approvals/marketing", json={"action": "approve", "approver": "x"}).status_code == 404
+    assert all(s["approval_status"] == "pendiente" for s in client.get("/rfp/tickets/1").json()["sections"])
+    assert approve(client, "training").status_code == 202
+    assert approve(client, "training").status_code == 409  # ya decidió: no hay interrupción pendiente
+
+
+def test_request_changes_goes_back_to_the_generator_and_opens_a_new_round(full):
+    client, _, model, _ = full
+    before = len(model.part2.agent_calls("generator", "procurement"))
+    assert approve(client, "procurement", "request_changes", "Detalla el costo de insumos por proveedor.").status_code == 202
+    assert len(model.part2.agent_calls("generator", "procurement")) == before + 1
+    s = next(x for x in client.get("/rfp/tickets/1").json()["sections"] if x["department_id"] == "procurement")
+    assert s["approval_round"] == 2 and s["approval_branch"] == "esperando" and s["approval_history"][0]["action"] == "request_changes"
+    assert s["approval_history"][0]["submitted_by"] == "camila@brasaland.test"  # auditoría: quién registró la decisión
+    assert s["review_packet"]["previous_round"]["comment"].startswith("Detalla el costo")
+
+
+def test_trace_endpoint_lists_who_did_what_in_order_from_upload_to_final_document(full):
+    client, _, _, _ = full
+    for dept in ("marketing", "operaciones", "procurement", "training", "ceo"):
+        approve(client, dept)
+    events = client.get("/rfp/tickets/1/trace").json()
+    assert [e["seq"] for e in events] == sorted(e["seq"] for e in events)
+    assert [e["part"] for e in events] == sorted(e["part"] for e in events) and {e["part"] for e in events} == {1, 2, 3}
+    assert all(e["agent"] and e["node"] and e["ts"] for e in events)
+    assert events[0]["agent"] == "converter" and events[-1]["agent"] == "approval-orchestrator" and events[-1]["node"] == "close"
+    assert any(e["agent"] == "human:Mariana Restrepo" and e["node"] == "decision" and e["output"]["action"] == "approve" for e in events)
+    assert client.get("/rfp/tickets/99/trace").status_code == 404
+
+
+def test_parts_are_gated_and_manual_start_works_when_auto_review_is_off(env, monkeypatch):
+    client, _, _, _ = env
+    monkeypatch.setenv("RFP_AUTO_GENERATE", "1")
+    upload(client, PDF_FORMAL)
+    assert client.get("/rfp/tickets/1").json()["status"] == "en_evaluación"  # AUTO_REVIEW=0: la Parte 3 no arrancó sola
+    assert client.post("/rfp/tickets/1/approval/start").status_code == 202
+    d = client.get("/rfp/tickets/1").json()
+    assert d["status"] == "esperando_aprobación" and client.post("/rfp/tickets/1/approval/start").status_code == 409
+    assert client.post("/rfp/tickets/1/generate?regenerate=true").status_code == 409  # la Parte 2 queda cerrada
+    assert client.post("/rfp/tickets/1/reprocess").status_code == 409
+    upload(client, PDF_INVALID)
+    assert client.post("/rfp/tickets/2/approval/start").status_code == 409 and client.post("/rfp/tickets/99/approval/start").status_code == 404
+
+
+def test_a_failed_closing_is_visible_and_can_be_retried_without_asking_again(full, monkeypatch):
+    client, _, _, _ = full
+    import data.pipelines.rfp_approval.graph as graph_module
+    real, calls = graph_module.build_final_document, []
+
+    def flaky(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("caída al generar el documento")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(graph_module, "build_final_document", flaky)
+    for dept in ("marketing", "operaciones", "procurement", "training", "ceo"):
+        assert approve(client, dept).status_code == 202
+    d = client.get("/rfp/tickets/1").json()
+    assert d["status"] == "esperando_aprobación" and d["processing"] == "failed" and "caída al generar" in d["processing_error"]
+    assert all(s["approval_status"] == "aprobado" for s in d["sections"])  # nadie tuvo que volver a aprobar
+    assert client.post("/rfp/tickets/1/approval/retry").status_code == 202
+    d = client.get("/rfp/tickets/1").json()
+    assert d["status"] == "terminado" and d["processing"] == "idle" and d["processing_error"] is None and d["has_final_document"]
+    assert client.post("/rfp/tickets/1/approval/retry").status_code == 409  # ya no hay nada que reintentar
