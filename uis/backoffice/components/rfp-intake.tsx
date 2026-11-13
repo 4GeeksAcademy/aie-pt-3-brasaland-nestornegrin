@@ -2,16 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
-  getTicket, isLive, listTickets, reprocessTicket, statusLabel, uploadRfp, validatePdf,
-  type TicketDetail, type TicketSummary,
+  generateResponse, generationAction, getTicket, isLive, listTickets, progressLabel, reprocessTicket, statusLabel, uploadRfp, validatePdf,
+  type RfpSection, type TicketDetail, type TicketSummary,
 } from "@/lib/rfp";
 
 const POLL_MS = 3000;
 const card = "rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 const button = "rounded-lg bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-800/40 disabled:cursor-not-allowed disabled:opacity-60";
 
-function badge(t: Pick<TicketSummary, "status" | "processing">) {
-  const color = t.status === "analisis_completo" ? "bg-green-100 text-green-900" : t.status === "descartado" ? "bg-zinc-200 text-zinc-800"
+function badge(t: Pick<TicketSummary, "status" | "processing" | "progress">) {
+  const done = t.status === "analisis_completo" || (t.status === "en_evaluación" && t.processing === "idle");
+  const color = done ? "bg-green-100 text-green-900" : t.status === "descartado" ? "bg-zinc-200 text-zinc-800"
+    : t.status === "needs_human_review" ? "bg-orange-100 text-orange-900"
     : t.processing === "running" ? "bg-amber-100 text-amber-900" : "bg-red-100 text-red-900";
   return <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${color}`}>{statusLabel(t)}</span>;
 }
@@ -59,6 +61,12 @@ export function RfpIntake() {
     } finally { setBusy(false); }
   }
 
+  async function generate(id: number, regenerate: boolean) {
+    setError("");
+    try { await generateResponse(id, regenerate); await refresh(); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Error inesperado."); }
+  }
+
   async function retry(id: number, force: boolean) {
     setError("");
     try { await reprocessTicket(id, force); await refresh(); }
@@ -94,7 +102,7 @@ export function RfpIntake() {
                 {tickets.map((t) => (
                   <tr key={t.ticket_id} className={`border-b ${selected === t.ticket_id ? "bg-red-50 dark:bg-zinc-800" : ""}`}>
                     <td className="py-2 font-mono">{t.ticket_id}</td><td>{t.original_filename}</td><td>{t.client_name ?? "—"}</td>
-                    <td>{badge(t)}</td><td className="text-xs text-zinc-500">{isLive(t) ? t.current_node : ""}</td>
+                    <td>{badge(t)}</td><td className="text-xs text-zinc-500">{isLive(t) && t.status === "analizando" ? t.current_node : progressLabel(t.progress) ?? ""}</td>
                     <td><button type="button" className="text-sm font-bold text-red-800 underline" onClick={() => setSelected(t.ticket_id)}>Ver</button></td>
                   </tr>
                 ))}
@@ -104,21 +112,26 @@ export function RfpIntake() {
         )}
       </section>
 
-      {detail && <TicketPanel detail={detail} onRetry={retry} />}
+      {detail && <TicketPanel detail={detail} onRetry={retry} onGenerate={generate} />}
     </div>
   );
 }
 
-function TicketPanel({ detail, onRetry }: { detail: TicketDetail; onRetry: (id: number, force: boolean) => void }) {
+function TicketPanel({ detail, onRetry, onGenerate }: { detail: TicketDetail; onRetry: (id: number, force: boolean) => void; onGenerate: (id: number, regenerate: boolean) => void }) {
   const meta = detail.metadata ?? {};
   const ceo = detail.handoff?.approvals?.ceo;
-  const canRetry = detail.processing === "failed" || detail.processing === "stalled";
+  const canRetry = detail.status === "analizando" && (detail.processing === "failed" || detail.processing === "stalled");
+  const action = generationAction(detail);
+  const part2 = detail.status !== "analizando" && detail.status !== "descartado";
+  const progress = progressLabel(detail.progress);
   return (
     <section aria-label={`Ticket ${detail.ticket_id}`} className={`${card} space-y-4`}>
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-black">Ticket #{detail.ticket_id}{detail.rfp_id ? ` · ${detail.rfp_id}` : ""}</h2>
         {badge(detail)}
         {canRetry && <button type="button" className={button} onClick={() => onRetry(detail.ticket_id, false)}>Reprocesar</button>}
+        {action && <button type="button" className={button} onClick={() => onGenerate(detail.ticket_id, action.regenerate)}>{action.label}</button>}
+        {progress && <span className="text-sm font-semibold">{progress}</span>}
         {detail.status === "descartado" && <button type="button" className={button} onClick={() => onRetry(detail.ticket_id, true)}>Forzar análisis (falso negativo)</button>}
       </div>
 
@@ -130,7 +143,7 @@ function TicketPanel({ detail, onRetry }: { detail: TicketDetail; onRetry: (id: 
         </div>
       )}
 
-      {detail.status === "analisis_completo" && (
+      {part2 && (
         <>
           {detail.summary?.headline && <p className="text-base font-semibold">{detail.summary.headline}</p>}
           <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
@@ -151,6 +164,7 @@ function TicketPanel({ detail, onRetry }: { detail: TicketDetail; onRetry: (id: 
                 </ul>
                 {s.asks.length > 0 && <><h4 className="mt-3 text-xs font-bold uppercase">Qué pedirle a {s.owner}</h4><ul className="list-disc pl-5 text-sm">{s.asks.map((a, i) => <li key={i}>{a}</li>)}</ul></>}
                 {s.open_questions.length > 0 && <><h4 className="mt-3 text-xs font-bold uppercase">Preguntas abiertas</h4><ul className="list-disc pl-5 text-sm">{s.open_questions.map((q, i) => <li key={i}>{q}</li>)}</ul></>}
+                <DraftBlock section={s} />
               </article>
             ))}
           </div>
@@ -162,5 +176,42 @@ function TicketPanel({ detail, onRetry }: { detail: TicketDetail; onRetry: (id: 
         </>
       )}
     </section>
+  );
+}
+
+const chip = (ok: boolean) => `rounded-full px-2 py-0.5 text-xs font-bold ${ok ? "bg-green-100 text-green-900" : "bg-red-100 text-red-900"}`;
+
+/** Borrador de la sección + resultado de los tres evaluadores. Si agotó las iteraciones se marca como PROVISIONAL. */
+export function DraftBlock({ section: s }: { section: RfpSection }) {
+  if (!s.generation_status || s.generation_status === "pendiente") return null;
+  const ev = s.evaluation_results;
+  return (
+    <div className="mt-4 border-t pt-3" data-testid={`draft-${s.department_id}`}>
+      <h4 className="text-xs font-bold uppercase">Borrador de la propuesta <span className="font-normal normal-case text-zinc-500">· iteraciones: {s.iterations ?? 0}</span></h4>
+      {s.needs_human_review && (
+        <p role="status" className="mt-1 rounded bg-orange-100 p-2 text-sm font-semibold text-orange-900">
+          Borrador provisional — requiere revisión humana. No cumplió la evaluación tras agotar las iteraciones; no lo envíes al cliente sin corregirlo.
+        </p>
+      )}
+      {s.generation_status === "error" && <p role="alert" className="mt-1 text-sm text-red-800">No se pudo generar: {s.generation_error}</p>}
+      {s.generation_status === "generando" && <p className="mt-1 text-sm text-zinc-500">Generando…</p>}
+      {s.draft_content && <pre className="mt-2 whitespace-pre-wrap rounded bg-zinc-100 p-3 font-sans text-sm dark:bg-zinc-800">{s.draft_content}</pre>}
+      {ev && (
+        <>
+          <div className="mt-2 flex flex-wrap gap-2" aria-label="Evaluación">
+            <span className={chip(ev.readability.pass)}>Legibilidad {ev.readability.pass ? "✓" : "✗"}{ev.readability.score != null ? ` (${Math.round(ev.readability.score)})` : ""}</span>
+            <span className={chip(ev.relevance.pass)}>Pertinencia {ev.relevance.pass ? "✓" : "✗"}</span>
+            <span className={chip(ev.compliance.pass)}>Cumplimiento {ev.compliance.pass ? "✓" : "✗"}</span>
+          </div>
+          {!ev.overall_pass && ev.feedback_for_generator && (
+            <details className="mt-2 text-sm" open={Boolean(s.needs_human_review)}>
+              <summary className="cursor-pointer font-bold">Último feedback del evaluador</summary>
+              <pre className="mt-1 whitespace-pre-wrap rounded bg-zinc-100 p-2 font-sans text-xs dark:bg-zinc-800">{ev.feedback_for_generator}</pre>
+            </details>
+          )}
+        </>
+      )}
+      {(s.pending_items?.length ?? 0) > 0 && <p className="mt-2 text-xs text-zinc-500">Pendiente de definir: {s.pending_items?.join("; ")}</p>}
+    </div>
   );
 }

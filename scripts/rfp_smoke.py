@@ -3,7 +3,10 @@
 Usa un almacén en memoria: no toca la base de datos ni el servidor. Imprime en Markdown el resultado de cada PDF, listo para
 pegar en la descripción del PR. Requiere las variables del modelo de generación (las mismas del asistente RAG).
 
-    uv run python -m scripts.rfp_smoke [ruta.pdf ...]
+    uv run python -m scripts.rfp_smoke [--generate] [ruta.pdf ...]
+
+Con `--generate` encadena la Parte 2 (borradores + evaluadores) sobre cada ticket con análisis completo. Para que los precios
+salgan en COP y USD define antes `RFP_USD_COP_RATE` (TRM real); sin ella el generador deja los importes «pendientes de definir».
 """
 from __future__ import annotations
 
@@ -11,14 +14,35 @@ import json
 import sys
 from pathlib import Path
 
-from data.pipelines.rfp_intake import InMemoryRfpStore, process_ticket
+from data.pipelines.rfp_intake import process_ticket
+from data.pipelines.rfp_response import InMemoryResponseStore, generate_ticket
 
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "rfp"
 
 
-def main(paths: list[str]) -> int:
+def print_response(store: InMemoryResponseStore, ticket_id: int) -> None:
+    outcome = generate_ticket(ticket_id, store)
+    t = store.get_ticket(ticket_id)
+    print(f"\n#### Parte 2 → **{t['status']}** ({outcome})")
+    if t.get("processing_error"):
+        print(f"- Error: {t['processing_error']}")
+    for row in store.sections.get(ticket_id, []):
+        ev = row.get("evaluation_results") or {}
+        flag = " ⚠️ PROVISIONAL (needs_human_review)" if row.get("needs_human_review") else ""
+        print(f"\n##### {row['department_id']} · {row.get('generation_status')} · {row.get('iterations')} iteración(es){flag}")
+        if ev:
+            print(f"- Legibilidad {ev['readability']['pass']} · Pertinencia {ev['relevance']['pass']} · Cumplimiento {ev['compliance']['pass']} "
+                  f"({', '.join(ev['compliance']['rule_ids']) or 'sin violaciones'})")
+            if not ev["overall_pass"]:
+                print(f"- Feedback:\n```\n{ev['feedback_for_generator']}\n```")
+        print(f"\n```\n{row.get('draft_content')}\n```")
+
+
+def main(argv: list[str]) -> int:
+    generate = "--generate" in argv
+    paths = [a for a in argv if a != "--generate"]
     pdfs = [Path(p) for p in paths] or sorted(FIXTURES.glob("brasaland-request-*.pdf"))
-    store = InMemoryRfpStore()
+    store = InMemoryResponseStore()
     for ticket_id, pdf in enumerate(pdfs, start=1):
         store.add(ticket_id, str(pdf), pdf.name)
         outcome = process_ticket(ticket_id, store)
@@ -44,6 +68,8 @@ def main(paths: list[str]) -> int:
                 print(f"- _Pregunta abierta_: {q}")
         ceo = t["handoff"]["approvals"]["ceo"]
         print(f"\n- Aprobación CEO (>50.000 USD/año): {ceo['required']}")
+        if generate:
+            print_response(store, ticket_id)
         print(f"\n<details><summary>handoff JSON</summary>\n\n```json\n{json.dumps(t['handoff'], ensure_ascii=False, indent=2)}\n```\n</details>")
     return 0
 

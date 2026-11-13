@@ -1,10 +1,12 @@
-"""Endpoints de la recepción de RFPs (Hito 9 · Parte 1). Los routers SOLO disparan y consultan: la lógica de agentes vive en
-`data/pipelines/rfp_intake/`.
+"""Endpoints de las RFPs (Hito 9 · Partes 1 y 2). Los routers SOLO disparan y consultan: la lógica de agentes vive en
+`data/pipelines/rfp_intake/` (Parte 1) y `data/pipelines/rfp_response/` (Parte 2).
 
     POST /rfp/tickets                 sube el PDF → 202 + ticket_id (el pipeline corre en segundo plano)
     GET  /rfp/tickets                 lista de tickets
     GET  /rfp/tickets/{id}            estado en vivo + resultado (la UI hace polling aquí)
     POST /rfp/tickets/{id}/reprocess  reintenta un ticket fallido/detenido o reabre un descartado (?force=true)
+    POST /rfp/tickets/{id}/generate   Parte 2: genera/evalúa los borradores (desde analisis_completo; reanuda tras un fallo;
+                                      ?regenerate=true descarta los borradores existentes). Se encadena solo al terminar la Parte 1.
 
 Dónde corre el trabajo: `BackgroundTasks` de FastAPI (hilo del mismo proceso). Es suficiente para este volumen y no añade
 infraestructura; su límite es que un reinicio del proceso mata el trabajo en curso. Por eso la VERDAD está en PostgreSQL:
@@ -24,12 +26,14 @@ from sqlmodel import Session
 
 from data.pipelines.rfp_intake import process_ticket
 from data.pipelines.rfp_intake.departments import (DEPARTMENTS, STATUS_ANALYZING, STATUS_COMPLETE, STATUS_DISCARDED)
+from data.pipelines.rfp_response import config as part2
+from data.pipelines.rfp_response import generate_ticket
 
 from ..auth.dependencies import get_current_user
 from ..database import engine, get_db
 from . import repository
 from .repository import SqlRfpStore
-from .schemas import SectionOut, TicketDetail, TicketSummary, UploadAccepted
+from .schemas import Progress, SectionOut, TicketDetail, TicketSummary, UploadAccepted
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 MAX_PDF_BYTES = 10 * 1024 * 1024
@@ -45,8 +49,15 @@ def safe_stem(filename: str) -> str:
     return stem or "rfp"
 
 
+def is_working_status(ticket) -> bool:
+    """¿El ticket está en un estado en el que debería haber trabajo en curso? (si no, está «en reposo»)."""
+    if ticket.status in (STATUS_ANALYZING, part2.STATUS_GENERATING):
+        return True
+    return ticket.status == part2.STATUS_EVALUATING and not ticket.response_completed_at  # en_evaluación terminado = todas pasaron
+
+
 def processing_state(ticket, now: datetime | None = None) -> str:
-    if ticket.status != STATUS_ANALYZING:
+    if not is_working_status(ticket):
         return "idle"
     if ticket.processing_error:
         return "failed"
@@ -56,19 +67,38 @@ def processing_state(ticket, now: datetime | None = None) -> str:
     return "stalled" if beat and (now or datetime.now(timezone.utc)) - beat > STALL_AFTER else "running"
 
 
+def auto_generate() -> bool:
+    return os.environ.get("RFP_AUTO_GENERATE", "1").lower() not in ("0", "false", "no")
+
+
 def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpStore] | None = None, llm=None) -> APIRouter:
     """`store_factory` y `llm` son inyectables para las pruebas (por defecto: Supabase y el modelo real)."""
     router = APIRouter(prefix=prefix, tags=["rfp"], dependencies=[Depends(get_current_user)])
     make_store = store_factory or (lambda: SqlRfpStore(lambda: Session(engine)))
 
     def run_pipeline(ticket_id: int, force: bool) -> None:
-        process_ticket(ticket_id, make_store(), llm, force=force)  # nunca lanza: registra el fallo en el ticket
+        store = make_store()
+        outcome = process_ticket(ticket_id, store, llm, force=force)  # nunca lanza: registra el fallo en el ticket
+        if outcome == "completo" and auto_generate():  # Parte 1 terminó: la Parte 2 arranca desde su handoff
+            generate_ticket(ticket_id, store, llm, mode="start")
+
+    def run_generation(ticket_id: int, mode: str) -> None:
+        generate_ticket(ticket_id, make_store(), llm, mode=mode)
+
+    def progress_of(session: Session, t) -> Progress | None:
+        if t.status not in (part2.STATUS_GENERATING, part2.STATUS_EVALUATING, part2.STATUS_NEEDS_REVIEW):
+            return None
+        rows = repository.get_sections(session, t.ticket_id)
+        status = [r.generation_status for r in rows]
+        return Progress(total=len(rows), passed=status.count(part2.SECTION_PASSED), needs_review=status.count(part2.SECTION_NEEDS_REVIEW),
+                        working=sum(x in (part2.SECTION_GENERATING, part2.SECTION_EVALUATING, part2.SECTION_PENDING) for x in status),
+                        errors=status.count(part2.SECTION_ERROR))
 
     def summary_of(session: Session, t) -> TicketSummary:
         meta = repository.get_metadata(session, t.ticket_id)
         return TicketSummary(ticket_id=t.ticket_id, rfp_id=t.rfp_id, status=t.status, processing=processing_state(t),
                              original_filename=t.original_filename, client_name=meta.client_name if meta else None,
-                             current_node=t.current_node, created_at=t.created_at, updated_at=t.updated_at)
+                             current_node=t.current_node, progress=progress_of(session, t), created_at=t.created_at, updated_at=t.updated_at)
 
     @router.post("/tickets", response_model=UploadAccepted, status_code=202)
     async def upload(background: BackgroundTasks, file: UploadFile = File(...), session: Session = Depends(get_db),
@@ -104,7 +134,10 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         meta = repository.get_metadata(session, ticket_id)
         sections = [SectionOut(department_id=s.department_id, department=DEPARTMENTS[s.department_id].name, owner=DEPARTMENTS[s.department_id].owner,
                                reason=s.reason, key_aspects=s.key_aspects, asks=s.asks, figures=s.figures, open_questions=s.open_questions,
-                               excerpts=s.excerpts, approval_status=s.approval_status)
+                               excerpts=s.excerpts, approval_status=s.approval_status, generation_status=s.generation_status,
+                               iterations=s.iterations, needs_human_review=s.needs_human_review, draft_content=s.draft_content,
+                               pending_items=s.pending_items, evaluation_results=s.evaluation_results,
+                               evaluation_history=s.evaluation_history, generation_error=s.generation_error)
                     for s in repository.get_sections(session, ticket_id) if s.department_id in DEPARTMENTS]
         metadata = None
         if meta is not None:
@@ -113,20 +146,43 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
                                                       "departments_needed", "open_questions")}
         return TicketDetail(**summary_of(session, t).model_dump(), discard_reason=t.discard_reason, processing_error=t.processing_error,
                             attempts=t.attempts, classification=t.classification, metadata=metadata,
-                            readability=meta.readability if meta else None, sections=sections, summary=t.summary, handoff=t.handoff)
+                            readability=meta.readability if meta else None, sections=sections, summary=t.summary, handoff=t.handoff,
+                            part3_handoff=t.part3_handoff, response_completed_at=t.response_completed_at)
 
     @router.post("/tickets/{ticket_id}/reprocess", response_model=UploadAccepted, status_code=202)
     def reprocess(ticket_id: int, background: BackgroundTasks, force: bool = False, session: Session = Depends(get_db)) -> UploadAccepted:
         t = repository.get_ticket(session, ticket_id)
         if t is None:
             raise HTTPException(status_code=404, detail="Ticket no encontrado.")
-        if t.status == STATUS_COMPLETE:
-            raise HTTPException(status_code=409, detail="El ticket ya tiene el análisis completo.")
-        if t.status == STATUS_ANALYZING and processing_state(t) == "running":
+        working = processing_state(t)
+        if t.status == STATUS_ANALYZING and working == "running":
             raise HTTPException(status_code=409, detail="El ticket se está procesando.")
+        if t.status != STATUS_DISCARDED and not (t.status == STATUS_ANALYZING and working in ("failed", "stalled")):
+            raise HTTPException(status_code=409, detail="Solo se reprocesa un ticket descartado o cuyo análisis falló o se detuvo.")
         if force and t.status != STATUS_DISCARDED:
             raise HTTPException(status_code=409, detail="«Forzar» solo aplica a tickets descartados.")
         background.add_task(run_pipeline, ticket_id, force)
         return UploadAccepted(ticket_id=ticket_id, status=STATUS_ANALYZING)
+
+    @router.post("/tickets/{ticket_id}/generate", response_model=UploadAccepted, status_code=202)
+    def generate(ticket_id: int, background: BackgroundTasks, regenerate: bool = False, session: Session = Depends(get_db)) -> UploadAccepted:
+        t = repository.get_ticket(session, ticket_id)
+        if t is None:
+            raise HTTPException(status_code=404, detail="Ticket no encontrado.")
+        working = processing_state(t)
+        if working == "running":
+            raise HTTPException(status_code=409, detail="El ticket se está procesando.")
+        if t.status == STATUS_COMPLETE:
+            mode = "start"
+        elif working in ("failed", "stalled") and t.status in (part2.STATUS_GENERATING, part2.STATUS_EVALUATING):
+            mode = "resume"  # conserva las secciones que ya terminaron
+        elif t.status in (part2.STATUS_EVALUATING, part2.STATUS_NEEDS_REVIEW):
+            if not regenerate:
+                raise HTTPException(status_code=409, detail="El ticket ya tiene borradores evaluados; usa regenerate=true para rehacerlos.")
+            mode = "regenerate"
+        else:
+            raise HTTPException(status_code=409, detail="La Parte 2 solo arranca desde un ticket con el análisis completo (analisis_completo).")
+        background.add_task(run_generation, ticket_id, mode)
+        return UploadAccepted(ticket_id=ticket_id, status=t.status)
 
     return router

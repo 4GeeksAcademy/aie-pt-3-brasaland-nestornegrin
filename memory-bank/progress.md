@@ -324,3 +324,9 @@
   Estados `analizando` → `analisis_completo` | `descartado`; verificadores en código contra invención de cifras; handoff `schema_version 1`.
 - Backend en `services/api/app/rfp/` (SQLModel/Supabase, `POST /rfp/tickets` 202 + polling, reprocess); UI en `uis/backoffice` (`/rfp`).
 - Dependencias nuevas (raíz y `services/api`): `markitdown[pdf]`, `py-readability-metrics`. Docs: `docs/agent/rfp-intake.md`.
+
+## Generación de respuestas a RFPs (Hito 9 · Parte 2, rama `feature/rfp-response-generation`)
+- Grafo propio `data/pipelines/rfp_response/` (generador por departamento → 3 evaluadores en paralelo con `Send` → `decide` → reintento con feedback o `needs_human_review`).
+- Cumplimiento determinista en código con una regla por lineamiento del BRIEFING §5; feedback concreto (regla, frase exacta, qué corregir).
+- Persistencia en PostgreSQL (`rfp_department_sections`, `rfp_tickets.part3_handoff`) + `schema_sync.ensure_columns`; `POST /rfp/tickets/{id}/generate`.
+- Estados: `generando_borrador`, `en_evaluación`, `needs_human_review` (sin estados de la Parte 3). Docs: `docs/agent/rfp-response.md`.
