@@ -336,3 +336,4 @@
 - Nodo de arbitraje determinista con los triggers del BRIEFING §7 (`setup-sla-breach`, `cost-vs-feasibility`, `ceo-threshold`) y árbitro fijo; documento final consolidado (`rfp_final_documents`).
 - Trazabilidad de las tres partes (`rfp_trace_events`, `GET /rfp/tickets/{id}/trace`); estados `esperando_aprobación` y `terminado`.
 - E2E reproducible: `scripts/rfp_e2e.py` y `tests/pipelines/test_rfp_approval.py`. Docs: `docs/agent/rfp-approval.md`.
+- Hito 10 · Parte 1: notificaciones SSE `GET /rfp/events` (evento `rfp_ticket_created`, mismo JWT, keep-alive, recuperación por `Last-Event-ID`); dashboard `/rfp` con `fetch`+`ReadableStream`, backoff y dedupe por `ticket_id`. Doc: `docs/agent/rfp-events.md`.

@@ -4,10 +4,17 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import {
   canRetryClosing, canStartApproval, decideApproval, generateResponse, generationAction, getFinalDocument, getTicket, getTrace, isLive, listTickets,
   progressLabel, reprocessTicket, retryApproval, startApproval, statusLabel, uploadRfp, validatePdf,
+  RFP_EVENTS_PATH, lastKnownTicketId, mergeCreatedTicket, parseTicketCreated,
   type ApprovalAction, type FinalDocument, type ReviewPacket, type RfpSection, type TicketDetail, type TicketSummary, type TraceEvent,
 } from "@/lib/rfp";
+import { connectSse, type SseStatus } from "@/lib/sse";
 
 const POLL_MS = 3000;
+const HIGHLIGHT_MS = 8000;
+const IDLE_TIMEOUT_MS = 45000; // el servidor manda un keep-alive cada 15 s: 3 sin señal = conexión muerta
+const STREAM_LABEL: Record<SseStatus, string> = {
+  connecting: "Conectando…", live: "En vivo", reconnecting: "Reconectando…", closed: "Sin conexión en vivo",
+};
 const card = "rounded-2xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 const button = "rounded-lg bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-800/40 disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -27,11 +34,18 @@ export function RfpIntake() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [stream, setStream] = useState<SseStatus>("connecting");
+  const [fresh, setFresh] = useState<number[]>([]); // tickets llegados en vivo, resaltados unos segundos
+  const [announce, setAnnounce] = useState("");
+  const ticketsRef = useRef<TicketSummary[]>([]);
+  useEffect(() => { ticketsRef.current = tickets; }, [tickets]);
 
   const refresh = useCallback(async () => {
     try {
       const rows = await listTickets();
       setTickets(rows);
+      setLoaded(true);
       if (selected !== null) setDetail(await getTicket(selected));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Error inesperado.");
@@ -39,6 +53,28 @@ export function RfpIntake() {
   }, [selected]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Notificaciones en vivo (SSE): un ticket nuevo aparece sin recargar ni volver a pedir la lista. Se conecta cuando la lista inicial
+  // ya cargó, de modo que el `Last-Event-ID` (mayor ticket_id conocido) cierra el hueco entre «lista cargada» y «stream abierto»;
+  // lo mismo ocurre tras cada corte de red. Los duplicados se descartan por ticket_id en `mergeCreatedTicket`.
+  useEffect(() => {
+    if (!loaded) return;
+    const connection = connectSse({
+      path: RFP_EVENTS_PATH,
+      idleTimeoutMs: IDLE_TIMEOUT_MS,
+      getLastEventId: () => lastKnownTicketId(ticketsRef.current),
+      onStatus: setStream,
+      onMessage: (message) => {
+        const created = parseTicketCreated(message);
+        if (!created || ticketsRef.current.some((t) => t.ticket_id === created.ticket_id)) return;
+        setTickets((current) => mergeCreatedTicket(current, created));
+        setFresh((ids) => [...ids, created.ticket_id]);
+        setAnnounce(`Nuevo ticket #${created.ticket_id}: ${created.original_filename}`);
+        setTimeout(() => setFresh((ids) => ids.filter((id) => id !== created.ticket_id)), HIGHLIGHT_MS);
+      },
+    });
+    return () => connection.close();
+  }, [loaded]);
 
   // Polling mientras algún ticket siga analizándose; se detiene solo cuando todos terminaron.
   const anyLive = tickets.some(isLive);
@@ -100,15 +136,22 @@ export function RfpIntake() {
       </section>
 
       <section aria-labelledby="rfp-list" className={card}>
-        <h2 id="rfp-list" className="text-lg font-black">Tickets</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 id="rfp-list" className="text-lg font-black">Tickets</h2>
+          <span data-testid="stream-status" className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${stream === "live" ? "bg-green-100 text-green-900" : "bg-amber-100 text-amber-900"}`}>
+            <span aria-hidden="true">● </span>{STREAM_LABEL[stream]}
+          </span>
+        </div>
+        <p role="status" aria-live="polite" className="sr-only">{announce}</p>
         {tickets.length === 0 ? <p className="mt-2 text-sm text-zinc-500">Aún no hay tickets. Sube el primer PDF.</p> : (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead><tr className="border-b text-xs uppercase text-zinc-500"><th className="py-2">#</th><th>Archivo</th><th>Cliente</th><th>Estado</th><th>Paso</th><th /></tr></thead>
               <tbody>
                 {tickets.map((t) => (
-                  <tr key={t.ticket_id} className={`border-b ${selected === t.ticket_id ? "bg-red-50 dark:bg-zinc-800" : ""}`}>
-                    <td className="py-2 font-mono">{t.ticket_id}</td><td>{t.original_filename}</td><td>{t.client_name ?? "—"}</td>
+                  <tr key={t.ticket_id} data-new={fresh.includes(t.ticket_id) || undefined}
+                    className={`border-b ${fresh.includes(t.ticket_id) ? "bg-amber-50 ring-2 ring-inset ring-amber-400" : selected === t.ticket_id ? "bg-red-50 dark:bg-zinc-800" : ""}`}>
+                    <td className="py-2 font-mono">{t.ticket_id}{fresh.includes(t.ticket_id) && <span className="ml-2 rounded bg-amber-400 px-1.5 text-[10px] font-black uppercase text-zinc-900">Nuevo</span>}</td><td>{t.original_filename}</td><td>{t.client_name ?? "—"}</td>
                     <td>{badge(t)}</td><td className="text-xs text-zinc-500">{isLive(t) && t.status === "analizando" ? t.current_node : progressLabel(t.progress, t.status) ?? ""}</td>
                     <td><button type="button" className="text-sm font-bold text-red-800 underline" onClick={() => setSelected(t.ticket_id)}>Ver</button></td>
                   </tr>

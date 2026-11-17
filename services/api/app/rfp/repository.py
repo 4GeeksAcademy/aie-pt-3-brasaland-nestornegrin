@@ -237,6 +237,13 @@ class SqlRfpStore:
     def fail_approval(self, ticket_id: int, message: str) -> None:
         self._update(ticket_id, processing_error=message[:2000], closing_claimed=False)
 
+    def tickets_created_after(self, ticket_id: int, limit: int) -> list[dict]:
+        """Tickets registrados después de `ticket_id`, del más antiguo al más reciente: la recuperación de `Last-Event-ID` (SSE)."""
+        with self._session() as s:
+            rows = s.exec(select(RfpTicket).where(RfpTicket.ticket_id > ticket_id).order_by(RfpTicket.ticket_id).limit(limit)).all()
+            return [{"ticket_id": t.ticket_id, "rfp_id": t.rfp_id, "original_filename": t.original_filename, "created_at": t.created_at}
+                    for t in rows]
+
     def record_event(self, ticket_id: int, event: dict) -> None:
         with self._session() as s:
             s.add(RfpTraceEvent(ticket_id=ticket_id, part=event["part"], agent=event["agent"], node=event["node"], thread_id=event.get("thread_id"),
