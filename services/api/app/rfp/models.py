@@ -43,6 +43,8 @@ class RfpTicket(SQLModel, table=True):
     completed_at: datetime | None = None
     closing_claimed: bool | None = False  # candado para que la síntesis final corra una sola vez
     uploaded_by: str | None = None
+    # Momento (UTC, naive) en que se avisó en tiempo real del ticket: ya clasificado como RFP y con metadatos. Es el `id` SSE.
+    announced_at: datetime | None = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
 

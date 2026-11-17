@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import json
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,13 +21,14 @@ from sqlmodel import Session, SQLModel, create_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "tests" / "pipelines"))
-from rfp_support import PDF_FORMAL, ScriptedRfpModel  # noqa: E402
+from rfp_support import PDF_FORMAL, PDF_INVALID, ScriptedRfpModel  # noqa: E402
 
 import app.main as main_module  # noqa: E402
 from app.auth.dependencies import get_current_user  # noqa: E402
 from app.database import get_db  # noqa: E402
 from app.rfp import models  # noqa: E402,F401
-from app.rfp.events import RfpEventBroker, format_event, parse_last_event_id, ticket_created_event  # noqa: E402
+from app.rfp import repository  # noqa: E402
+from app.rfp.events import RfpEventBroker, event_id_of, format_event, parse_last_event_id, ticket_created_event  # noqa: E402
 from app.rfp.repository import SqlRfpStore  # noqa: E402
 from app.rfp.routes import create_router  # noqa: E402
 
@@ -120,6 +122,22 @@ async def register_rfp_async(client: TestClient) -> int:
     return await asyncio.to_thread(register_rfp, client)
 
 
+def event_for(sse, ticket_id: int):
+    """El evento tal y como lo publicó (o lo recuperaría) el servidor para ese ticket ya anunciado."""
+    row = SqlRfpStore(lambda: Session(sse.engine))._announcement(ticket_id)
+    assert row is not None, f"el ticket {ticket_id} no fue anunciado"
+    return ticket_created_event(**row)
+
+
+def upload_pdf(client: TestClient, pdf) -> int:
+    response = client.post("/rfp/tickets", files={"file": (pdf.name, pdf.read_bytes(), "application/pdf")})
+    assert response.status_code == 202, response.text
+    return response.json()["ticket_id"]
+
+
+BRIEFING_FIELDS = {"ticket_id", "rfp_id", "client_name", "location", "service_type", "status", "created_at"}
+
+
 # ---- headers y formato en el cable ------------------------------------------------------------------------------
 def test_stream_headers_are_event_stream_without_cache_and_framing_is_named_event_with_json_data(sse):
     async def scenario():
@@ -131,13 +149,14 @@ def test_stream_headers_are_event_stream_without_cache_and_framing_is_named_even
             assert (await stream.frame()) == "retry: 3000"
             ticket_id = await register_rfp_async(sse.client)
             raw = await stream.frame()
-            assert raw.splitlines()[0] == f"id: {ticket_id}"
+            assert raw.splitlines()[0] == f"id: {event_for(sse, ticket_id).id}"
             assert raw.splitlines()[1] == "event: rfp_ticket_created"  # evento nombrado, no `message`
             assert raw.splitlines()[2].startswith("data: {") and len(raw.splitlines()) == 3  # JSON en UNA línea
             data = json.loads(parse_frame(raw)["data"])
             assert data["ticket_id"] == ticket_id == 1
-            assert data["status"] == "analizando" and data["requires_processing"] is True
-            assert data["rfp_id"] == "RFP-00001" and data["original_filename"] == PDF_FORMAL.name
+            assert set(data) == BRIEFING_FIELDS  # payload PLANO: solo los campos del BRIEFING, sin sobre {"event","data"}
+            assert data["status"] == "analizando"  # mismo nombre de estado que usa todo el sistema
+            assert data["rfp_id"] and data["client_name"] and data["location"] and data["service_type"]  # metadatos ya extraídos
             assert data["created_at"].startswith("20")  # ISO 8601
 
     asyncio.run(scenario())
@@ -149,8 +168,50 @@ def test_the_event_is_a_ticket_event_and_not_a_generic_message_for_every_new_tic
             await stream.frame()  # retry
             ids = [await register_rfp_async(sse.client) for _ in range(2)]
             frames = [parse_frame(await stream.frame()) for _ in ids]
-            assert [f["id"] for f in frames] == ["1", "2"]
+            assert [json.loads(f["data"])["ticket_id"] for f in frames] == ids
+            assert int(frames[0]["id"]) < int(frames[1]["id"])  # el id crece con cada aviso
             assert {f["event"] for f in frames} == {"rfp_ticket_created"}
+
+    asyncio.run(scenario())
+
+
+# ---- cuándo se dispara (BRIEFING §2) ----------------------------------------------------------------------------------------
+def test_a_discarded_document_never_generates_a_notification(sse):
+    async def scenario():
+        async with AsgiStream(sse.app) as stream:
+            await stream.frame()  # retry
+            discarded = await asyncio.to_thread(upload_pdf, sse.client, PDF_INVALID)
+            assert sse.client.get(f"/rfp/tickets/{discarded}").json()["status"] == "descartado"
+            with pytest.raises(TimeoutError):
+                await stream.frame(timeout=0.3)  # no era una RFP válida: nadie se entera
+            valid = await register_rfp_async(sse.client)
+            assert json.loads(parse_frame(await stream.frame())["data"])["ticket_id"] == valid  # y la siguiente RFP sí
+
+    asyncio.run(scenario())
+
+
+def test_a_ticket_is_announced_only_once(sse):
+    with Session(sse.engine) as session:
+        ticket = repository.create_ticket(session, raw_pdf_path="x.pdf", original_filename="x.pdf", uploaded_by=None)
+    store = SqlRfpStore(lambda: Session(sse.engine))
+    assert store.announce_ticket(ticket.ticket_id)["ticket_id"] == ticket.ticket_id
+    assert store.announce_ticket(ticket.ticket_id) is None  # un reproceso no vuelve a avisar
+
+
+def test_replay_follows_announcement_order_not_ticket_id_order(sse):
+    """El ticket 1 se sube antes pero se clasifica después que el 2: el cliente que ya vio el aviso del 2 NO debe perder el del 1."""
+    with Session(sse.engine) as session:
+        first = repository.create_ticket(session, raw_pdf_path="a.pdf", original_filename="a.pdf", uploaded_by=None).ticket_id
+        second = repository.create_ticket(session, raw_pdf_path="b.pdf", original_filename="b.pdf", uploaded_by=None).ticket_id
+    store = SqlRfpStore(lambda: Session(sse.engine))
+    store.announce_ticket(second)
+    seen_by_client = event_for(sse, second).id
+    store.announce_ticket(first)
+
+    async def scenario():
+        async with AsgiStream(sse.app, headers={"Last-Event-ID": str(seen_by_client)}) as stream:
+            await stream.frame()
+            assert json.loads(parse_frame(await stream.frame())["data"])["ticket_id"] == first
 
     asyncio.run(scenario())
 
@@ -197,14 +258,14 @@ def test_last_event_id_replays_only_missed_tickets_in_order_and_then_continues_l
         register_rfp(sse.client)  # 1, 2 y 3 se registraron mientras no había nadie conectado
 
     async def scenario():
-        async with AsgiStream(sse.app, headers={"Last-Event-ID": "1"}) as stream:
+        async with AsgiStream(sse.app, headers={"Last-Event-ID": str(event_for(sse, 1).id)}) as stream:
             assert (await stream.frame()) == "retry: 3000"
             replayed = [parse_frame(await stream.frame()) for _ in range(2)]
-            assert [f["id"] for f in replayed] == ["2", "3"]  # el 1 ya lo tenía
+            assert [f["id"] for f in replayed] == [str(event_for(sse, 2).id), str(event_for(sse, 3).id)]  # el 1 ya lo tenía
             assert {f["event"] for f in replayed} == {"rfp_ticket_created"}
             assert json.loads(replayed[0]["data"])["ticket_id"] == 2
             await register_rfp_async(sse.client)  # y sigue en vivo después de recuperar
-            assert parse_frame(await stream.frame())["id"] == "4"
+            assert parse_frame(await stream.frame())["id"] == str(event_for(sse, 4).id)
             with pytest.raises(TimeoutError):
                 await stream.frame(timeout=0.2)  # nada más: ni repetidos ni huecos
 
@@ -229,9 +290,9 @@ def test_an_event_published_while_replaying_is_not_delivered_twice(sse):
     async def scenario():
         async with AsgiStream(sse.app, headers={"Last-Event-ID": "0"}) as stream:
             await stream.frame()  # retry
-            assert parse_frame(await stream.frame())["id"] == "1"  # recuperado de la base de datos
+            assert parse_frame(await stream.frame())["id"] == str(event_for(sse, 1).id)  # recuperado de la base de datos
             # El mismo ticket llega también por el broker (carrera entre recuperación y vivo): no debe repetirse.
-            sse.broker.publish(ticket_created_event(ticket_id=1, rfp_id=None, original_filename="x.pdf", created_at="2026-01-01T00:00:00"))
+            sse.broker.publish(event_for(sse, 1))
             with pytest.raises(TimeoutError):
                 await stream.frame(timeout=0.2)
 
@@ -258,7 +319,7 @@ def test_each_connection_gets_every_event_independently_and_is_released_on_disco
             await a.frame(), await b.frame()
             assert sse.broker.connections == 2
             await register_rfp_async(sse.client)
-            assert parse_frame(await a.frame())["id"] == parse_frame(await b.frame())["id"] == "1"
+            assert parse_frame(await a.frame())["id"] == parse_frame(await b.frame())["id"] == str(event_for(sse, 1).id)
         await asyncio.sleep(0.05)
         assert sse.broker.connections == 0  # cerrar la pestaña libera la cola
 
@@ -277,7 +338,7 @@ def test_a_slow_connection_is_closed_so_it_can_recover_instead_of_losing_events_
         async with AsgiStream(app) as stream:
             await stream.frame()
             for n in range(1, 6):  # ráfaga: la cola (2) se desborda antes de que la conexión consuma
-                broker.publish(ticket_created_event(ticket_id=n, rfp_id=None, original_filename="x.pdf", created_at="2026-01-01T00:00:00"))
+                broker.publish(make_event(n))
             with pytest.raises(EOFError):
                 for _ in range(10):
                     await stream.frame()
@@ -291,7 +352,20 @@ def test_parse_last_event_id_only_accepts_non_negative_integers(raw, expected):
     assert parse_last_event_id(raw) == expected
 
 
+def make_event(ticket_id: int, client_name: str | None = "Andes Tech"):
+    return ticket_created_event(ticket_id=ticket_id, rfp_id=f"RFP-{ticket_id}", client_name=client_name, location="Medellín",
+                                service_type="recurring_catering", status="analizando", created_at="2026-01-01T00:00:00",
+                                announced_at=datetime(2026, 1, 1) + timedelta(seconds=ticket_id))
+
+
+def test_event_id_is_a_microsecond_timestamp_that_round_trips():
+    from app.rfp.events import announced_after
+    moment = datetime(2026, 7, 24, 14, 32, 0, 123456)
+    assert announced_after(event_id_of(moment)) == moment
+    assert event_id_of(moment) < event_id_of(moment + timedelta(microseconds=1))
+
+
 def test_format_event_keeps_data_on_one_line_and_ends_with_a_blank_line():
-    text = format_event(ticket_created_event(ticket_id=9, rfp_id="SBR-1", original_filename="Propuesta\ncon salto.pdf", created_at="2026-01-01T00:00:00"))
+    text = format_event(make_event(9, client_name="Cliente\ncon salto"))
     assert text.endswith("\n\n") and text.count("\n") == 4  # id, event, data + línea en blanco
-    assert json.loads(text.splitlines()[2].removeprefix("data: "))["original_filename"] == "Propuesta\ncon salto.pdf"
+    assert json.loads(text.splitlines()[2].removeprefix("data: "))["client_name"] == "Cliente\ncon salto"

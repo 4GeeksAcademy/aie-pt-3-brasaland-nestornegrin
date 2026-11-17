@@ -164,9 +164,10 @@ export async function getFinalDocument(id: number): Promise<FinalDocument> {
 export const RFP_EVENTS_PATH = "/rfp/events";
 export const EVENT_TICKET_CREATED = "rfp_ticket_created";
 
-/** Payload de `rfp_ticket_created` (BRIEFING §2.3: ticket_id, rfp_id, status, created_at). Nace en `analizando`. */
+/** Payload PLANO de `rfp_ticket_created` (BRIEFING): ticket_id, rfp_id, client_name, location, service_type, status, created_at. */
 export interface TicketCreatedEvent {
-  ticket_id: number; rfp_id: string; status: TicketStatus; requires_processing: boolean; original_filename: string; created_at: string;
+  ticket_id: number; rfp_id: string | null; client_name: string | null; location: string | null; service_type: string | null;
+  status: TicketStatus; created_at: string;
 }
 
 /** Interpreta un frame SSE; devuelve null si no es un `rfp_ticket_created` válido (otros eventos se ignoran sin romper el flujo). */
@@ -174,22 +175,18 @@ export function parseTicketCreated(message: { event: string; data: string }): Ti
   if (message.event !== EVENT_TICKET_CREATED) return null;
   try {
     const data = JSON.parse(message.data);
-    return Number.isInteger(data?.ticket_id) && typeof data?.original_filename === "string" ? (data as TicketCreatedEvent) : null;
+    return Number.isInteger(data?.ticket_id) && typeof data?.status === "string" ? (data as TicketCreatedEvent) : null;
   } catch { return null; }
 }
 
 /** Inserta el ticket recién creado SIN recargar la lista. Deduplicado por `ticket_id`: un evento repetido (reconexión, recuperación
- *  que solapa con la lista cargada) devuelve la MISMA lista, y la fila ya existente (con su estado real) nunca se pisa. */
+ *  que solapa con la lista cargada) devuelve la MISMA lista, y la fila ya existente (con su estado real) nunca se pisa.
+ *  Los datos que el evento no trae (archivo, progreso) los completa el polling existente mientras el ticket sigue «en vivo». */
 export function mergeCreatedTicket(tickets: TicketSummary[], event: TicketCreatedEvent): TicketSummary[] {
   if (tickets.some((t) => t.ticket_id === event.ticket_id)) return tickets;
   const row: TicketSummary = {
-    ticket_id: event.ticket_id, rfp_id: null, status: event.status, processing: "running", original_filename: event.original_filename,
-    client_name: null, current_node: "uploaded", progress: null, created_at: event.created_at, updated_at: event.created_at,
+    ticket_id: event.ticket_id, rfp_id: event.rfp_id, status: event.status, processing: "running", original_filename: event.rfp_id ?? "Procesando…",
+    client_name: event.client_name, current_node: "metadata", progress: null, created_at: event.created_at, updated_at: event.created_at,
   };
   return [row, ...tickets].sort((a, b) => b.ticket_id - a.ticket_id);
-}
-
-/** Mayor `ticket_id` conocido: es el `Last-Event-ID` con el que se pide al servidor lo que el cliente aún no tiene. */
-export function lastKnownTicketId(tickets: TicketSummary[]): string | null {
-  return tickets.length ? String(Math.max(...tickets.map((t) => t.ticket_id))) : null;
 }

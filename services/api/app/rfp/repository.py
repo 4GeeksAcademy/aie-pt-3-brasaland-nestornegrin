@@ -237,12 +237,36 @@ class SqlRfpStore:
     def fail_approval(self, ticket_id: int, message: str) -> None:
         self._update(ticket_id, processing_error=message[:2000], closing_claimed=False)
 
-    def tickets_created_after(self, ticket_id: int, limit: int) -> list[dict]:
-        """Tickets registrados después de `ticket_id`, del más antiguo al más reciente: la recuperación de `Last-Event-ID` (SSE)."""
+    def announce_ticket(self, ticket_id: int) -> dict | None:
+        """Marca el ticket como anunciado UNA sola vez (UPDATE condicional atómico) y devuelve lo que lleva el evento SSE.
+
+        None si ya se anunció (reintento/reproceso) o si dejó de estar en `analizando`. Es la única puerta de las notificaciones:
+        un documento descartado nunca pasa por aquí.
+        """
         with self._session() as s:
-            rows = s.exec(select(RfpTicket).where(RfpTicket.ticket_id > ticket_id).order_by(RfpTicket.ticket_id).limit(limit)).all()
-            return [{"ticket_id": t.ticket_id, "rfp_id": t.rfp_id, "original_filename": t.original_filename, "created_at": t.created_at}
-                    for t in rows]
+            claimed = s.exec(update(RfpTicket).where(RfpTicket.ticket_id == ticket_id, RfpTicket.announced_at.is_(None),
+                                                     RfpTicket.status == STATUS_ANALYZING).values(announced_at=_now().replace(tzinfo=None)))
+            s.commit()
+            if not claimed.rowcount:
+                return None
+        return self._announcement(ticket_id)
+
+    def _announcement(self, ticket_id: int) -> dict | None:
+        with self._session() as s:
+            t = s.get(RfpTicket, ticket_id)
+            if t is None or t.announced_at is None:
+                return None
+            meta = s.exec(select(RfpMetadata).where(RfpMetadata.ticket_id == ticket_id)).first()
+            return {"ticket_id": t.ticket_id, "rfp_id": t.rfp_id, "client_name": meta.client_name if meta else None,
+                    "location": meta.location if meta else None, "service_type": meta.service_type if meta else None,
+                    "status": t.status, "created_at": t.created_at, "announced_at": t.announced_at}
+
+    def tickets_announced_after(self, announced_after, limit: int) -> list[dict]:
+        """Tickets anunciados después de ese instante, del más antiguo al más reciente: la recuperación de `Last-Event-ID` (SSE)."""
+        with self._session() as s:
+            ids = s.exec(select(RfpTicket.ticket_id).where(RfpTicket.announced_at > announced_after)
+                         .order_by(RfpTicket.announced_at, RfpTicket.ticket_id).limit(limit)).all()
+        return [row for row in (self._announcement(i) for i in ids) if row]
 
     def record_event(self, ticket_id: int, event: dict) -> None:
         with self._session() as s:

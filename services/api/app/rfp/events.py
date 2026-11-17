@@ -3,17 +3,21 @@
 Contrato del canal `GET /rfp/events` (el mismo JWT que el resto de la API del backoffice):
 
     retry: 3000                                  <- espera sugerida al navegador antes de reconectar
-    id: 17                                       <- ticket_id: sirve de `Last-Event-ID` al reconectar
+    id: 1795012345678901                         <- instante del aviso (µs desde 1970): sirve de `Last-Event-ID` al reconectar
     event: rfp_ticket_created                    <- evento NOMBRADO (nunca el `message` genérico)
-    data: {"ticket_id": 17, "rfp_id": "RFP-00017", "status": "analizando", "requires_processing": true, ...}
+    data: {"ticket_id":17,"rfp_id":"RFP-2026-017","client_name":"Andes Tech","location":"Medellín","service_type":"recurring_catering","status":"analizando","created_at":"..."}
 
     : keep-alive                                 <- frame de comentario periódico para que proxies/balanceadores no cierren
+
+Cuándo se dispara (BRIEFING §2): cuando el documento ya fue clasificado como RFP válida, el flujo lo está procesando (`analizando`)
+y sus metadatos están guardados. Un documento descartado NO genera aviso. Se anuncia una sola vez por ticket (`announced_at`).
 
 Diseño:
 - Un `RfpEventBroker` por proceso reparte cada evento a una cola POR CONEXIÓN. Publicar es O(conexiones) en memoria y no toca
   la base de datos: 50 personas con el dashboard abierto son 50 colas pequeñas, no 50 consultas.
-- La recuperación no necesita una tabla de eventos: el `id` del evento es el `ticket_id` (monótono) y los tickets YA están en
-  PostgreSQL. Al reconectar con `Last-Event-ID: N`, el servidor reenvía los tickets con `ticket_id > N` y sigue en vivo.
+- La recuperación no necesita una tabla de eventos: el `id` es el instante `announced_at` (monótono, ya persistido en el ticket).
+  Al reconectar con `Last-Event-ID: N`, el servidor reenvía los tickets anunciados después de N y sigue en vivo. El `ticket_id` NO sirve
+  de id: los tickets se clasifican en orden distinto al de subida, y un ticket antiguo puede anunciarse después de uno más nuevo.
 - Si una conexión es tan lenta que su cola se llena, el servidor la CIERRA en lugar de descartar eventos en silencio: el cliente
   reconecta con `Last-Event-ID` y recupera lo que faltaba desde la base de datos.
 - Límite conocido: el broker vive en el proceso. Con varios workers de uvicorn haría falta un bus compartido (Redis pub/sub o
@@ -25,14 +29,13 @@ import asyncio
 import json
 import os
 import threading
+from datetime import datetime, timedelta, timezone
 from collections import deque
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Callable, Iterable
 
 from fastapi import Request
 from starlette.concurrency import run_in_threadpool
-
-from data.pipelines.rfp_intake.departments import STATUS_ANALYZING
 
 EVENT_TICKET_CREATED = "rfp_ticket_created"
 KEEPALIVE_FRAME = ": keep-alive\n\n"
@@ -57,26 +60,42 @@ def replay_limit() -> int:
 
 @dataclass(frozen=True)
 class RfpEvent:
-    """Un evento del canal. `id` es el `ticket_id`: monótono, único y consultable en la base de datos."""
+    """Un evento del canal. `id` es el instante del aviso (`event_id_of`): monótono y consultable en la base de datos."""
     event: str
     id: int
     data: dict = field(default_factory=dict)
 
 
-def ticket_created_event(*, ticket_id: int, rfp_id: str | None, original_filename: str, created_at) -> RfpEvent:
-    """Payload del evento `rfp_ticket_created` con los campos del Ticket del BRIEFING §2.3 (`ticket_id`, `rfp_id`, `status`,
-    `created_at`). Describe el ticket AL REGISTRARSE: su estado inicial es `analizando` y requiere procesamiento."""
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def _utc(moment: datetime) -> datetime:
+    return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment.astimezone(timezone.utc)
+
+
+def event_id_of(announced_at: datetime) -> int:
+    """`id` SSE: microsegundos desde 1970 del instante del aviso (entero, estrictamente creciente en la práctica)."""
+    return (_utc(announced_at) - _EPOCH) // timedelta(microseconds=1)
+
+
+def announced_after(event_id: int) -> datetime:
+    """Inverso de `event_id_of`, en UTC sin zona (como se guarda `announced_at`)."""
+    return (_EPOCH + timedelta(microseconds=event_id)).replace(tzinfo=None)
+
+
+def _iso(moment) -> str | None:
+    return moment.isoformat() if hasattr(moment, "isoformat") else (None if moment is None else str(moment))
+
+
+def ticket_created_event(*, ticket_id: int, rfp_id: str | None, client_name: str | None, location: str | None, service_type: str | None,
+                         status: str, created_at, announced_at: datetime) -> RfpEvent:
+    """Payload PLANO de `rfp_ticket_created` con los campos del BRIEFING (`ticket_id`, `rfp_id`, `client_name`, `location`,
+    `service_type`, `status`, `created_at`), con los mismos nombres que usa el resto del sistema (`status` = `analizando`)."""
     return RfpEvent(
         event=EVENT_TICKET_CREATED,
-        id=ticket_id,
-        data={
-            "ticket_id": ticket_id,
-            "rfp_id": rfp_id or f"RFP-{ticket_id:05d}",  # la referencia real del documento llega al terminar el análisis
-            "status": STATUS_ANALYZING,
-            "requires_processing": True,
-            "original_filename": original_filename,
-            "created_at": created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at),
-        },
+        id=event_id_of(announced_at),
+        data={"ticket_id": ticket_id, "rfp_id": rfp_id, "client_name": client_name, "location": location, "service_type": service_type,
+              "status": status, "created_at": _iso(created_at)},
     )
 
 

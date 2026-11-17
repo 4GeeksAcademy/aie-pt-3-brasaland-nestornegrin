@@ -1,12 +1,12 @@
 /** @jest-environment node */
-import { lastKnownTicketId, mergeCreatedTicket, parseTicketCreated, type TicketCreatedEvent, type TicketSummary } from "../lib/rfp";
+import { mergeCreatedTicket, parseTicketCreated, type TicketCreatedEvent, type TicketSummary } from "../lib/rfp";
 import { backoffDelay, connectSse, SseParser, type SseMessage, type SseStatus } from "../lib/sse";
 
 const created = (id: number): TicketCreatedEvent => ({
-  ticket_id: id, rfp_id: `RFP-${String(id).padStart(5, "0")}`, status: "analizando", requires_processing: true,
-  original_filename: `rfp-${id}.pdf`, created_at: "2026-11-17T10:00:00+00:00",
+  ticket_id: id, rfp_id: `RFP-${String(id).padStart(5, "0")}`, client_name: "Andes Tech Solutions", location: "Medellín",
+  service_type: "recurring_catering", status: "analizando", created_at: "2026-11-17T10:00:00+00:00",
 });
-const frame = (id: number) => `id: ${id}\nevent: rfp_ticket_created\ndata: ${JSON.stringify(created(id))}\n\n`;
+const frame = (id: number) => `id: ${1000 + id}\nevent: rfp_ticket_created\ndata: ${JSON.stringify(created(id))}\n\n`;
 const encoder = new TextEncoder();
 
 /** Respuesta con cuerpo en streaming controlable: `push` envía trozos, `end` cierra limpio, `fail` simula un corte de red. */
@@ -25,7 +25,7 @@ const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve()
 describe("SseParser", () => {
   test("evento nombrado con id y data JSON", () => {
     const [m] = new SseParser().feed(frame(7));
-    expect(m).toMatchObject({ event: "rfp_ticket_created", id: "7" });
+    expect(m).toMatchObject({ event: "rfp_ticket_created", id: "1007" });
     expect(JSON.parse(m.data)).toMatchObject({ ticket_id: 7, status: "analizando" });
   });
   test("aguanta trozos partidos en cualquier punto y CRLF", () => {
@@ -34,7 +34,7 @@ describe("SseParser", () => {
     const out: SseMessage[] = [];
     for (const ch of text) out.push(...parser.feed(ch));
     expect(out).toHaveLength(1);
-    expect(out[0].id).toBe("3");
+    expect(out[0].id).toBe("1003");
   });
   test("ignora comentarios keep-alive y registra retry", () => {
     const parser = new SseParser();
@@ -64,16 +64,12 @@ describe("mergeCreatedTicket / parseTicketCreated", () => {
     const list = [row(2), row(1)];
     const merged = mergeCreatedTicket(list, created(3));
     expect(merged.map((t) => t.ticket_id)).toEqual([3, 2, 1]);
-    expect(merged[0]).toMatchObject({ status: "analizando", processing: "running", rfp_id: null });
+    expect(merged[0]).toMatchObject({ status: "analizando", processing: "running", rfp_id: "RFP-00003", client_name: "Andes Tech Solutions" });
     expect(merged[1]).toBe(list[0]);
   });
   test("un ticket ya conocido no se duplica ni se pisa (misma lista)", () => {
     const list = [row(2), row(1)];
     expect(mergeCreatedTicket(list, created(2))).toBe(list);
-  });
-  test("lastKnownTicketId = mayor id; null si no hay tickets", () => {
-    expect(lastKnownTicketId([row(2), row(9), row(4)])).toBe("9");
-    expect(lastKnownTicketId([])).toBeNull();
   });
   test("solo acepta rfp_ticket_created con payload válido", () => {
     expect(parseTicketCreated({ event: "message", data: "{}" })).toBeNull();
@@ -90,22 +86,19 @@ describe("connectSse: reconexión y recuperación", () => {
     const statuses: SseStatus[] = [];
     const messages: SseMessage[] = [];
     let call = 0;
-    let known = "5"; // la lista cargada llega hasta el ticket 5
-    const connection = connectSse({
+        const connection = connectSse({
       path: "/rfp/events",
       request: async (_p, init) => { requests.push(init); return streams[call++].response; },
       sleep: async (ms) => { delays.push(ms); },
       random: () => 1,
-      getLastEventId: () => known,
       onStatus: (s) => statuses.push(s),
       onMessage: (m) => messages.push(m),
     });
 
     await flush();
-    expect((requests[0].headers as Record<string, string>)["Last-Event-ID"]).toBe("5");
+    expect((requests[0].headers as Record<string, string>)["Last-Event-ID"]).toBeUndefined();
     streams[0].push(": keep-alive\n\n" + frame(6));
     await flush();
-    known = "6";
     streams[0].fail(); // se corta la red
     await flush();
 
@@ -117,7 +110,7 @@ describe("connectSse: reconexión y recuperación", () => {
     // 3.ª conexión: el servidor repite lo que ya tenía y envía lo que se perdió durante el corte
     streams[2].push(frame(6) + frame(7) + frame(8));
     await flush();
-    expect((requests[2].headers as Record<string, string>)["Last-Event-ID"]).toBe("6");
+    expect((requests[2].headers as Record<string, string>)["Last-Event-ID"]).toBe("1006"); // el último aviso recibido antes del corte
     expect(statuses).toContain("reconnecting");
     expect(statuses).toContain("live");
 

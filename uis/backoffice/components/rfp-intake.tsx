@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import {
   canRetryClosing, canStartApproval, decideApproval, generateResponse, generationAction, getFinalDocument, getTicket, getTrace, isLive, listTickets,
   progressLabel, reprocessTicket, retryApproval, startApproval, statusLabel, uploadRfp, validatePdf,
-  RFP_EVENTS_PATH, lastKnownTicketId, mergeCreatedTicket, parseTicketCreated,
+  RFP_EVENTS_PATH, mergeCreatedTicket, parseTicketCreated,
   type ApprovalAction, type FinalDocument, type ReviewPacket, type RfpSection, type TicketDetail, type TicketSummary, type TraceEvent,
 } from "@/lib/rfp";
 import { connectSse, type SseStatus } from "@/lib/sse";
@@ -34,7 +34,6 @@ export function RfpIntake() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const [loaded, setLoaded] = useState(false);
   const [stream, setStream] = useState<SseStatus>("connecting");
   const [fresh, setFresh] = useState<number[]>([]); // tickets llegados en vivo, resaltados unos segundos
   const [announce, setAnnounce] = useState("");
@@ -45,7 +44,6 @@ export function RfpIntake() {
     try {
       const rows = await listTickets();
       setTickets(rows);
-      setLoaded(true);
       if (selected !== null) setDetail(await getTicket(selected));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Error inesperado.");
@@ -53,28 +51,30 @@ export function RfpIntake() {
   }, [selected]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => { refreshRef.current = refresh; }, [refresh]);
 
-  // Notificaciones en vivo (SSE): un ticket nuevo aparece sin recargar ni volver a pedir la lista. Se conecta cuando la lista inicial
-  // ya cargó, de modo que el `Last-Event-ID` (mayor ticket_id conocido) cierra el hueco entre «lista cargada» y «stream abierto»;
-  // lo mismo ocurre tras cada corte de red. Los duplicados se descartan por ticket_id en `mergeCreatedTicket`.
+  // Notificaciones en vivo (SSE): un ticket nuevo aparece sin recargar ni volver a pedir la lista por cada evento.
+  // Recuperación (dos capas): el servidor reenvía lo perdido con `Last-Event-ID` (id del último aviso recibido) y, además, cada vez que el
+  // stream pasa a «live» (primera conexión y cada reconexión) se vuelve a cargar la lista UNA vez, lo que cierra el hueco entre «lista
+  // cargada» y «stream abierto». Los duplicados se descartan por ticket_id (`mergeCreatedTicket`).
   useEffect(() => {
-    if (!loaded) return;
     const connection = connectSse({
       path: RFP_EVENTS_PATH,
       idleTimeoutMs: IDLE_TIMEOUT_MS,
-      getLastEventId: () => lastKnownTicketId(ticketsRef.current),
-      onStatus: setStream,
+      onStatus: (status) => { setStream(status); if (status === "live") void refreshRef.current(); },
       onMessage: (message) => {
         const created = parseTicketCreated(message);
         if (!created || ticketsRef.current.some((t) => t.ticket_id === created.ticket_id)) return;
-        setTickets((current) => mergeCreatedTicket(current, created));
+        ticketsRef.current = mergeCreatedTicket(ticketsRef.current, created);
+        setTickets(ticketsRef.current);
         setFresh((ids) => [...ids, created.ticket_id]);
-        setAnnounce(`Nuevo ticket #${created.ticket_id}: ${created.original_filename}`);
+        setAnnounce(`Nueva RFP #${created.ticket_id}${created.client_name ? ` de ${created.client_name}` : ""}`);
         setTimeout(() => setFresh((ids) => ids.filter((id) => id !== created.ticket_id)), HIGHLIGHT_MS);
       },
     });
     return () => connection.close();
-  }, [loaded]);
+  }, []);
 
   // Polling mientras algún ticket siga analizándose; se detiene solo cuando todos terminaron.
   const anyLive = tickets.some(isLive);
