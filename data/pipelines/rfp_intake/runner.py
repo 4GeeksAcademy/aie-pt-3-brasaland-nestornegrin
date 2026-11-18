@@ -22,11 +22,11 @@ def default_llm():
     return complete
 
 
-def process_ticket(ticket_id: int, store: RfpStore, llm=None, *, force: bool = False, graph=None) -> str:
+def process_ticket(ticket_id: int, store: RfpStore, llm=None, *, force: bool = False, graph=None, on_ticket_ready=None) -> str:
     """Devuelve el resultado: «completo», «descartado» o «fallo». No lanza: un error de un ticket no afecta a los demás."""
     try:
         store.begin(ticket_id)
-        graph = graph or build_graph(llm or default_llm(), store)
+        graph = graph or build_graph(llm or default_llm(), store, on_ticket_ready=on_ticket_ready)
         final = graph.invoke({"ticket_id": ticket_id, "force": force, "findings": []})
         return final.get("outcome", "fallo")
     except Exception as exc:  # noqa: BLE001 - el job corre en background: nadie más va a ver la excepción

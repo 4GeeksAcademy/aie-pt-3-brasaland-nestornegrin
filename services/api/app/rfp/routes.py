@@ -12,6 +12,8 @@
     POST /rfp/tickets/{id}/approvals/{dept} Parte 3: resume de ESA rama con la decisión humana (approve | reject | request_changes);
                                             `dept` es un departamento o `ceo`. La respuesta se valida antes de tocar el checkpoint.
     POST /rfp/tickets/{id}/approval/retry   Parte 3: reintenta la convergencia/síntesis tras un fallo (no vuelve a pedir aprobaciones).
+    GET  /rfp/events                        SSE: emite `rfp_ticket_created` cuando se registra un ticket (mismo JWT; ver `events.py`).
+                                            Sin modelos ni agentes: es una capa de comunicación. `Last-Event-ID` recupera lo perdido.
     GET  /rfp/tickets/{id}/trace            qué agente hizo qué y en qué orden, de la subida al documento final
     GET  /rfp/tickets/{id}/document         documento final (solo cuando el ticket está `terminado`)
 
@@ -28,7 +30,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from data.pipelines.rfp_intake import process_ticket
@@ -42,6 +45,7 @@ from data.pipelines.rfp_response import generate_ticket
 from ..auth.dependencies import get_current_user
 from ..database import engine, get_db
 from . import repository
+from .events import SSE_HEADERS, announced_after, RfpEventBroker, event_stream, parse_last_event_id, replay_limit, ticket_created_event
 from .repository import SqlRfpStore
 from .schemas import ApprovalIn, FinalDocumentOut, Progress, SectionOut, TicketDetail, TraceEventOut, TicketSummary, UploadAccepted
 
@@ -87,10 +91,13 @@ def auto_review() -> bool:
     return os.environ.get("RFP_AUTO_REVIEW", "1").lower() not in ("0", "false", "no")
 
 
-def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpStore] | None = None, llm=None, checkpointer=None) -> APIRouter:
-    """`store_factory`, `llm` y `checkpointer` son inyectables para las pruebas (por defecto: Supabase, el modelo real y SQLite en archivo)."""
+def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpStore] | None = None, llm=None, checkpointer=None,
+                  broker: RfpEventBroker | None = None) -> APIRouter:
+    """`store_factory`, `llm`, `checkpointer` y `broker` son inyectables para las pruebas (por defecto: Supabase, el modelo real,
+    SQLite en archivo y un broker SSE propio de este router)."""
     router = APIRouter(prefix=prefix, tags=["rfp"], dependencies=[Depends(get_current_user)])
     make_store = store_factory or (lambda: SqlRfpStore(lambda: Session(engine)))
+    events = broker or RfpEventBroker()
 
     holder: dict = {}
 
@@ -100,9 +107,15 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
             holder["engine"] = ApprovalEngine(make_store(), llm, checkpointer if checkpointer is not None else build_checkpointer())
         return holder["engine"]
 
+    def announce(ticket_id: int) -> None:
+        """RFP válida con metadatos guardados: avisa a los dashboards conectados (una sola vez por ticket)."""
+        row = make_store().announce_ticket(ticket_id)
+        if row is not None:
+            events.publish(ticket_created_event(**row))
+
     def run_pipeline(ticket_id: int, force: bool) -> None:
         store = make_store()
-        outcome = process_ticket(ticket_id, store, llm, force=force)  # nunca lanza: registra el fallo en el ticket
+        outcome = process_ticket(ticket_id, store, llm, force=force, on_ticket_ready=announce)  # nunca lanza: registra el fallo en el ticket
         if outcome == "completo" and auto_generate():  # Parte 1 terminó: la Parte 2 arranca desde su handoff
             after_generation(ticket_id, generate_ticket(ticket_id, store, llm, mode="start"))
 
@@ -174,6 +187,18 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         repository.set_pdf_path(session, ticket, str(path))
         background.add_task(run_pipeline, ticket.ticket_id, False)
         return UploadAccepted(ticket_id=ticket.ticket_id, status=ticket.status)
+
+    @router.get("/events")
+    async def stream_events(request: Request) -> StreamingResponse:
+        """Canal SSE de tickets nuevos. Exige el mismo JWT que el resto del router (dependencia del router: sin token → 401)."""
+        last_event_id = parse_last_event_id(request.headers.get("last-event-id"))
+
+        def load_after(after: int):
+            return [ticket_created_event(**row) for row in make_store().tickets_announced_after(announced_after(after), replay_limit())]
+
+        # Sin `media_type`: Starlette añadiría «; charset=utf-8» y aquí el Content-Type exacto es parte del contrato.
+        return StreamingResponse(event_stream(request, events, load_after, last_event_id),
+                                 headers={**SSE_HEADERS, "Content-Type": "text/event-stream"})
 
     @router.get("/tickets", response_model=list[TicketSummary])
     def list_all(session: Session = Depends(get_db)) -> list[TicketSummary]:
