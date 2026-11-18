@@ -1,10 +1,10 @@
 /** @jest-environment node */
-import { mergeCreatedTicket, parseTicketCreated, type TicketCreatedEvent, type TicketSummary } from "../lib/rfp";
+import { fromBriefingStatus, mergeCreatedTicket, type BriefingStatus, parseTicketCreated, type TicketCreatedEvent, type TicketSummary } from "../lib/rfp";
 import { backoffDelay, connectSse, SseParser, type SseMessage, type SseStatus } from "../lib/sse";
 
 const created = (id: number): TicketCreatedEvent => ({
   ticket_id: id, rfp_id: `RFP-${String(id).padStart(5, "0")}`, client_name: "Andes Tech Solutions", location: "Medellín",
-  service_type: "recurring_catering", status: "analizando", created_at: "2026-11-17T10:00:00+00:00",
+  service_type: "recurring_catering", status: "analyzing", created_at: "2026-11-17T10:00:00+00:00",
 });
 const frame = (id: number) => `id: ${1000 + id}\nevent: rfp_ticket_created\ndata: ${JSON.stringify(created(id))}\n\n`;
 const encoder = new TextEncoder();
@@ -26,7 +26,7 @@ describe("SseParser", () => {
   test("evento nombrado con id y data JSON", () => {
     const [m] = new SseParser().feed(frame(7));
     expect(m).toMatchObject({ event: "rfp_ticket_created", id: "1007" });
-    expect(JSON.parse(m.data)).toMatchObject({ ticket_id: 7, status: "analizando" });
+    expect(JSON.parse(m.data)).toMatchObject({ ticket_id: 7, status: "analyzing" });
   });
   test("aguanta trozos partidos en cualquier punto y CRLF", () => {
     const parser = new SseParser();
@@ -64,12 +64,19 @@ describe("mergeCreatedTicket / parseTicketCreated", () => {
     const list = [row(2), row(1)];
     const merged = mergeCreatedTicket(list, created(3));
     expect(merged.map((t) => t.ticket_id)).toEqual([3, 2, 1]);
-    expect(merged[0]).toMatchObject({ status: "analizando", processing: "running", rfp_id: "RFP-00003", client_name: "Andes Tech Solutions" });
+    expect(merged[0]).toMatchObject({ status: "analizando", // el evento viene en inglés (BRIEFING) y la fila usa el estado interno
+    processing: "running", rfp_id: "RFP-00003", client_name: "Andes Tech Solutions" });
     expect(merged[1]).toBe(list[0]);
   });
   test("un ticket ya conocido no se duplica ni se pisa (misma lista)", () => {
     const list = [row(2), row(1)];
     expect(mergeCreatedTicket(list, created(2))).toBe(list);
+  });
+  test("traduce cada estado del BRIEFING al interno y rechaza los que no están en el enum", () => {
+    const expected = { analyzing: "analizando", intake_complete: "analisis_completo", drafting: "generando_borrador", under_evaluation: "en_evaluación",
+      waiting_for_approval: "esperando_aprobación", done: "terminado", discarded: "descartado" } as const;
+    for (const [briefing, internal] of Object.entries(expected)) expect(fromBriefingStatus(briefing as BriefingStatus)).toBe(internal);
+    expect(parseTicketCreated({ event: "rfp_ticket_created", data: JSON.stringify({ ...created(1), status: "analizando" }) })).toBeNull();
   });
   test("solo acepta rfp_ticket_created con payload válido", () => {
     expect(parseTicketCreated({ event: "message", data: "{}" })).toBeNull();

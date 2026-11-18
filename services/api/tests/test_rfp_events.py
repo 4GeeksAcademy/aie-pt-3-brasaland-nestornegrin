@@ -155,7 +155,7 @@ def test_stream_headers_are_event_stream_without_cache_and_framing_is_named_even
             data = json.loads(parse_frame(raw)["data"])
             assert data["ticket_id"] == ticket_id == 1
             assert set(data) == BRIEFING_FIELDS  # payload PLANO: solo los campos del BRIEFING, sin sobre {"event","data"}
-            assert data["status"] == "analizando"  # mismo nombre de estado que usa todo el sistema
+            assert data["status"] == "analyzing"  # enum del BRIEFING (el sistema interno sigue en español y se traduce en el borde)
             assert data["rfp_id"] and data["client_name"] and data["location"] and data["service_type"]  # metadatos ya extraídos
             assert data["created_at"].startswith("20")  # ISO 8601
 
@@ -356,6 +356,21 @@ def make_event(ticket_id: int, client_name: str | None = "Andes Tech"):
     return ticket_created_event(ticket_id=ticket_id, rfp_id=f"RFP-{ticket_id}", client_name=client_name, location="Medellín",
                                 service_type="recurring_catering", status="analizando", created_at="2026-01-01T00:00:00",
                                 announced_at=datetime(2026, 1, 1) + timedelta(seconds=ticket_id))
+
+
+def test_every_internal_status_maps_to_the_briefing_enum():
+    from app.rfp.events import BRIEFING_STATUS, briefing_status
+    briefing_enum = {"analyzing", "intake_complete", "drafting", "under_evaluation", "waiting_for_approval", "done", "discarded"}
+    assert set(BRIEFING_STATUS.values()) == briefing_enum  # ningún valor fuera del enum y ninguno sin cubrir
+    assert briefing_status("analizando") == "analyzing" and briefing_status("descartado") == "discarded"
+    with pytest.raises(KeyError):
+        briefing_status("inventado")  # no se inventa un estado
+
+
+def test_wire_status_is_translated_but_internal_status_is_untouched(sse):
+    ticket_id = register_rfp(sse.client)
+    assert sse.client.get(f"/rfp/tickets/{ticket_id}").json()["status"] == "analisis_completo"  # la API REST sigue en español
+    assert event_for(sse, ticket_id).data["status"] == "intake_complete"  # el evento lleva el estado de ese momento, traducido
 
 
 def test_event_id_is_a_microsecond_timestamp_that_round_trips():

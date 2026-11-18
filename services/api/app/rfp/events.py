@@ -5,11 +5,11 @@ Contrato del canal `GET /rfp/events` (el mismo JWT que el resto de la API del ba
     retry: 3000                                  <- espera sugerida al navegador antes de reconectar
     id: 1795012345678901                         <- instante del aviso (µs desde 1970): sirve de `Last-Event-ID` al reconectar
     event: rfp_ticket_created                    <- evento NOMBRADO (nunca el `message` genérico)
-    data: {"ticket_id":17,"rfp_id":"RFP-2026-017","client_name":"Andes Tech","location":"Medellín","service_type":"recurring_catering","status":"analizando","created_at":"..."}
+    data: {"ticket_id":17,"rfp_id":"RFP-2026-017","client_name":"Andes Tech","location":"Medellín","service_type":"recurring_catering","status":"analyzing","created_at":"..."}
 
     : keep-alive                                 <- frame de comentario periódico para que proxies/balanceadores no cierren
 
-Cuándo se dispara (BRIEFING §2): cuando el documento ya fue clasificado como RFP válida, el flujo lo está procesando (`analizando`)
+Cuándo se dispara (BRIEFING §2): cuando el documento ya fue clasificado como RFP válida, el flujo lo está procesando (`analyzing` en el contrato; `analizando` en el sistema interno)
 y sus metadatos están guardados. Un documento descartado NO genera aviso. Se anuncia una sola vez por ticket (`announced_at`).
 
 Diseño:
@@ -68,6 +68,25 @@ class RfpEvent:
 
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
+# El BRIEFING define el enum de `status` en inglés. El sistema interno (base de datos, API REST, UI) sigue en español, así que el
+# contrato SSE traduce EN EL BORDE: nada interno cambia. `needs_human_review` no tiene equivalente en el BRIEFING: es una revisión
+# humana dentro de la evaluación, así que se publica como `under_evaluation`.
+BRIEFING_STATUS = {
+    "analizando": "analyzing",
+    "analisis_completo": "intake_complete",
+    "generando_borrador": "drafting",
+    "en_evaluación": "under_evaluation",
+    "needs_human_review": "under_evaluation",
+    "esperando_aprobación": "waiting_for_approval",
+    "terminado": "done",
+    "descartado": "discarded",
+}
+
+
+def briefing_status(internal_status: str) -> str:
+    """Estado interno (español) -> enum del BRIEFING (inglés). Un estado desconocido falla en voz alta, no se inventa."""
+    return BRIEFING_STATUS[internal_status]
+
 
 def _utc(moment: datetime) -> datetime:
     return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment.astimezone(timezone.utc)
@@ -90,12 +109,12 @@ def _iso(moment) -> str | None:
 def ticket_created_event(*, ticket_id: int, rfp_id: str | None, client_name: str | None, location: str | None, service_type: str | None,
                          status: str, created_at, announced_at: datetime) -> RfpEvent:
     """Payload PLANO de `rfp_ticket_created` con los campos del BRIEFING (`ticket_id`, `rfp_id`, `client_name`, `location`,
-    `service_type`, `status`, `created_at`), con los mismos nombres que usa el resto del sistema (`status` = `analizando`)."""
+    `service_type`, `status`, `created_at`). `status` es el estado INTERNO (`analizando`) y sale traducido al enum del BRIEFING."""
     return RfpEvent(
         event=EVENT_TICKET_CREATED,
         id=event_id_of(announced_at),
         data={"ticket_id": ticket_id, "rfp_id": rfp_id, "client_name": client_name, "location": location, "service_type": service_type,
-              "status": status, "created_at": _iso(created_at)},
+              "status": briefing_status(status), "created_at": _iso(created_at)},
     )
 
 

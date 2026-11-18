@@ -164,10 +164,19 @@ export async function getFinalDocument(id: number): Promise<FinalDocument> {
 export const RFP_EVENTS_PATH = "/rfp/events";
 export const EVENT_TICKET_CREATED = "rfp_ticket_created";
 
+/** Enum de `status` del BRIEFING (inglés). El contrato SSE lo usa tal cual; la UI y la API REST trabajan con `TicketStatus` (español). */
+export type BriefingStatus = "analyzing" | "intake_complete" | "drafting" | "under_evaluation" | "waiting_for_approval" | "done" | "discarded";
+const FROM_BRIEFING: Record<BriefingStatus, TicketStatus> = {
+  analyzing: "analizando", intake_complete: "analisis_completo", drafting: "generando_borrador", under_evaluation: "en_evaluación",
+  waiting_for_approval: "esperando_aprobación", done: "terminado", discarded: "descartado",
+};
+/** Traduce en el borde el estado del evento SSE al estado interno que entiende el resto de la UI. */
+export function fromBriefingStatus(status: BriefingStatus): TicketStatus { return FROM_BRIEFING[status]; }
+
 /** Payload PLANO de `rfp_ticket_created` (BRIEFING): ticket_id, rfp_id, client_name, location, service_type, status, created_at. */
 export interface TicketCreatedEvent {
   ticket_id: number; rfp_id: string | null; client_name: string | null; location: string | null; service_type: string | null;
-  status: TicketStatus; created_at: string;
+  status: BriefingStatus; created_at: string;
 }
 
 /** Interpreta un frame SSE; devuelve null si no es un `rfp_ticket_created` válido (otros eventos se ignoran sin romper el flujo). */
@@ -175,7 +184,7 @@ export function parseTicketCreated(message: { event: string; data: string }): Ti
   if (message.event !== EVENT_TICKET_CREATED) return null;
   try {
     const data = JSON.parse(message.data);
-    return Number.isInteger(data?.ticket_id) && typeof data?.status === "string" ? (data as TicketCreatedEvent) : null;
+    return Number.isInteger(data?.ticket_id) && data?.status in FROM_BRIEFING ? (data as TicketCreatedEvent) : null;
   } catch { return null; }
 }
 
@@ -185,7 +194,7 @@ export function parseTicketCreated(message: { event: string; data: string }): Ti
 export function mergeCreatedTicket(tickets: TicketSummary[], event: TicketCreatedEvent): TicketSummary[] {
   if (tickets.some((t) => t.ticket_id === event.ticket_id)) return tickets;
   const row: TicketSummary = {
-    ticket_id: event.ticket_id, rfp_id: event.rfp_id, status: event.status, processing: "running", original_filename: event.rfp_id ?? "Procesando…",
+    ticket_id: event.ticket_id, rfp_id: event.rfp_id, status: fromBriefingStatus(event.status), processing: "running", original_filename: event.rfp_id ?? "Procesando…",
     client_name: event.client_name, current_node: "metadata", progress: null, created_at: event.created_at, updated_at: event.created_at,
   };
   return [row, ...tickets].sort((a, b) => b.ticket_id - a.ticket_id);

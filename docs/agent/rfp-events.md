@@ -4,7 +4,7 @@ Canal **Server-Sent Events** `GET /rfp/events` que avisa al dashboard (`/rfp`) c
 comunicación: **no llama a ningún modelo ni agente**.
 
 ## Cuándo se dispara
-Según el BRIEFING, cuando el documento **ya fue clasificado como RFP válida** y el flujo lo está procesando (`status = analizando`). En el
+Según el BRIEFING, cuando el documento **ya fue clasificado como RFP válida** y el flujo lo está procesando (`status = analyzing`). En el
 pipeline eso es justo después de guardar los metadatos (`extract_metadata`): un documento descartado **nunca** genera aviso, y cada ticket
 se anuncia una sola vez (`announced_at`, UPDATE condicional atómico), aunque se reprocese.
 
@@ -16,14 +16,16 @@ Requiere el mismo JWT que el resto de la API del backoffice (`Authorization: Bea
 retry: 3000
 id: 1795012345678901
 event: rfp_ticket_created
-data: {"ticket_id":17,"rfp_id":"RFP-2026-017","client_name":"Andes Tech Solutions","location":"Medellín","service_type":"recurring_catering","status":"analizando","created_at":"2026-11-17T10:00:00+00:00"}
+data: {"ticket_id":17,"rfp_id":"RFP-2026-017","client_name":"Andes Tech Solutions","location":"Medellín","service_type":"recurring_catering","status":"analyzing","created_at":"2026-11-17T10:00:00+00:00"}
 
 : keep-alive
 ```
 
 - Cabeceras: `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transform`, `Connection: keep-alive`, `X-Accel-Buffering: no`.
-- Payload plano con los campos del BRIEFING §3 y los mismos nombres que usa el sistema. El BRIEFING sugiere `status: "analyzing"`, pero el sistema
-  de RFPs ya usa `analizando` y el BRIEFING §5 exige no inventar nombres nuevos para las mismas entidades; `ticket_id` sigue siendo entero.
+- Payload plano con los campos del BRIEFING §3. `status` usa el **enum del BRIEFING en inglés** (`analyzing`, `intake_complete`, `drafting`,
+  `under_evaluation`, `waiting_for_approval`, `done`, `discarded`). El sistema interno (BD, API REST, UI) sigue en español y se **traduce en el
+  borde**: `BRIEFING_STATUS` en `events.py` (servidor) y `fromBriefingStatus` en `lib/rfp.ts` (cliente, para pintar la fila con el estado
+  interno). `needs_human_review` no existe en el BRIEFING y se publica como `under_evaluation`. `ticket_id` sigue siendo entero.
 - `id` = instante del aviso (`announced_at`, µs desde 1970): monótono y persistido. **No** es el `ticket_id`: los tickets se clasifican en
   distinto orden al de subida y un ticket antiguo puede anunciarse después de uno más nuevo.
 - Un frame de comentario `: keep-alive` cada 15 s (`RFP_SSE_KEEPALIVE_SECONDS`).
