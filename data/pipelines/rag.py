@@ -16,6 +16,7 @@ import logging
 from dataclasses import dataclass
 from typing import Callable
 
+from data.pipelines.streaming import current_sink
 from data.process.rag import embed
 from data.process.rag_config import (
     COLLECTION_NAME,
@@ -157,21 +158,48 @@ EMPTY_COMPLETION_ATTEMPTS = 2
 def complete(messages: list[dict]) -> str:
     """Llamada al modelo de generación (`GENERATION_MODEL`, distinto del de embeddings). Temperatura 0: aquí
     se busca fidelidad al contexto, no creatividad. Nunca devuelve una cadena vacía: reintenta y, si no hay
-    contenido, lanza `EmptyCompletionError`."""
+    contenido, lanza `EmptyCompletionError`.
+
+    Si hay un `StreamSink` activo (canal WebSocket del chat) la respuesta se pide en streaming y cada fragmento se
+    entrega al sink según llega; el valor devuelto es el mismo texto completo (ver `data/pipelines/streaming.py`)."""
     settings = load_settings()
     client = get_generation_client()
+    sink = current_sink()
     for attempt in range(1, EMPTY_COMPLETION_ATTEMPTS + 1):
-        response = client.chat.completions.create(
-            model=settings.generation_model,
-            messages=messages,
-            temperature=0.0,
-        )
-        content = (response.choices[0].message.content or "").strip()
+        if sink is not None:
+            content = _complete_streaming(client, settings.generation_model, messages, sink)
+        else:
+            response = client.chat.completions.create(
+                model=settings.generation_model,
+                messages=messages,
+                temperature=0.0,
+            )
+            content = (response.choices[0].message.content or "").strip()
         if content:
             return content
         logger.warning("complete: respuesta vacía del modelo %s (intento %d/%d)",
                        settings.generation_model, attempt, EMPTY_COMPLETION_ATTEMPTS)
     raise EmptyCompletionError("El modelo de generación devolvió una respuesta vacía.")
+
+
+def _complete_streaming(client, model: str, messages: list[dict], sink) -> str:
+    """Una petición con `stream=True`: cada fragmento va al sink y se comprueba la cancelación en cada uno. Al cancelar se
+    cierra el stream del proveedor (se deja de generar y de pagar tokens) antes de propagar `GenerationCancelled`."""
+    sink.check()
+    stream = client.chat.completions.create(model=model, messages=messages, temperature=0.0, stream=True)
+    parts: list[str] = []
+    try:
+        for chunk in stream:
+            sink.check()
+            delta = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+            if delta:
+                parts.append(delta)
+                sink.emit(delta)
+    finally:
+        close = getattr(stream, "close", None)
+        if close is not None:
+            close()
+    return "".join(parts).strip()
 
 
 def generate_answer(
