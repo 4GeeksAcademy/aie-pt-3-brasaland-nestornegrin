@@ -26,6 +26,7 @@ os.environ.setdefault("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", "30")
 os.environ.setdefault("RESEND_API_KEY", "re_test_placeholder")
 os.environ.setdefault("EMAIL_FROM", "Brasaland <onboarding@resend.dev>")
 os.environ.setdefault("FRONTEND_URL", "http://localhost:3000")
+os.environ.setdefault("CHAT_DB_PATH", ":memory:")
 
 API_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = API_DIR.parent.parent
