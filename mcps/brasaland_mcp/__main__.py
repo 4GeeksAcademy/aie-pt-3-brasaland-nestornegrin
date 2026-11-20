@@ -11,7 +11,7 @@ from .server import create_app_from_env
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m mcps.brasaland_mcp", description=__doc__)
-    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--host", default="127.0.0.1", help="Por defecto solo loopback (OWASP A05); usa 0.0.0.0 únicamente detrás de un proxy/firewall.")
     parser.add_argument("--port", type=int, default=8001)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")

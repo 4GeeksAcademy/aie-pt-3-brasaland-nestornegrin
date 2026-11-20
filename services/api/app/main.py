@@ -41,15 +41,30 @@ from app.inventory.routes import create_router as create_inventory_router
 from app.database import engine
 from sqlmodel import SQLModel
 
-app = FastAPI(title="Brasaland Operations API", version="1.0.0")
+from app.security import SecurityHeadersMiddleware, allowed_origins, bind_actor, docs_enabled
+
+app = FastAPI(title="Brasaland Operations API", version="1.0.0",
+              docs_url="/docs" if docs_enabled() else None, redoc_url="/redoc" if docs_enabled() else None,
+              openapi_url="/openapi.json" if docs_enabled() else None)
 logger = logging.getLogger(__name__)
+# A05: lista EXACTA de orígenes (ver app/security.py::allowed_origins); antes un comodín admitía el Codespace de cualquiera.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
-    allow_origin_regex=r"https://.*\.app\.github\.dev",
-        allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins(),
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "Accept"],
 )
+app.add_middleware(SecurityHeadersMiddleware)
+MAX_CSV_BYTES = 5 * 1024 * 1024
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_safe(cell: str) -> str:
+    """A03: neutraliza la inyección de fórmulas (`=HYPERLINK(...)`) en celdas que vienen del CSV subido por un usuario y que otro
+    usuario abrirá en Excel/Sheets al descargar `results.csv`. Prefijo `'`, como recomienda OWASP."""
+    return "'" + cell if cell.startswith(_FORMULA_PREFIXES) else cell
+
+
 _latest_result: AnalysisResult | None = None
 _result_lock = Lock()
 supplier_repository = SupplierRepository(DATABASE_PATH)
@@ -63,8 +78,8 @@ app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 app.include_router(create_incidents_router(incident_repository))
-app.include_router(create_knowledge_router())  # POST /knowledge/query (Hito 7 — RAG)
-app.include_router(create_agent_router())  # POST /agent/query (agente LangGraph; compila el grafo al arrancar)
+app.include_router(create_knowledge_router(), dependencies=[Depends(bind_actor)])  # POST /knowledge/query (Hito 7 — RAG); A01: exige sesión
+app.include_router(create_agent_router(), dependencies=[Depends(bind_actor)])  # POST /agent/query (agente LangGraph); A01: exige sesión y el actor sale del token
 def chat_db_path() -> str:
     """Historial del chat en SQLite (`CHAT_DB_PATH`; `:memory:` en pruebas). Por defecto `data/runtime/chat_sessions.sqlite3` (ignorado por git)."""
     configured = os.environ.get("CHAT_DB_PATH")
@@ -77,7 +92,7 @@ def chat_db_path() -> str:
 
 
 # WS /agent/chat/ws (Hito 10 · Parte 2): el mismo agente, en streaming y con interrupción. Mismo JWT que el resto de la API.
-app.include_router(create_chat_router(authenticate_ws_token, get_agent_service, store_path=chat_db_path()))
+app.include_router(create_chat_router(authenticate_ws_token, get_agent_service, store_path=chat_db_path(), allowed_origins=allowed_origins))
 
 # Inventory (Supabase/SQLModel) - create schema, then mount routes.
 SQLModel.metadata.create_all(engine)
@@ -111,7 +126,9 @@ async def analyze_incidents(
 ) -> dict[str, object]:
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=415, detail="El fichero debe tener extensión .csv")
-    content = await file.read()
+    content = await file.read(MAX_CSV_BYTES + 1)  # A04: tope de tamaño (antes se leía el fichero entero en memoria, sin límite)
+    if len(content) > MAX_CSV_BYTES:
+        raise HTTPException(status_code=413, detail="El CSV supera el máximo de 5 MB")
     if not content:
         raise HTTPException(status_code=400, detail="El fichero CSV está vacío")
     try:
@@ -144,7 +161,7 @@ def export_latest_results(current_user=Depends(get_current_user)) -> StreamingRe
     output = io.StringIO(newline="")
     writer = csv.writer(output)
     writer.writerow(("metric", "dimension", "value"))
-    writer.writerows(result.export_rows())
+    writer.writerows(tuple(csv_safe(cell) for cell in row) for row in result.export_rows())
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",

@@ -1,0 +1,570 @@
+FFFFFFFFF.FFFFFFFFFFFFFF                                                 [100%]
+=================================== FAILURES ===================================
+______ test_a01_el_agente_y_el_rag_exigen_sesion[post-/agent/query-body0] ______
+
+client = <starlette.testclient.TestClient object at 0x7fd0873f2fc0>
+method = 'post', path = '/agent/query'
+body = {'question': '¿Cuántas unidades de pollo hay en stock?'}
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("post", "/agent/query", {"question": "¿Cuántas unidades de pollo hay en stock?"}),
+        ("post", "/knowledge/query", {"question": "¿Cómo se prepara la salsa de la casa?"}),
+        ("get", "/agent/guardrails/summary", None),
+    ])
+    def test_a01_el_agente_y_el_rag_exigen_sesion(client, method, path, body):
+        response = getattr(client, method)(path, **({"json": body} if body else {}))
+>       assert response.status_code == 401
+E       assert 200 == 401
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/test_owasp_hardening.py:50: AssertionError
+____ test_a01_el_agente_y_el_rag_exigen_sesion[post-/knowledge/query-body1] ____
+
+client = <starlette.testclient.TestClient object at 0x7fd0872a4f20>
+method = 'post', path = '/knowledge/query'
+body = {'question': '¿Cómo se prepara la salsa de la casa?'}
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("post", "/agent/query", {"question": "¿Cuántas unidades de pollo hay en stock?"}),
+        ("post", "/knowledge/query", {"question": "¿Cómo se prepara la salsa de la casa?"}),
+        ("get", "/agent/guardrails/summary", None),
+    ])
+    def test_a01_el_agente_y_el_rag_exigen_sesion(client, method, path, body):
+        response = getattr(client, method)(path, **({"json": body} if body else {}))
+>       assert response.status_code == 401
+E       assert 503 == 401
+E        +  where 503 = <Response [503 Service Unavailable]>.status_code
+
+tests/test_owasp_hardening.py:50: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    app.routes.knowledge:knowledge.py:53 RAG sin configurar: Falta la variable de entorno EMBEDDING_MODEL (defínela en tu .env).
+_ test_a01_el_agente_y_el_rag_exigen_sesion[get-/agent/guardrails/summary-None] _
+
+client = <starlette.testclient.TestClient object at 0x7fd06dfb8ad0>
+method = 'get', path = '/agent/guardrails/summary', body = None
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("post", "/agent/query", {"question": "¿Cuántas unidades de pollo hay en stock?"}),
+        ("post", "/knowledge/query", {"question": "¿Cómo se prepara la salsa de la casa?"}),
+        ("get", "/agent/guardrails/summary", None),
+    ])
+    def test_a01_el_agente_y_el_rag_exigen_sesion(client, method, path, body):
+        response = getattr(client, method)(path, **({"json": body} if body else {}))
+>       assert response.status_code == 401
+E       assert 200 == 401
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/test_owasp_hardening.py:50: AssertionError
+__ test_a01_el_agente_con_sesion_sigue_funcionando_y_el_actor_sale_del_token ___
+
+client = <starlette.testclient.TestClient object at 0x7fd06dfba570>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd06dfbac90>
+
+    def test_a01_el_agente_con_sesion_sigue_funcionando_y_el_actor_sale_del_token(client, monkeypatch):
+        from services.agent import router as agent_router  # noqa: F401
+        seen = {}
+    
+        class FakeRun:
+            answer, status, run_id, sources, conversation_id, memory, guardrails = "ok", "answered", "r1", [], None, None, []
+    
+        class FakeService:
+            deps = type("D", (), {"guardrails": None})()
+    
+            def run(self, question, conversation_id=None, actor=None):
+                seen["actor"] = actor
+                return FakeRun()
+    
+        from fastapi import Depends, FastAPI
+        from fastapi.testclient import TestClient as TC
+        from app.auth.dependencies import get_current_user
+        from services.agent.router import create_router
+        try:
+            from app.security import bind_actor
+            guards = [Depends(get_current_user), Depends(bind_actor)]
+        except ImportError:
+            guards = [Depends(get_current_user)]
+        mini = FastAPI()
+        mini.include_router(create_router(lambda: FakeService()), dependencies=guards)
+        headers = make_user(client, "agent-user@example.com")
+        response = TC(mini).post("/agent/query", json={"question": "hola", "user": "ADMIN-suplantado"}, headers=headers)
+>       assert response.status_code == 200 and seen["actor"].startswith("user:") and "suplantado" not in seen["actor"]
+E       AssertionError: assert (200 == 200 and False)
+E        +  where 200 = <Response [200 OK]>.status_code
+E        +  and   False = <built-in method startswith of str object at 0x7fd06c214a30>('user:')
+E        +    where <built-in method startswith of str object at 0x7fd06c214a30> = 'ADMIN-suplantado'.startswith
+
+tests/test_owasp_hardening.py:80: AssertionError
+_ test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[post-/api/suppliers-body0] _
+
+client = <starlette.testclient.TestClient object at 0x7fd06dfbbd40>
+supplier = Supplier(name='Proveedor de prueba OWASP', categories=[<SupplierCategory.CARNES: 'Carnes'>], country='Colombia', rate=...pplierStatus.ACTIVO: 'Activo'>, id=11, updated_at=datetime.datetime(2026, 11, 20, 11, 9, 52, 719256, tzinfo=TzInfo(0)))
+method = 'post', path = '/api/suppliers'
+body = {'categories': ['Carnes'], 'country': 'CO', 'name': 'X', 'rate': 1, ...}
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("post", "/api/suppliers", {"name": "X", "categories": ["Carnes"], "country": "CO", "rate": 1, "status": "Activo"}),
+        ("patch", "/api/suppliers/{id}/status?confirm=true", {"status": "Suspendido"}),
+        ("patch", "/api/suppliers/{id}/rate", {"rate": 9}),
+        ("delete", "/api/suppliers/{id}?confirm=true", None),
+        ("post", "/inventory/products", {"name": "Pollo", "sku": "SKU-OWASP", "restaurant": "Medellín"}),
+    ])
+    def test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario(client, supplier, method, path, body):
+        headers = make_user(client, "plain@example.com", "user")
+        response = getattr(client, method)(path.format(id=supplier.id), headers=headers, **({"json": body} if body else {}))
+>       assert response.status_code == 403
+E       assert 201 == 403
+E        +  where 201 = <Response [201 Created]>.status_code
+
+tests/test_owasp_hardening.py:93: AssertionError
+_ test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[patch-/api/suppliers/{id}/status?confirm=true-body1] _
+
+client = <starlette.testclient.TestClient object at 0x7fd0872a7a70>
+supplier = Supplier(name='Proveedor de prueba OWASP', categories=[<SupplierCategory.CARNES: 'Carnes'>], country='Colombia', rate=...pplierStatus.ACTIVO: 'Activo'>, id=13, updated_at=datetime.datetime(2026, 11, 20, 11, 9, 53, 226688, tzinfo=TzInfo(0)))
+method = 'patch', path = '/api/suppliers/{id}/status?confirm=true'
+body = {'status': 'Suspendido'}
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("post", "/api/suppliers", {"name": "X", "categories": ["Carnes"], "country": "CO", "rate": 1, "status": "Activo"}),
+        ("patch", "/api/suppliers/{id}/status?confirm=true", {"status": "Suspendido"}),
+        ("patch", "/api/suppliers/{id}/rate", {"rate": 9}),
+        ("delete", "/api/suppliers/{id}?confirm=true", None),
+        ("post", "/inventory/products", {"name": "Pollo", "sku": "SKU-OWASP", "restaurant": "Medellín"}),
+    ])
+    def test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario(client, supplier, method, path, body):
+        headers = make_user(client, "plain@example.com", "user")
+        response = getattr(client, method)(path.format(id=supplier.id), headers=headers, **({"json": body} if body else {}))
+>       assert response.status_code == 403
+E       assert 200 == 403
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/test_owasp_hardening.py:93: AssertionError
+_ test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[patch-/api/suppliers/{id}/rate-body2] _
+
+client = <starlette.testclient.TestClient object at 0x7fd06dfb8bc0>
+supplier = Supplier(name='Proveedor de prueba OWASP', categories=[<SupplierCategory.CARNES: 'Carnes'>], country='Colombia', rate=...pplierStatus.ACTIVO: 'Activo'>, id=14, updated_at=datetime.datetime(2026, 11, 20, 11, 9, 53, 746958, tzinfo=TzInfo(0)))
+method = 'patch', path = '/api/suppliers/{id}/rate', body = {'rate': 9}
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("post", "/api/suppliers", {"name": "X", "categories": ["Carnes"], "country": "CO", "rate": 1, "status": "Activo"}),
+        ("patch", "/api/suppliers/{id}/status?confirm=true", {"status": "Suspendido"}),
+        ("patch", "/api/suppliers/{id}/rate", {"rate": 9}),
+        ("delete", "/api/suppliers/{id}?confirm=true", None),
+        ("post", "/inventory/products", {"name": "Pollo", "sku": "SKU-OWASP", "restaurant": "Medellín"}),
+    ])
+    def test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario(client, supplier, method, path, body):
+        headers = make_user(client, "plain@example.com", "user")
+        response = getattr(client, method)(path.format(id=supplier.id), headers=headers, **({"json": body} if body else {}))
+>       assert response.status_code == 403
+E       assert 200 == 403
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/test_owasp_hardening.py:93: AssertionError
+_ test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[delete-/api/suppliers/{id}?confirm=true-None] _
+
+client = <starlette.testclient.TestClient object at 0x7fd06dfbb200>
+supplier = Supplier(name='Proveedor de prueba OWASP', categories=[<SupplierCategory.CARNES: 'Carnes'>], country='Colombia', rate=...pplierStatus.ACTIVO: 'Activo'>, id=15, updated_at=datetime.datetime(2026, 11, 20, 11, 9, 54, 246966, tzinfo=TzInfo(0)))
+method = 'delete', path = '/api/suppliers/{id}?confirm=true', body = None
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("post", "/api/suppliers", {"name": "X", "categories": ["Carnes"], "country": "CO", "rate": 1, "status": "Activo"}),
+        ("patch", "/api/suppliers/{id}/status?confirm=true", {"status": "Suspendido"}),
+        ("patch", "/api/suppliers/{id}/rate", {"rate": 9}),
+        ("delete", "/api/suppliers/{id}?confirm=true", None),
+        ("post", "/inventory/products", {"name": "Pollo", "sku": "SKU-OWASP", "restaurant": "Medellín"}),
+    ])
+    def test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario(client, supplier, method, path, body):
+        headers = make_user(client, "plain@example.com", "user")
+        response = getattr(client, method)(path.format(id=supplier.id), headers=headers, **({"json": body} if body else {}))
+>       assert response.status_code == 403
+E       assert 204 == 403
+E        +  where 204 = <Response [204 No Content]>.status_code
+
+tests/test_owasp_hardening.py:93: AssertionError
+_ test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[post-/inventory/products-body4] _
+
+client = <starlette.testclient.TestClient object at 0x7fd08404b470>
+supplier = Supplier(name='Proveedor de prueba OWASP', categories=[<SupplierCategory.CARNES: 'Carnes'>], country='Colombia', rate=...pplierStatus.ACTIVO: 'Activo'>, id=16, updated_at=datetime.datetime(2026, 11, 20, 11, 9, 54, 749489, tzinfo=TzInfo(0)))
+method = 'post', path = '/inventory/products'
+body = {'name': 'Pollo', 'restaurant': 'Medellín', 'sku': 'SKU-OWASP'}
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("post", "/api/suppliers", {"name": "X", "categories": ["Carnes"], "country": "CO", "rate": 1, "status": "Activo"}),
+        ("patch", "/api/suppliers/{id}/status?confirm=true", {"status": "Suspendido"}),
+        ("patch", "/api/suppliers/{id}/rate", {"rate": 9}),
+        ("delete", "/api/suppliers/{id}?confirm=true", None),
+        ("post", "/inventory/products", {"name": "Pollo", "sku": "SKU-OWASP", "restaurant": "Medellín"}),
+    ])
+    def test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario(client, supplier, method, path, body):
+        headers = make_user(client, "plain@example.com", "user")
+        response = getattr(client, method)(path.format(id=supplier.id), headers=headers, **({"json": body} if body else {}))
+>       assert response.status_code == 403
+E       assert 500 == 403
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests/test_owasp_hardening.py:93: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    app.main:main.py:103 Excepción no controlada en POST /inventory/products
+Traceback (most recent call last):
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: no such table: ingredients
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/starlette/routing.py", line 670, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 2734, in app
+    await route.handle(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 1780, in handle
+    await self.original_router.handle(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 2789, in handle
+    await included_router._handle_selected(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 1800, in _handle_selected
+    await original_route.handle(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 1279, in handle
+    await app(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 158, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 144, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 706, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 354, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 34, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/anyio/to_thread.py", line 65, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2641, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1033, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/app/inventory/routes.py", line 54, in create_product
+    session.commit()
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2035, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1316, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1290, in _prepare_impl
+    self.session.flush()
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 4353, in flush
+    self._flush(objects)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 4488, in _flush
+    with util.safe_reraise():
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 4449, in _flush
+    flush_context.execute()
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py", line 465, in execute
+    rec.execute(self)
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py", line 641, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py", line 94, in save_obj
+    _emit_insert_statements(
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py", line 1234, in _emit_insert_statements
+    result = connection.execute(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1421, in execute
+    return meth(
+           ^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1643, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2365, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/tmp/claude-0/-home-claude/7462b994-151a-5098-89c1-79674dda948a/scratchpad/repo/services/api/.venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: ingredients
+[SQL: INSERT INTO ingredients (name, sku, restaurant) VALUES (?, ?, ?)]
+[parameters: ('Pollo', 'SKU-OWASP', 'Medellín')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+_ test_a01_baja_o_cambio_de_estado_de_proveedor_requiere_confirmacion_humana[patch-/api/suppliers/{id}/status-body0] _
+
+client = <starlette.testclient.TestClient object at 0x7fd06c64b9b0>
+supplier = Supplier(name='Proveedor de prueba OWASP', categories=[<SupplierCategory.CARNES: 'Carnes'>], country='Colombia', rate=...pplierStatus.ACTIVO: 'Activo'>, id=18, updated_at=datetime.datetime(2026, 11, 20, 11, 9, 55, 814453, tzinfo=TzInfo(0)))
+method = 'patch', path = '/api/suppliers/{id}/status'
+body = {'status': 'Suspendido'}
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("patch", "/api/suppliers/{id}/status", {"status": "Suspendido"}),
+        ("delete", "/api/suppliers/{id}", None),
+    ])
+    def test_a01_baja_o_cambio_de_estado_de_proveedor_requiere_confirmacion_humana(client, supplier, method, path, body):
+        admin = make_user(client, "admin@example.com", "admin")
+        unconfirmed = getattr(client, method)(path.format(id=supplier.id), headers=admin, **({"json": body} if body else {}))
+>       assert unconfirmed.status_code == 428
+E       assert 200 == 428
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/test_owasp_hardening.py:109: AssertionError
+_ test_a01_baja_o_cambio_de_estado_de_proveedor_requiere_confirmacion_humana[delete-/api/suppliers/{id}-None] _
+
+client = <starlette.testclient.TestClient object at 0x7fd06c656c30>
+supplier = Supplier(name='Proveedor de prueba OWASP', categories=[<SupplierCategory.CARNES: 'Carnes'>], country='Colombia', rate=...pplierStatus.ACTIVO: 'Activo'>, id=19, updated_at=datetime.datetime(2026, 11, 20, 11, 9, 56, 342095, tzinfo=TzInfo(0)))
+method = 'delete', path = '/api/suppliers/{id}', body = None
+
+    @pytest.mark.parametrize("method,path,body", [
+        ("patch", "/api/suppliers/{id}/status", {"status": "Suspendido"}),
+        ("delete", "/api/suppliers/{id}", None),
+    ])
+    def test_a01_baja_o_cambio_de_estado_de_proveedor_requiere_confirmacion_humana(client, supplier, method, path, body):
+        admin = make_user(client, "admin@example.com", "admin")
+        unconfirmed = getattr(client, method)(path.format(id=supplier.id), headers=admin, **({"json": body} if body else {}))
+>       assert unconfirmed.status_code == 428
+E       assert 204 == 428
+E        +  where 204 = <Response [204 No Content]>.status_code
+
+tests/test_owasp_hardening.py:109: AssertionError
+________________ test_a07_el_login_limita_los_intentos_fallidos ________________
+
+client = <starlette.testclient.TestClient object at 0x7fd06c6559a0>
+
+    def test_a07_el_login_limita_los_intentos_fallidos(client):
+        client.post("/users", json={"email": "victim@example.com", "password": PASSWORD, "name": "V"})
+        codes = [client.post("/auth/login", json={"email": "victim@example.com", "password": "mala-contraseña"}).status_code for _ in range(8)]
+>       assert codes[:5] == [401] * 5 and codes[5] == 429 and codes[-1] == 429
+E       assert ([401, 401, 401, 401, 401] == [401, 401, 401, 401, 401]
+E         
+E         Use -v to get more diff and 401 == 429)
+
+tests/test_owasp_hardening.py:119: AssertionError
+________________ test_a07_forgot_password_tambien_esta_limitado ________________
+
+client = <starlette.testclient.TestClient object at 0x7fd06c671d60>
+
+    def test_a07_forgot_password_tambien_esta_limitado(client):
+        codes = [client.post("/auth/forgot-password", json={"email": "a@example.com"}).status_code for _ in range(8)]
+>       assert 429 in codes and codes[0] == 200
+E       assert (429 in [200, 200, 200, 200, 200, 200, ...])
+
+tests/test_owasp_hardening.py:127: AssertionError
+_ test_a07_el_login_con_usuario_inexistente_verifica_un_hash_para_no_delatar_cuentas _
+
+client = <starlette.testclient.TestClient object at 0x7fd06c671e20>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd06c673500>
+
+    def test_a07_el_login_con_usuario_inexistente_verifica_un_hash_para_no_delatar_cuentas(client, monkeypatch):
+        calls = []
+        original = security.verify_password
+        monkeypatch.setattr("app.auth.routes.verify_password", lambda p, h: calls.append(h) or original(p, h))
+        client.post("/auth/login", json={"email": "no-existe@example.com", "password": "loquesea123"})
+>       assert len(calls) == 1  # mismo coste que con un usuario real (evita enumerar emails por tiempo de respuesta)
+        ^^^^^^^^^^^^^^^^^^^^^^
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests/test_owasp_hardening.py:135: AssertionError
+___________ test_a05_cors_no_acepta_cualquier_codespace_de_terceros ____________
+
+client = <starlette.testclient.TestClient object at 0x7fd06c6717c0>
+
+    def test_a05_cors_no_acepta_cualquier_codespace_de_terceros(client):
+        for origin in ("https://atacante-3000.app.github.dev", "https://evil.example"):
+            preflight = client.options("/auth/me", headers={"Origin": origin, "Access-Control-Request-Method": "GET"})
+>           assert "access-control-allow-origin" not in preflight.headers, origin
+E           AssertionError: https://atacante-3000.app.github.dev
+E           assert 'access-control-allow-origin' not in Headers({'vary': 'Origin', 'access-control-allow-methods': 'DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT', 'access-con...w-origin': 'https://atacante-3000.app.github.dev', 'content-length': '2', 'content-type': 'text/plain; charset=utf-8'})
+E            +  where Headers({'vary': 'Origin', 'access-control-allow-methods': 'DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT', 'access-con...w-origin': 'https://atacante-3000.app.github.dev', 'content-length': '2', 'content-type': 'text/plain; charset=utf-8'}) = <Response [200 OK]>.headers
+
+tests/test_owasp_hardening.py:142: AssertionError
+___________ test_a05_cabeceras_de_seguridad_en_todas_las_respuestas ____________
+
+client = <starlette.testclient.TestClient object at 0x7fd06c648f80>
+
+    def test_a05_cabeceras_de_seguridad_en_todas_las_respuestas(client):
+        response = client.get("/auth/me")
+>       assert response.headers["x-content-type-options"] == "nosniff"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_owasp_hardening.py:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Headers({'www-authenticate': 'Bearer', 'content-length': '30', 'content-type': 'application/json'})
+key = 'x-content-type-options'
+
+    def __getitem__(self, key: str) -> str:
+        """
+        Return a single header value.
+    
+        If there are multiple headers with the same key, then we concatenate
+        them with commas. See: https://tools.ietf.org/html/rfc7230#section-3.2.2
+        """
+        normalized_key = key.lower().encode(self.encoding)
+    
+        items = [
+            header_value.decode(self.encoding)
+            for _, header_key, header_value in self._list
+            if header_key == normalized_key
+        ]
+    
+        if items:
+            return ", ".join(items)
+    
+>       raise KeyError(key)
+E       KeyError: 'x-content-type-options'
+
+.venv/lib/python3.12/site-packages/httpx2/_models.py:325: KeyError
+________ test_a05_el_websocket_del_chat_rechaza_origenes_no_permitidos _________
+
+client = <starlette.testclient.TestClient object at 0x7fd06c649ca0>
+
+    def test_a05_el_websocket_del_chat_rechaza_origenes_no_permitidos(client):
+        from starlette.websockets import WebSocketDisconnect
+        headers = make_user(client, "ws@example.com")
+        token = headers["Authorization"].split()[1]
+>       with pytest.raises(WebSocketDisconnect):
+E       Failed: DID NOT RAISE <class 'starlette.websockets.WebSocketDisconnect'>
+
+tests/test_owasp_hardening.py:160: Failed
+__________________ test_a02_se_rechaza_un_secreto_jwt_debil[] __________________
+
+weak = ''
+
+    @pytest.mark.parametrize("weak", ["", "corta", "cambia-esto", "changeme-changeme-changeme-changeme", "x" * 31])
+    def test_a02_se_rechaza_un_secreto_jwt_debil(weak):
+        with pytest.raises(RuntimeError):
+>           security.ensure_strong_secret(weak)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'app.auth.security' has no attribute 'ensure_strong_secret'
+
+tests/test_owasp_hardening.py:171: AttributeError
+_______________ test_a02_se_rechaza_un_secreto_jwt_debil[corta] ________________
+
+weak = 'corta'
+
+    @pytest.mark.parametrize("weak", ["", "corta", "cambia-esto", "changeme-changeme-changeme-changeme", "x" * 31])
+    def test_a02_se_rechaza_un_secreto_jwt_debil(weak):
+        with pytest.raises(RuntimeError):
+>           security.ensure_strong_secret(weak)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'app.auth.security' has no attribute 'ensure_strong_secret'
+
+tests/test_owasp_hardening.py:171: AttributeError
+____________ test_a02_se_rechaza_un_secreto_jwt_debil[cambia-esto] _____________
+
+weak = 'cambia-esto'
+
+    @pytest.mark.parametrize("weak", ["", "corta", "cambia-esto", "changeme-changeme-changeme-changeme", "x" * 31])
+    def test_a02_se_rechaza_un_secreto_jwt_debil(weak):
+        with pytest.raises(RuntimeError):
+>           security.ensure_strong_secret(weak)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'app.auth.security' has no attribute 'ensure_strong_secret'
+
+tests/test_owasp_hardening.py:171: AttributeError
+_ test_a02_se_rechaza_un_secreto_jwt_debil[changeme-changeme-changeme-changeme] _
+
+weak = 'changeme-changeme-changeme-changeme'
+
+    @pytest.mark.parametrize("weak", ["", "corta", "cambia-esto", "changeme-changeme-changeme-changeme", "x" * 31])
+    def test_a02_se_rechaza_un_secreto_jwt_debil(weak):
+        with pytest.raises(RuntimeError):
+>           security.ensure_strong_secret(weak)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'app.auth.security' has no attribute 'ensure_strong_secret'
+
+tests/test_owasp_hardening.py:171: AttributeError
+__ test_a02_se_rechaza_un_secreto_jwt_debil[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx] ___
+
+weak = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+    @pytest.mark.parametrize("weak", ["", "corta", "cambia-esto", "changeme-changeme-changeme-changeme", "x" * 31])
+    def test_a02_se_rechaza_un_secreto_jwt_debil(weak):
+        with pytest.raises(RuntimeError):
+>           security.ensure_strong_secret(weak)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'app.auth.security' has no attribute 'ensure_strong_secret'
+
+tests/test_owasp_hardening.py:171: AttributeError
+_____________________ test_a02_se_acepta_un_secreto_fuerte _____________________
+
+    def test_a02_se_acepta_un_secreto_fuerte():
+>       assert security.ensure_strong_secret("k3Jx9-vQ2mZp7LwR4tYb8NcH1sDfGa6U") == "k3Jx9-vQ2mZp7LwR4tYb8NcH1sDfGa6U"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'app.auth.security' has no attribute 'ensure_strong_secret'
+
+tests/test_owasp_hardening.py:175: AttributeError
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.3-final-0 ________________
+
+Name                       Stmts   Miss  Cover   Missing
+--------------------------------------------------------
+app/auth/__init__.py           0      0   100%
+app/auth/dependencies.py      17      3    82%   22-23, 26
+app/auth/email.py             16      6    62%   18, 27-33
+app/auth/models.py            85      0   100%
+app/auth/repository.py        92     46    50%   39-41, 44-53, 56-62, 65-66, 86-88, 91-99, 102-103, 119-129, 132-134, 137-138
+app/auth/routes.py            53     22    58%   53-56, 68-79, 85-92, 96-101
+app/auth/security.py          31      4    87%   14, 37, 48, 52
+app/auth/ws.py                15      3    80%   17-18, 21
+--------------------------------------------------------
+TOTAL                        309     84    73%
+=========================== short test summary info ============================
+FAILED tests/test_owasp_hardening.py::test_a01_el_agente_y_el_rag_exigen_sesion[post-/agent/query-body0]
+FAILED tests/test_owasp_hardening.py::test_a01_el_agente_y_el_rag_exigen_sesion[post-/knowledge/query-body1]
+FAILED tests/test_owasp_hardening.py::test_a01_el_agente_y_el_rag_exigen_sesion[get-/agent/guardrails/summary-None]
+FAILED tests/test_owasp_hardening.py::test_a01_el_agente_con_sesion_sigue_funcionando_y_el_actor_sale_del_token
+FAILED tests/test_owasp_hardening.py::test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[post-/api/suppliers-body0]
+FAILED tests/test_owasp_hardening.py::test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[patch-/api/suppliers/{id}/status?confirm=true-body1]
+FAILED tests/test_owasp_hardening.py::test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[patch-/api/suppliers/{id}/rate-body2]
+FAILED tests/test_owasp_hardening.py::test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[delete-/api/suppliers/{id}?confirm=true-None]
+FAILED tests/test_owasp_hardening.py::test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario[post-/inventory/products-body4]
+FAILED tests/test_owasp_hardening.py::test_a01_baja_o_cambio_de_estado_de_proveedor_requiere_confirmacion_humana[patch-/api/suppliers/{id}/status-body0]
+FAILED tests/test_owasp_hardening.py::test_a01_baja_o_cambio_de_estado_de_proveedor_requiere_confirmacion_humana[delete-/api/suppliers/{id}-None]
+FAILED tests/test_owasp_hardening.py::test_a07_el_login_limita_los_intentos_fallidos
+FAILED tests/test_owasp_hardening.py::test_a07_forgot_password_tambien_esta_limitado
+FAILED tests/test_owasp_hardening.py::test_a07_el_login_con_usuario_inexistente_verifica_un_hash_para_no_delatar_cuentas
+FAILED tests/test_owasp_hardening.py::test_a05_cors_no_acepta_cualquier_codespace_de_terceros
+FAILED tests/test_owasp_hardening.py::test_a05_cabeceras_de_seguridad_en_todas_las_respuestas
+FAILED tests/test_owasp_hardening.py::test_a05_el_websocket_del_chat_rechaza_origenes_no_permitidos
+FAILED tests/test_owasp_hardening.py::test_a02_se_rechaza_un_secreto_jwt_debil[]
+FAILED tests/test_owasp_hardening.py::test_a02_se_rechaza_un_secreto_jwt_debil[corta]
+FAILED tests/test_owasp_hardening.py::test_a02_se_rechaza_un_secreto_jwt_debil[cambia-esto]
+FAILED tests/test_owasp_hardening.py::test_a02_se_rechaza_un_secreto_jwt_debil[changeme-changeme-changeme-changeme]
+FAILED tests/test_owasp_hardening.py::test_a02_se_rechaza_un_secreto_jwt_debil[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]
+FAILED tests/test_owasp_hardening.py::test_a02_se_acepta_un_secreto_fuerte - ...
+23 failed, 1 passed in 12.98s
