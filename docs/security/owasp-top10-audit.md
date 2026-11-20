@@ -197,7 +197,14 @@ Uso en un VPS Ubuntu: `DRY_RUN=1 ROOT=/tmp/x bash infra/hardening/harden-server.
 
 ### Baseline del Codespace
 
-_(se completa con la salida real de los comandos del Codespace)_
+Evidencia: `docs/security/evidence/codespace-baseline.txt` (salida real de `whoami; id; ss -tlnp`, 2026-11-20).
+
+- **Usuario no-root:** el entorno corre como `codespace` (uid 1000), no como root.
+- **Servicios del proyecto:** en el momento de la medición no había API (8000), MCP (8001), PostgreSQL (5432) ni Redis (6379) escuchando; los puertos de datos nunca se publican. La base de datos es Supabase (externa), con acceso por credenciales en variables de entorno.
+- **Escucha en todas las interfaces:** solo `2000` y `2222`. Son puertos de la infraestructura del propio Codespace (el `2222` es su acceso SSH gestionado por GitHub), no del proyecto; no se pueden cerrar desde el repositorio.
+- **Resto:** todo lo demás escucha en `127.0.0.1`/`::1`.
+- **Firewall:** el Codespace no permite configurar `ufw`; el control equivalente es la visibilidad de puertos reenviados (el puerto 8000 debe estar en *Private*). Esa verificación queda como acción manual del equipo.
+- **Límite de esta evidencia:** es una foto puntual, sin la API en marcha; el endurecimiento completo (§8) solo aplica a un VPS.
 
 ---
 
