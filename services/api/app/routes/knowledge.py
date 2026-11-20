@@ -5,9 +5,8 @@ modelo de generación. Este router NO contiene lógica de recuperación ni de ge
 llama a `query()` de `data/pipelines/rag.py`. Nunca devuelve chunks, listas de resultados ni puntuaciones de
 similitud (eso queda en el log del servidor, para depurar).
 
-El endpoint no exige sesión: el ticket define solo el cuerpo de petición y de respuesta, y así lo puede consumir
-cualquier cliente (la UI del backoffice, un agente posterior, curl). Si se expone fuera de la red interna conviene
-protegerlo con `get_current_user` (ver docs/rag/rag-design.md).
+Este router no impone autenticación por sí solo; la API lo monta con `Depends(get_current_user)` (auditoría OWASP A01:
+antes era público y permitía consumir el modelo y la base de conocimiento sin sesión).
 """
 from __future__ import annotations
 

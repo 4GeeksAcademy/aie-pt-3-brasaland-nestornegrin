@@ -1,0 +1,13 @@
+FAIL  SSH no permite login como root
+FAIL  SSH no admite contraseñas (solo clave)
+FAIL  Existe el usuario no-root brasaland
+stat: cannot statx '/opt/brasaland/config': No such file or directory
+FAIL  /opt/brasaland/config no es legible por 'otros'
+stat: cannot statx '/opt/brasaland/data': No such file or directory
+FAIL  /opt/brasaland/data solo accesible por la app
+FAIL  /opt/brasaland/app no es escribible por la app
+FAIL  ufw activo con entrada denegada por defecto
+infra/hardening/verify-hardening.sh: line 8: ufw: command not found
+FAIL  ufw solo abre SSH, 80 y 443
+--- Puertos en escucha (nada de BD/Redis/MCP en 0.0.0.0) ---
+exit=1
