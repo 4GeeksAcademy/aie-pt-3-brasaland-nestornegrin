@@ -61,7 +61,8 @@ CONF
 chmod 644 "$SSHD_DROPIN"
 if [ "$DRY_RUN" != "1" ]; then
   sshd -t                       # si la configuración no es válida, el script se detiene antes de recargar nada
-  systemctl reload ssh || systemctl reload sshd
+  # systemd si existe; si no (contenedores/laboratorio), HUP al sshd maestro
+  systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || kill -HUP "$(cat /run/sshd.pid)"
 else
   echo "[dry-run] sshd -t && systemctl reload ssh"
 fi
