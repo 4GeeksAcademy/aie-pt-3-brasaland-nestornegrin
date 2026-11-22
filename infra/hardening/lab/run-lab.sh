@@ -11,7 +11,7 @@ SSH="ssh -i $KEYDIR/id -p $PORT -o BatchMode=yes -o StrictHostKeyChecking=no -o 
 dx() { docker exec "$NAME" bash -c "$1"; }
 reach() { timeout 3 bash -c "exec 3<>/dev/tcp/$1/$2" 2>/dev/null && echo "ABIERTO" || echo "BLOQUEADO (sin respuesta)"; }
 
-ssh-keygen -t ed25519 -N "" -f "$KEYDIR/id" -q
+ssh-keygen -t ed25519 -N "" -f "$KEYDIR/id" -q && chmod 600 "$KEYDIR/id"
 docker build -q -t brasaland-hardening-lab "$HERE" >/dev/null || { echo "ERROR: docker build falló"; exit 1; }
 docker rm -f $NAME >/dev/null 2>&1
 docker run -d --name $NAME --cap-add NET_ADMIN -p 127.0.0.1:$PORT:22 brasaland-hardening-lab >/dev/null || { echo "ERROR: docker run falló"; exit 1; }

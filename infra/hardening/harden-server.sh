@@ -43,10 +43,12 @@ run install -d -m 700 -o "$APP_USER" -g "$APP_USER" "$ROOT/home/$APP_USER/.ssh"
 run install -m 600 -o "$APP_USER" -g "$APP_USER" "$PUBKEY_FILE" "$ROOT/home/$APP_USER/.ssh/authorized_keys"
 
 # --- 2. SSH --------------------------------------------------------------------------------------------------------------
-SSHD_DROPIN="$ROOT/etc/ssh/sshd_config.d/99-brasaland-hardening.conf"
+SSHD_DROPIN="$ROOT/etc/ssh/sshd_config.d/00-brasaland-hardening.conf"
 mkdir -p "$(dirname "$SSHD_DROPIN")"
 cat > "$SSHD_DROPIN" <<CONF
 # Gestionado por infra/hardening/harden-server.sh
+# OJO: sshd usa el PRIMER valor que lee y los .conf se leen en orden alfabético; por eso este fichero empieza por 00-
+# (así gana a 50-cloud-init.conf y similares, que suelen activar PasswordAuthentication).
 Port $SSH_PORT
 PermitRootLogin no
 PasswordAuthentication no

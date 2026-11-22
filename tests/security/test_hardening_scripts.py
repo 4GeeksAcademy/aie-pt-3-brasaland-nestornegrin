@@ -30,7 +30,7 @@ def test_los_scripts_tienen_sintaxis_valida(script):
 def test_la_configuracion_sshd_prohibe_root_y_contrasenas(tmp_path):
     result = run(tmp_path)
     assert result.returncode == 0, result.stderr
-    config = (tmp_path / "fs/etc/ssh/sshd_config.d/99-brasaland-hardening.conf").read_text()
+    config = (tmp_path / "fs/etc/ssh/sshd_config.d/00-brasaland-hardening.conf").read_text()
     for line in ("PermitRootLogin no", "PasswordAuthentication no", "PubkeyAuthentication yes", "X11Forwarding no", "AllowUsers brasaland"):
         assert line in config.splitlines()
 

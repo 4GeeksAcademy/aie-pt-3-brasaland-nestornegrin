@@ -8,6 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /run/sshd /root/.ssh \
     && echo 'root:lab-sin-endurecer' | chpasswd \
-    && printf 'PermitRootLogin yes\nPasswordAuthentication yes\n' > /etc/ssh/sshd_config.d/00-lab-inseguro.conf
+    && printf 'PermitRootLogin yes\nPasswordAuthentication yes\n' > /etc/ssh/sshd_config.d/50-lab-inseguro.conf
 EXPOSE 22
 CMD ["/usr/sbin/sshd", "-D", "-e"]
