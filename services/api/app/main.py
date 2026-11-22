@@ -41,7 +41,7 @@ from app.inventory.routes import create_router as create_inventory_router
 from app.database import engine
 from sqlmodel import SQLModel
 
-from app.security import SecurityHeadersMiddleware, allowed_origins, bind_actor, docs_enabled
+from app.security import SecurityHeadersMiddleware, allowed_origins, bind_actor, consume_model_budget, docs_enabled, limit_model_calls
 
 app = FastAPI(title="Brasaland Operations API", version="1.0.0",
               docs_url="/docs" if docs_enabled() else None, redoc_url="/redoc" if docs_enabled() else None,
@@ -78,8 +78,8 @@ app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 app.include_router(create_incidents_router(incident_repository))
-app.include_router(create_knowledge_router(), dependencies=[Depends(bind_actor)])  # POST /knowledge/query (Hito 7 — RAG); A01: exige sesión
-app.include_router(create_agent_router(), dependencies=[Depends(bind_actor)])  # POST /agent/query (agente LangGraph); A01: exige sesión y el actor sale del token
+app.include_router(create_knowledge_router(), dependencies=[Depends(bind_actor), Depends(limit_model_calls)])  # POST /knowledge/query (Hito 7 — RAG); A01: exige sesión
+app.include_router(create_agent_router(), dependencies=[Depends(bind_actor), Depends(limit_model_calls)])  # POST /agent/query (agente LangGraph); A01: exige sesión y el actor sale del token
 def chat_db_path() -> str:
     """Historial del chat en SQLite (`CHAT_DB_PATH`; `:memory:` en pruebas). Por defecto `data/runtime/chat_sessions.sqlite3` (ignorado por git)."""
     configured = os.environ.get("CHAT_DB_PATH")
@@ -92,7 +92,7 @@ def chat_db_path() -> str:
 
 
 # WS /agent/chat/ws (Hito 10 · Parte 2): el mismo agente, en streaming y con interrupción. Mismo JWT que el resto de la API.
-app.include_router(create_chat_router(authenticate_ws_token, get_agent_service, store_path=chat_db_path(), allowed_origins=allowed_origins))
+app.include_router(create_chat_router(authenticate_ws_token, get_agent_service, store_path=chat_db_path(), allowed_origins=allowed_origins, rate_limit=consume_model_budget))
 
 # Inventory (Supabase/SQLModel) - create schema, then mount routes.
 SQLModel.metadata.create_all(engine)

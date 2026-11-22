@@ -15,3 +15,12 @@ data/raw/rfp/
 
 # Checkpoints de la aprobación humana (Hito 9 · Parte 3): estado de runtime, no código
 data/runtime/
+
+# Secretos (NIST Protect / OWASP A02): el .env de la raíz guarda LLM_API_KEY, QDRANT_API_KEY y credenciales OAuth.
+# Solo se versionan las plantillas *.env.example, sin valores reales.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example

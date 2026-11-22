@@ -107,11 +107,36 @@ login_by_account = RateLimiter(max_events=5, window_seconds=15 * 60)     # 5 fal
 login_by_ip = RateLimiter(max_events=20, window_seconds=15 * 60)         # 20 fallos por IP (barrido de cuentas)
 forgot_by_ip = RateLimiter(max_events=5, window_seconds=15 * 60)
 register_by_ip = RateLimiter(max_events=20, window_seconds=60 * 60)
+# Endpoints que invocan a un modelo (coste por llamada): tope por usuario autenticado contra bucles de coste descontrolado.
+model_per_minute = RateLimiter(max_events=20, window_seconds=60)        # ráfagas: 20 llamadas/minuto
+model_per_hour = RateLimiter(max_events=200, window_seconds=60 * 60)    # sostenido: 200 llamadas/hora
 
 
 def reset_rate_limits() -> None:
-    for limiter in (login_by_account, login_by_ip, forgot_by_ip, register_by_ip):
+    for limiter in (login_by_account, login_by_ip, forgot_by_ip, register_by_ip, model_per_minute, model_per_hour):
         limiter.reset()
+
+
+def limit_model_calls(current_user=Depends(get_current_user)) -> None:
+    """Dependencia para toda ruta que dispare una llamada a un modelo (NIST Protect / OWASP A04): 429 al pasar el tope.
+    Se comprueba ANTES de ejecutar la ruta, así una petición rechazada no gasta tokens."""
+    user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+    key = f"user:{user_id if user_id is not None else 'unknown'}"
+    model_per_minute.check(key)
+    model_per_hour.check(key)
+    model_per_minute.record(key)
+    model_per_hour.record(key)
+
+
+def consume_model_budget(user_key: str) -> int:
+    """Versión sin excepciones para canales que no son HTTP (WebSocket): 0 si se permite (y se contabiliza); si no, los segundos a esperar."""
+    wait = max(model_per_minute.retry_after(user_key), model_per_hour.retry_after(user_key))
+    if wait:
+        logger.warning("rate_limited channel=ws key=%s retry_after=%ss", hashlib.sha256(user_key.encode()).hexdigest()[:12], wait)
+        return wait
+    model_per_minute.record(user_key)
+    model_per_hour.record(user_key)
+    return 0
 
 
 def client_ip(request: Request) -> str:

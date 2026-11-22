@@ -1,8 +1,7 @@
 """Endpoint de consulta a la base de conocimiento de Brasaland (Hito 7 — RAG).
 
 `POST /knowledge/query` recibe `{"question": "..."}` y responde `{"answer": "..."}` con el texto que redacta el
-modelo de generación. Este router NO contiene lógica de recuperación ni de generación: solo valida la petición y
-llama a `query()` de `data/pipelines/rag.py`. Nunca devuelve chunks, listas de resultados ni puntuaciones de
+modelo de generación. Valida la petición y llama a `query()`, que aplica los guardrails del agente y delega la recuperación en `data/pipelines/rag.py`. Nunca devuelve chunks, listas de resultados ni puntuaciones de
 similitud (eso queda en el log del servidor, para depurar).
 
 Este router no impone autenticación por sí solo; la API lo monta con `Depends(get_current_user)` (auditoría OWASP A01:
@@ -23,7 +22,12 @@ from pydantic import BaseModel, StringConstraints
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-from data.pipelines.rag import query  # noqa: E402
+from data.pipelines.rag import retrieve  # noqa: E402
+from services.agent.guardrails import patterns, policy, sensitive  # noqa: E402
+from services.agent.guardrails.text import views  # noqa: E402
+from services.agent.guardrails.text import detect_language  # noqa: E402
+from services.agent.guardrails.output_guard import check_output  # noqa: E402
+from services.agent.guardrails.prompts import secure_generate_answer  # noqa: E402
 from data.process.rag_config import RagConfigError  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -37,6 +41,26 @@ class KnowledgeQuery(BaseModel):
 
 class KnowledgeAnswer(BaseModel):
     answer: str
+
+
+def query(question: str) -> str:
+    """Consulta al RAG con las defensas del agente (NIST Protect · OWASP A03): guardrail de entrada, contexto recuperado
+    saneado y delimitado como DATO (`<datos>`, inyección indirecta) y guardrail de salida. Antes este endpoint usaba el
+    prompt básico de `data/pipelines/rag.py`, sin ninguna de las tres."""
+    # Solo los guardrails de SEGURIDAD del agente (cambiar las instrucciones, pedir datos confidenciales): el asistente de
+    # entrenamiento sí responde sobre recetas y estándares, así que no se aplican los de dominio/contenido del agente de gerentes.
+    text_views = views(question)
+    if patterns.match_family(text_views, patterns.JAILBREAK_FAMILIES):
+        reason, refusal = "override", "override"
+    elif sensitive.sensitive_request(question):
+        reason, refusal = "sensitive", "sensitive"
+    else:
+        reason = refusal = None
+    if refusal:
+        logger.warning("knowledge: pregunta bloqueada por el guardrail de entrada (%s)", reason)
+        return policy.REFUSALS[refusal]["en" if detect_language(question) == "en" else "es"]
+    answer = secure_generate_answer(question, retrieve(question))
+    return check_output(answer, question=question, language="en" if detect_language(question) == "en" else "es").answer
 
 
 def create_router(prefix: str = "/knowledge") -> APIRouter:
