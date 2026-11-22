@@ -138,3 +138,25 @@ def test_frames_invalidos_y_ping(client):
         assert ws.receive_json()["data"]["code"] == "empty_message"
         ws.send_json({"event": "ping"})
         assert ws.receive_json()["event"] == "pong"
+
+
+def test_el_chat_aplica_el_tope_de_mensajes_al_modelo_por_usuario(monkeypatch, tmp_path):
+    """NIST Protect: cada `user_message` gasta del mismo tope por usuario que los endpoints HTTP; el excedente recibe `rate_limited`."""
+    from app import security as app_security
+
+    app_security.reset_rate_limits()
+    monkeypatch.setattr(app_security, "model_per_minute", app_security.RateLimiter(max_events=1, window_seconds=60))
+    install_provider(monkeypatch, FakeProvider(lambda q: FakeStream(["Ok."])))
+    app = FastAPI()
+    app.include_router(create_chat_router(authenticate_ws_token, lambda: real_agent_service(tmp_path),
+                                          rate_limit=app_security.consume_model_budget))
+    limited = TestClient(app)
+    _, token = make_user("limite@x.com")
+    with limited.websocket_connect(f"/agent/chat/ws?session_id={SESSION}&token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"event": "user_message", "data": {"text": "primera"}})
+        receive_until(ws, "generation_completed")
+        ws.send_json({"event": "user_message", "data": {"text": "segunda"}})
+        error = receive_until(ws, "error")[-1]
+    assert error["data"]["code"] == "rate_limited"
+    app_security.reset_rate_limits()

@@ -4,4 +4,10 @@ FAILED tests/test_nist_controls.py::test_consume_model_budget_sirve_para_websock
 FAILED tests/test_nist_controls.py::test_injection_directa_se_bloquea_antes_de_recuperar_o_llamar_al_modelo
 FAILED tests/test_nist_controls.py::test_injection_indirecta_en_un_documento_se_neutraliza_y_se_entrega_como_dato
 FAILED tests/test_nist_controls.py::test_el_saneado_no_borra_frases_legitimas_de_un_playbook
-6 failed in 0.10s
+FAILED tests/test_nist_controls.py::test_las_rutas_de_rfp_que_lanzan_trabajo_con_modelo_tienen_tope[/rfp/tickets]
+FAILED tests/test_nist_controls.py::test_las_rutas_de_rfp_que_lanzan_trabajo_con_modelo_tienen_tope[/rfp/tickets/1/reprocess]
+FAILED tests/test_nist_controls.py::test_las_rutas_de_rfp_que_lanzan_trabajo_con_modelo_tienen_tope[/rfp/tickets/1/generate]
+FAILED tests/test_nist_controls.py::test_las_rutas_de_rfp_que_lanzan_trabajo_con_modelo_tienen_tope[/rfp/tickets/1/approval/start]
+FAILED tests/test_nist_controls.py::test_las_rutas_de_rfp_que_lanzan_trabajo_con_modelo_tienen_tope[/rfp/tickets/1/approval/retry]
+FAILED tests/test_chat_ws.py::test_el_chat_aplica_el_tope_de_mensajes_al_modelo_por_usuario
+12 failed in 0.29s
