@@ -23,7 +23,7 @@
 | H8 | `JWT_SECRET_KEY` débil o placeholder aceptado; algoritmo JWT configurable sin lista blanca | Alta | A02 | Corregido |
 | H9 | Dependencias vulnerables: `next` (5 avisos) y 14 avisos Python | Alta | A06 | Corregido (quedan 5, ver §6) |
 | H10 | Exportación CSV con inyección de fórmulas (`=`, `+`, `-`, `@`) y subida CSV sin tope de tamaño | Media | A03/A04 | Corregido |
-| H11 | Servidor sin endurecer (SSH, usuario, firewall, permisos) | Alta | A05 | Script + guía; **no aplicado** (no hay servidor real) |
+| H11 | Servidor sin endurecer (SSH, usuario, firewall, permisos) | Alta | A05 | **Aplicado y verificado** en un Ubuntu 24.04 real (contenedor Docker, §8); no en un VPS de producción |
 | H12 | Token JWT en `localStorage` (robable por XSS) | Media | A02/A07 | **Abierto** (ver §7) |
 | H13 | Limitador de intentos en memoria (por proceso, se pierde al reiniciar) | Baja | A07 | **Abierto** |
 
@@ -181,7 +181,24 @@ Restantes: `python-jose` y `ecdsa` (sin parche publicado; no explotables porque 
 
 ## 8. Baseline de servidor y red
 
-**Estado honesto:** el proyecto corre en un Codespace + Supabase; **no hay un servidor propio donde aplicar el endurecimiento**. Se entrega el script y el verificador, probados con tests, **sin aplicar a un servidor real**. La evidencia `servidor-sin-endurecer.txt` muestra el verificador fallando en una máquina sin endurecer (así se demuestra que detecta).
+**Estado:** el proyecto corre en un Codespace + Supabase y no hay un VPS propio. El endurecimiento **sí se aplicó de verdad** sobre un **Ubuntu 24.04.5 LTS real** (contenedor Docker en el Codespace, con `sshd` y `ufw` reales) con `infra/hardening/lab/run-lab.sh`, que ejecuta *antes → `harden-server.sh` → después* y prueba por SSH y por red desde fuera del servidor. No es un VPS de producción: es el mismo script y los mismos comprobantes sobre un Ubuntu real, y el mismo procedimiento sirve en un VPS.
+
+**Evidencia real (2026-11-22):** `docs/security/evidence/servidor-antes.txt`, `servidor-aplicar.txt`, `servidor-despues.txt`.
+
+| Prueba | Antes | Después |
+|--------|-------|---------|
+| `sshd -T` | `permitrootlogin yes`, `passwordauthentication yes` | `permitrootlogin no`, `passwordauthentication no`, `allowusers brasaland` |
+| SSH como root con clave | **entra** (`ENTRA: root`) | `Permission denied (publickey)` |
+| SSH por contraseña | permitido | `Permission denied (publickey)` |
+| SSH con clave como `brasaland` | no existe el usuario | entra; `uid=1001`, sin sudo, sin escritura en `/opt/brasaland/app`, escritura OK en `/data` |
+| Puertos 5432 / 6379 / 8001 desde fuera | ABIERTOS | **BLOQUEADOS** |
+| Puertos 22 / 443 desde fuera | abiertos | abiertos (únicos permitidos junto al 80) |
+| `ufw` | inactivo | activo, entrada denegada por defecto, solo 22/80/443 |
+| `verify-hardening.sh` | 8 FAIL, `exit=1` | 8 PASS, `exit=0` |
+
+Nota: en `ss -tlnp` del laboratorio siguen apareciendo 5432/6379/8001 en `0.0.0.0` porque el laboratorio levanta a propósito servicios falsos con `nc` para probar el firewall; lo que se demuestra es que desde fuera no responden.
+
+**Hallazgos de la primera ejecución real (corregidos):** (1) el drop-in `99-brasaland-hardening.conf` perdía contra otros `.conf` porque `sshd` usa el primer valor que lee; ahora se llama `00-brasaland-hardening.conf` (en servidores reales `50-cloud-init.conf` habría activado las contraseñas); (2) `verify-hardening.sh` daba un FAIL falso por SIGPIPE con `pipefail`. Estos fallos no los habrían detectado los tests con `DRY_RUN`.
 
 | Control | Implementación (`infra/hardening/harden-server.sh`) |
 |---------|------------------------------------------------------|
@@ -193,7 +210,7 @@ Restantes: `python-jose` y `ecdsa` (sin parche publicado; no explotables porque 
 
 Uso en un VPS Ubuntu: `DRY_RUN=1 ROOT=/tmp/x bash infra/hardening/harden-server.sh --pubkey-file k.pub` (simula) y luego `sudo bash infra/hardening/harden-server.sh --pubkey-file ~/.ssh/id_ed25519.pub`; verificar con `bash infra/hardening/verify-hardening.sh`.
 
-**Codespace (pendiente de pegar por Nestor):** salida de `whoami; id` y `ss -tlnp`, y visibilidad de puertos. Ver sección "Baseline del Codespace" al final.
+**Codespace:** su baseline real está en "Baseline del Codespace" (más abajo). Un Codespace no permite configurar `ufw` ni `sshd`, por eso el endurecimiento se demuestra en el Ubuntu del laboratorio.
 
 ### Baseline del Codespace
 
