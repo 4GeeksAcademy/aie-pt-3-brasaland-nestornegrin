@@ -1,0 +1,68 @@
+=== DESPUÉS (harden-server.sh aplicado) — 2026-11-22T17:25:28Z ===
+--- SSH efectivo ---
+permitrootlogin no
+passwordauthentication no
+allowusers brasaland
+--- Login como root con clave (debe fallar) ---
+root@127.0.0.1: Permission denied (publickey).
+-> denegado (exit=255)
+--- Login por contraseña como brasaland (debe fallar) ---
+brasaland@127.0.0.1: Permission denied (publickey).
+-> denegado (exit=255)
+--- Login con clave como brasaland (debe entrar) ---
+brasaland
+uid=1001(brasaland) gid=1001(brasaland) groups=1001(brasaland),100(users)
+sudo sin contraseña: sudo: a password is required
+drwxr-xr-x 2 root      brasaland 4096 Nov 22 17:25 /opt/brasaland/app
+drwxr-x--- 2 root      brasaland 4096 Nov 22 17:25 /opt/brasaland/config
+drwx------ 2 brasaland brasaland 4096 Nov 22 17:25 /opt/brasaland/data
+drwxr-x--- 2 brasaland brasaland 4096 Nov 22 17:25 /opt/brasaland/logs
+touch: cannot touch '/opt/brasaland/app/x': Permission denied
+data: escritura OK
+cat: /opt/brasaland/config/.env: No such file or directory
+--- ufw ---
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), deny (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW IN    Anywhere                   # SSH (operaciones)
+80/tcp                     ALLOW IN    Anywhere                   # HTTP (redirige a HTTPS)
+443/tcp                    ALLOW IN    Anywhere                   # HTTPS (API + dashboard + SSE/WebSocket)
+22/tcp (v6)                ALLOW IN    Anywhere (v6)              # SSH (operaciones)
+80/tcp (v6)                ALLOW IN    Anywhere (v6)              # HTTP (redirige a HTTPS)
+443/tcp (v6)               ALLOW IN    Anywhere (v6)              # HTTPS (API + dashboard + SSE/WebSocket)
+
+--- Alcanzabilidad desde fuera del servidor (172.17.0.2) ---
+puerto 22: ABIERTO
+puerto 443: ABIERTO
+puerto 5432: BLOQUEADO (sin respuesta)
+puerto 6379: BLOQUEADO (sin respuesta)
+puerto 8001: BLOQUEADO (sin respuesta)
+--- Puertos en escucha dentro del servidor ---
+State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess                     
+LISTEN 0      1            0.0.0.0:6379      0.0.0.0:*    users:(("nc",pid=14,fd=3)) 
+LISTEN 0      1            0.0.0.0:8001      0.0.0.0:*    users:(("nc",pid=15,fd=3)) 
+LISTEN 0      128          0.0.0.0:22        0.0.0.0:*    users:(("sshd",pid=1,fd=3))
+LISTEN 0      1            0.0.0.0:443       0.0.0.0:*    users:(("nc",pid=16,fd=3)) 
+LISTEN 0      1            0.0.0.0:5432      0.0.0.0:*    users:(("nc",pid=13,fd=3)) 
+LISTEN 0      128             [::]:22           [::]:*    users:(("sshd",pid=1,fd=4))
+--- verify-hardening.sh ---
+PASS  SSH no permite login como root
+PASS  SSH no admite contraseñas (solo clave)
+PASS  Existe el usuario no-root brasaland
+PASS  /opt/brasaland/config no es legible por 'otros'
+PASS  /opt/brasaland/data solo accesible por la app
+PASS  /opt/brasaland/app no es escribible por la app
+PASS  ufw activo con entrada denegada por defecto
+PASS  ufw solo abre SSH, 80 y 443
+--- Puertos en escucha (nada de BD/Redis/MCP en 0.0.0.0) ---
+0.0.0.0:6379
+0.0.0.0:8001
+0.0.0.0:22
+0.0.0.0:443
+0.0.0.0:5432
+[::]:22
+exit=0
