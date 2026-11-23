@@ -36,6 +36,27 @@ class Supplier(SupplierBase):
     updated_at: datetime
 
 
+class SupplierResponse(BaseModel):
+    """Contrato de salida de los endpoints de proveedores.
+
+    Es independiente de SupplierBase/SupplierCreate (el esquema de entrada,
+    con extra="forbid" y alias de validación): lista cada campo expuesto, así
+    que añadir una columna al registro interno no cambia la API sin querer.
+    Detalle y listado comparten esquema porque el cliente lee los mismos
+    campos en ambos casos.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    categories: list[SupplierCategory]
+    country: str
+    rate: float
+    status: SupplierStatus
+    updated_at: datetime
+
+
 class RateUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
