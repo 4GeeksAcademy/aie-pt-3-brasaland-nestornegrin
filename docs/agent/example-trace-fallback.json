@@ -1,0 +1,290 @@
+{
+  "run_id": "20261109T142325-f16d733a",
+  "question": "¿En qué estado está el ticket 99999?",
+  "status": "tool_fallback",
+  "started_at": "2026-11-09T14:23:25.856+00:00",
+  "finished_at": "2026-11-09T14:23:26.221+00:00",
+  "duration_ms": 364.526,
+  "node_order": [
+    "receive_question",
+    "route_question",
+    "lookup_tickets",
+    "tool_fallback"
+  ],
+  "route": {
+    "sources": [
+      "tickets"
+    ],
+    "reason": "La pregunta pide el estado de tickets en vivo (ticket 99999).",
+    "ticket_query": {
+      "ticket_id": 99999
+    },
+    "inventory_query": null,
+    "cues": {
+      "ticket_id": 99999,
+      "ticket_word": true,
+      "live_state": true,
+      "inventory": false,
+      "knowledge": false
+    }
+  },
+  "sources_used": [
+    {
+      "source": "tool:tickets",
+      "node": "lookup_tickets",
+      "order": 3,
+      "outcome": "not_found",
+      "error": null
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "node": "receive_question",
+      "started_at": "2026-11-09T14:23:25.859+00:00",
+      "input": {
+        "question": "¿En qué estado está el ticket 99999?"
+      },
+      "output": {
+        "question": "¿En qué estado está el ticket 99999?",
+        "status": "received"
+      },
+      "error": null,
+      "duration_ms": 0.003
+    },
+    {
+      "order": 2,
+      "node": "route_question",
+      "started_at": "2026-11-09T14:23:25.860+00:00",
+      "input": {
+        "question": "¿En qué estado está el ticket 99999?",
+        "status": "received"
+      },
+      "output": {
+        "route": {
+          "sources": [
+            "tickets"
+          ],
+          "reason": "La pregunta pide el estado de tickets en vivo (ticket 99999).",
+          "ticket_query": {
+            "ticket_id": 99999
+          },
+          "inventory_query": null,
+          "cues": {
+            "ticket_id": 99999,
+            "ticket_word": true,
+            "live_state": true,
+            "inventory": false,
+            "knowledge": false
+          }
+        }
+      },
+      "error": null,
+      "duration_ms": 0.077
+    },
+    {
+      "order": 3,
+      "node": "lookup_tickets",
+      "started_at": "2026-11-09T14:23:25.860+00:00",
+      "input": {
+        "question": "¿En qué estado está el ticket 99999?",
+        "status": "received",
+        "route": {
+          "sources": [
+            "tickets"
+          ],
+          "reason": "La pregunta pide el estado de tickets en vivo (ticket 99999).",
+          "ticket_query": {
+            "ticket_id": 99999
+          },
+          "inventory_query": null,
+          "cues": {
+            "ticket_id": 99999,
+            "ticket_word": true,
+            "live_state": true,
+            "inventory": false,
+            "knowledge": false
+          }
+        }
+      },
+      "output": {
+        "tool_results": [
+          {
+            "tool": "tickets",
+            "outcome": "not_found",
+            "result": {
+              "outcome": "not_found",
+              "tickets": [],
+              "total": 0,
+              "error": "El recurso no existe."
+            },
+            "query": {
+              "ticket_id": 99999,
+              "status": null,
+              "limit": 5
+            }
+          }
+        ]
+      },
+      "error": null,
+      "duration_ms": 357.07
+    },
+    {
+      "order": 4,
+      "node": "tool_fallback",
+      "started_at": "2026-11-09T14:23:26.218+00:00",
+      "input": {
+        "question": "¿En qué estado está el ticket 99999?",
+        "status": "received",
+        "route": {
+          "sources": [
+            "tickets"
+          ],
+          "reason": "La pregunta pide el estado de tickets en vivo (ticket 99999).",
+          "ticket_query": {
+            "ticket_id": 99999
+          },
+          "inventory_query": null,
+          "cues": {
+            "ticket_id": 99999,
+            "ticket_word": true,
+            "live_state": true,
+            "inventory": false,
+            "knowledge": false
+          }
+        },
+        "tool_results": [
+          {
+            "tool": "tickets",
+            "outcome": "not_found",
+            "result": {
+              "outcome": "not_found",
+              "tickets": [],
+              "total": 0,
+              "error": "El recurso no existe."
+            },
+            "query": {
+              "ticket_id": 99999,
+              "status": null,
+              "limit": 5
+            }
+          }
+        ]
+      },
+      "output": {
+        "answer": "No encuentro el ticket 99999 en el gestor de incidentes; revisa que el número sea correcto.",
+        "status": "tool_fallback"
+      },
+      "error": null,
+      "duration_ms": 0.009
+    }
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_id": "1f1dc492-0584-6f5a-bfff-af23d1f64a48",
+      "step": -1,
+      "next": [
+        "__start__"
+      ],
+      "state_keys": []
+    },
+    {
+      "checkpoint_id": "1f1dc492-0586-6fc5-8000-223ea6c9be59",
+      "step": 0,
+      "next": [
+        "receive_question"
+      ],
+      "state_keys": [
+        "question"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc492-0589-6758-8001-f04224f5714a",
+      "step": 1,
+      "next": [
+        "route_question"
+      ],
+      "state_keys": [
+        "question",
+        "status"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc492-058b-6865-8002-70768caa319b",
+      "step": 2,
+      "next": [
+        "lookup_tickets"
+      ],
+      "state_keys": [
+        "question",
+        "route",
+        "status"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc492-08f4-6eb3-8003-f3ab34b69d1b",
+      "step": 3,
+      "next": [
+        "tool_fallback"
+      ],
+      "state_keys": [
+        "question",
+        "route",
+        "status",
+        "tool_results"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc492-08f6-6fc7-8004-834e9d966323",
+      "step": 4,
+      "next": [],
+      "state_keys": [
+        "answer",
+        "question",
+        "route",
+        "status",
+        "tool_results"
+      ]
+    }
+  ],
+  "final_state": {
+    "question": "¿En qué estado está el ticket 99999?",
+    "answer": "No encuentro el ticket 99999 en el gestor de incidentes; revisa que el número sea correcto.",
+    "status": "tool_fallback",
+    "route": {
+      "sources": [
+        "tickets"
+      ],
+      "reason": "La pregunta pide el estado de tickets en vivo (ticket 99999).",
+      "ticket_query": {
+        "ticket_id": 99999
+      },
+      "inventory_query": null,
+      "cues": {
+        "ticket_id": 99999,
+        "ticket_word": true,
+        "live_state": true,
+        "inventory": false,
+        "knowledge": false
+      }
+    },
+    "tool_results": [
+      {
+        "tool": "tickets",
+        "outcome": "not_found",
+        "result": {
+          "outcome": "not_found",
+          "tickets": [],
+          "total": 0,
+          "error": "El recurso no existe."
+        },
+        "query": {
+          "ticket_id": 99999,
+          "status": null,
+          "limit": 5
+        }
+      }
+    ]
+  },
+  "error": null
+}

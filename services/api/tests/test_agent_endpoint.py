@@ -34,6 +34,7 @@ def test_answers_through_the_graph_and_returns_a_run_id(tmp_path):
     assert response.status_code == 200
     body = response.json()
     assert body["answer"] == "Necesitas 50 puntos." and body["status"] == "answered"
+    assert body["sources"] == ["rag"]  # qué fuentes se consultaron, en orden
     assert (tmp_path / f"{body['run_id']}.json").exists()  # el trace de la corrida quedó guardado
 
 

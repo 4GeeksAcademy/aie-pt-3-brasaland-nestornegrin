@@ -34,6 +34,11 @@ class AgentRun:
     status: str
     trace: dict
 
+    @property
+    def sources(self) -> list[str]:
+        """Fuentes que se consultaron de verdad, en orden (p. ej. ["tool:tickets", "rag"])."""
+        return [item["source"] for item in self.trace.get("sources_used", [])]
+
 
 def describe_checkpoints(graph, config: dict) -> list[dict]:
     """Checkpoints de la corrida, del primero al último: paso, siguiente nodo y claves del estado en ese momento."""

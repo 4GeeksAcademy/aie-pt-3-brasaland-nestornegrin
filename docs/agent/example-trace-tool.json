@@ -1,0 +1,326 @@
+{
+  "run_id": "20261109T142101-74c1d4d9",
+  "question": "¿En qué estado está el ticket 94?",
+  "status": "answered",
+  "started_at": "2026-11-09T14:21:01.260+00:00",
+  "finished_at": "2026-11-09T14:21:42.875+00:00",
+  "duration_ms": 41615.151,
+  "node_order": [
+    "receive_question",
+    "route_question",
+    "lookup_tickets",
+    "generate_answer"
+  ],
+  "route": {
+    "sources": [
+      "tickets"
+    ],
+    "reason": "La pregunta pide el estado de tickets en vivo (ticket 94).",
+    "ticket_query": {
+      "ticket_id": 94
+    },
+    "inventory_query": null,
+    "cues": {
+      "ticket_id": 94,
+      "ticket_word": true,
+      "live_state": true,
+      "inventory": false,
+      "knowledge": false
+    }
+  },
+  "sources_used": [
+    {
+      "source": "tool:tickets",
+      "node": "lookup_tickets",
+      "order": 3,
+      "outcome": "ok",
+      "error": null
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "node": "receive_question",
+      "started_at": "2026-11-09T14:21:01.263+00:00",
+      "input": {
+        "question": "¿En qué estado está el ticket 94?"
+      },
+      "output": {
+        "question": "¿En qué estado está el ticket 94?",
+        "status": "received"
+      },
+      "error": null,
+      "duration_ms": 0.003
+    },
+    {
+      "order": 2,
+      "node": "route_question",
+      "started_at": "2026-11-09T14:21:01.264+00:00",
+      "input": {
+        "question": "¿En qué estado está el ticket 94?",
+        "status": "received"
+      },
+      "output": {
+        "route": {
+          "sources": [
+            "tickets"
+          ],
+          "reason": "La pregunta pide el estado de tickets en vivo (ticket 94).",
+          "ticket_query": {
+            "ticket_id": 94
+          },
+          "inventory_query": null,
+          "cues": {
+            "ticket_id": 94,
+            "ticket_word": true,
+            "live_state": true,
+            "inventory": false,
+            "knowledge": false
+          }
+        }
+      },
+      "error": null,
+      "duration_ms": 0.079
+    },
+    {
+      "order": 3,
+      "node": "lookup_tickets",
+      "started_at": "2026-11-09T14:21:01.264+00:00",
+      "input": {
+        "question": "¿En qué estado está el ticket 94?",
+        "status": "received",
+        "route": {
+          "sources": [
+            "tickets"
+          ],
+          "reason": "La pregunta pide el estado de tickets en vivo (ticket 94).",
+          "ticket_query": {
+            "ticket_id": 94
+          },
+          "inventory_query": null,
+          "cues": {
+            "ticket_id": 94,
+            "ticket_word": true,
+            "live_state": true,
+            "inventory": false,
+            "knowledge": false
+          }
+        }
+      },
+      "output": {
+        "tool_results": [
+          {
+            "tool": "tickets",
+            "outcome": "ok",
+            "result": {
+              "outcome": "ok",
+              "tickets": [
+                {
+                  "id": 94,
+                  "title": "Nevera averiada",
+                  "description": "La nevera de la cocina dejó de enfriar.",
+                  "category": "Queja",
+                  "origin": "branch",
+                  "branch": "central",
+                  "status": "open",
+                  "created_at": "2026-10-07T15:20:26.694985Z",
+                  "updated_at": "2026-10-07T15:20:26.694985Z"
+                }
+              ],
+              "total": 1,
+              "error": null
+            },
+            "query": {
+              "ticket_id": 94,
+              "status": null,
+              "limit": 5
+            }
+          }
+        ]
+      },
+      "error": null,
+      "duration_ms": 360.634
+    },
+    {
+      "order": 4,
+      "node": "generate_answer",
+      "started_at": "2026-11-09T14:21:01.626+00:00",
+      "input": {
+        "question": "¿En qué estado está el ticket 94?",
+        "status": "received",
+        "route": {
+          "sources": [
+            "tickets"
+          ],
+          "reason": "La pregunta pide el estado de tickets en vivo (ticket 94).",
+          "ticket_query": {
+            "ticket_id": 94
+          },
+          "inventory_query": null,
+          "cues": {
+            "ticket_id": 94,
+            "ticket_word": true,
+            "live_state": true,
+            "inventory": false,
+            "knowledge": false
+          }
+        },
+        "tool_results": [
+          {
+            "tool": "tickets",
+            "outcome": "ok",
+            "result": {
+              "outcome": "ok",
+              "tickets": [
+                {
+                  "id": 94,
+                  "title": "Nevera averiada",
+                  "description": "La nevera de la cocina dejó de enfriar.",
+                  "category": "Queja",
+                  "origin": "branch",
+                  "branch": "central",
+                  "status": "open",
+                  "created_at": "2026-10-07T15:20:26.694985Z",
+                  "updated_at": "2026-10-07T15:20:26.694985Z"
+                }
+              ],
+              "total": 1,
+              "error": null
+            },
+            "query": {
+              "ticket_id": 94,
+              "status": null,
+              "limit": 5
+            }
+          }
+        ]
+      },
+      "output": {
+        "answer": "El ticket 94 está **abierto**.\n\nFuente: gestor-de-incidentes (consulta en vivo) — Ticket 94",
+        "status": "answered"
+      },
+      "error": null,
+      "duration_ms": 41246.505
+    }
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_id": "1f1dc48c-a28b-6171-bfff-5f3342e9789d",
+      "step": -1,
+      "next": [
+        "__start__"
+      ],
+      "state_keys": []
+    },
+    {
+      "checkpoint_id": "1f1dc48c-a28d-6397-8000-6f6377aff76a",
+      "step": 0,
+      "next": [
+        "receive_question"
+      ],
+      "state_keys": [
+        "question"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc48c-a28f-6c0a-8001-7763465d2acf",
+      "step": 1,
+      "next": [
+        "route_question"
+      ],
+      "state_keys": [
+        "question",
+        "status"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc48c-a291-6db9-8002-4e4cb41b971e",
+      "step": 2,
+      "next": [
+        "lookup_tickets"
+      ],
+      "state_keys": [
+        "question",
+        "route",
+        "status"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc48c-a605-62db-8003-937f5ae4625f",
+      "step": 3,
+      "next": [
+        "generate_answer"
+      ],
+      "state_keys": [
+        "question",
+        "route",
+        "status",
+        "tool_results"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc48e-2f62-6cb4-8004-f97613c6f9b6",
+      "step": 4,
+      "next": [],
+      "state_keys": [
+        "answer",
+        "question",
+        "route",
+        "status",
+        "tool_results"
+      ]
+    }
+  ],
+  "final_state": {
+    "question": "¿En qué estado está el ticket 94?",
+    "answer": "El ticket 94 está **abierto**.\n\nFuente: gestor-de-incidentes (consulta en vivo) — Ticket 94",
+    "status": "answered",
+    "route": {
+      "sources": [
+        "tickets"
+      ],
+      "reason": "La pregunta pide el estado de tickets en vivo (ticket 94).",
+      "ticket_query": {
+        "ticket_id": 94
+      },
+      "inventory_query": null,
+      "cues": {
+        "ticket_id": 94,
+        "ticket_word": true,
+        "live_state": true,
+        "inventory": false,
+        "knowledge": false
+      }
+    },
+    "tool_results": [
+      {
+        "tool": "tickets",
+        "outcome": "ok",
+        "result": {
+          "outcome": "ok",
+          "tickets": [
+            {
+              "id": 94,
+              "title": "Nevera averiada",
+              "description": "La nevera de la cocina dejó de enfriar.",
+              "category": "Queja",
+              "origin": "branch",
+              "branch": "central",
+              "status": "open",
+              "created_at": "2026-10-07T15:20:26.694985Z",
+              "updated_at": "2026-10-07T15:20:26.694985Z"
+            }
+          ],
+          "total": 1,
+          "error": null
+        },
+        "query": {
+          "ticket_id": 94,
+          "status": null,
+          "limit": 5
+        }
+      }
+    ]
+  },
+  "error": null
+}
