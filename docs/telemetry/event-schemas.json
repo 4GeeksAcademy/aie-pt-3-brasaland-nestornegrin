@@ -1,0 +1,3342 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://brasaland.example/telemetry/event-schemas.json",
+  "title": "Brasaland · esquemas de eventos de telemetría",
+  "description": "Un evento válido cumple exactamente UNO de los esquemas de `definitions.events`. Todos comparten el Event Envelope (`definitions.envelope`). Las claves `x-catalog` son metadatos de diseño (hipótesis, decisión, entrega, privacidad) y no participan en la validación.",
+  "x-catalogSummary": {
+    "schemaVersion": "1.1.0",
+    "totalEvents": 31,
+    "mandatoryEvents": 7,
+    "identifiedOpportunities": 24,
+    "categories": [
+      "authentication",
+      "errors",
+      "incidents",
+      "inventory",
+      "navigation",
+      "performance",
+      "suppliers"
+    ],
+    "mandatoryOrigin": "El CONTEXT.es.md del repositorio no define métricas de telemetría; se tratan como obligatorias las que enumera el mensaje del tech lead (ver telemetry-plan.md §1)."
+  },
+  "oneOf": [
+    {
+      "$ref": "#/definitions/events/outbound_order_created"
+    },
+    {
+      "$ref": "#/definitions/events/inventory_validation_failed"
+    },
+    {
+      "$ref": "#/definitions/events/direct_stock_edit_rejected"
+    },
+    {
+      "$ref": "#/definitions/events/stock_threshold_triggered"
+    },
+    {
+      "$ref": "#/definitions/events/login_failed"
+    },
+    {
+      "$ref": "#/definitions/events/navigation_section_viewed"
+    },
+    {
+      "$ref": "#/definitions/events/flow_abandoned"
+    },
+    {
+      "$ref": "#/definitions/events/inbound_order_created"
+    },
+    {
+      "$ref": "#/definitions/events/ingredient_created"
+    },
+    {
+      "$ref": "#/definitions/events/outbound_overdraw_warning_shown"
+    },
+    {
+      "$ref": "#/definitions/events/stock_snapshot_recorded"
+    },
+    {
+      "$ref": "#/definitions/events/incident_created"
+    },
+    {
+      "$ref": "#/definitions/events/incident_status_changed"
+    },
+    {
+      "$ref": "#/definitions/events/incident_csv_analyzed"
+    },
+    {
+      "$ref": "#/definitions/events/incident_list_filtered"
+    },
+    {
+      "$ref": "#/definitions/events/incident_results_exported"
+    },
+    {
+      "$ref": "#/definitions/events/supplier_rate_updated"
+    },
+    {
+      "$ref": "#/definitions/events/login_succeeded"
+    },
+    {
+      "$ref": "#/definitions/events/session_expired"
+    },
+    {
+      "$ref": "#/definitions/events/password_reset_requested"
+    },
+    {
+      "$ref": "#/definitions/events/password_reset_completed"
+    },
+    {
+      "$ref": "#/definitions/events/password_reset_failed"
+    },
+    {
+      "$ref": "#/definitions/events/user_registered"
+    },
+    {
+      "$ref": "#/definitions/events/api_latency_recorded"
+    },
+    {
+      "$ref": "#/definitions/events/web_vital_measured"
+    },
+    {
+      "$ref": "#/definitions/events/api_unhandled_error_raised"
+    },
+    {
+      "$ref": "#/definitions/events/frontend_error_captured"
+    },
+    {
+      "$ref": "#/definitions/events/network_request_failed"
+    },
+    {
+      "$ref": "#/definitions/events/request_validation_failed"
+    },
+    {
+      "$ref": "#/definitions/events/flow_started"
+    },
+    {
+      "$ref": "#/definitions/events/flow_completed"
+    }
+  ],
+  "definitions": {
+    "envelope": {
+      "description": "Event Envelope común: campos obligatorios de todo evento.",
+      "type": "object",
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "schemaVersion",
+        "requestId",
+        "source",
+        "properties"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "description": "Identificador único del evento (UUID v4 generado por el emisor). Sirve para deduplicar reenvíos."
+        },
+        "timestamp": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "description": "Instante en que ocurrió el suceso, ISO 8601 en UTC con milisegundos y sufijo Z (reloj del emisor)."
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^(system|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$",
+          "description": "UUID v4 de la sesión de navegador (se genera al abrir la pestaña y se guarda en sessionStorage; viaja en la cabecera X-Session-Id). `system` en eventos de tareas programadas."
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^(anonymous|system|deleted|[0-9]+)$",
+          "description": "`UserRecord.id` (entero) como texto; `anonymous` antes de autenticarse; `system` en tareas programadas; `deleted` en eventos históricos de un usuario que se dio de baja (se reescribe al borrar la cuenta). Es un identificador seudónimo."
+        },
+        "event_type": {
+          "type": "string",
+          "pattern": "^[a-z]+(_[a-z]+)+$",
+          "description": "Tipo de evento con taxonomía `entidad_acción`, en minúsculas y snake_case; la última palabra es un verbo de la lista cerrada."
+        },
+        "schemaVersion": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Versión semántica del esquema de este evento."
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "description": "UUID v4 que une frontend, backend y logs. Lo genera el cliente por petición y viaja en X-Request-ID; si falta o no es un UUID, el middleware genera uno. Los eventos de tareas programadas usan un UUID por ejecución."
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "backend",
+            "frontend",
+            "job"
+          ],
+          "description": "Componente que emite el evento."
+        },
+        "properties": {
+          "type": "object",
+          "description": "Payload específico del evento; cada evento define su allowlist."
+        }
+      }
+    },
+    "events": {
+      "outbound_order_created": {
+        "title": "outbound_order_created",
+        "description": "Capturamos outbound_order_created porque necesitamos saber cuántas órdenes de salida se registran por día, restaurante e insumo, y si ese volumen refleja el consumo real de cocina o mermas, lo que nos permite tomar la decisión de ajustar los pedidos de reposición por restaurante y detectar días con consumo anómalo.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "outbound_order_created"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "exitId",
+              "ingredientId",
+              "restaurant",
+              "quantity",
+              "stockBefore",
+              "stockAfter",
+              "reasonProvided"
+            ],
+            "properties": {
+              "exitId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "`IngredientExit.id` de la orden creada."
+              },
+              "ingredientId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "`Ingredient.id`."
+              },
+              "restaurant": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "`Ingredient.restaurant` (uno de los 14 restaurantes)."
+              },
+              "quantity": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Cantidad retirada (> 0)."
+              },
+              "stockBefore": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Stock del insumo justo antes de la orden."
+              },
+              "stockAfter": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Stock tras la orden (≥ 0 por la regla de negocio)."
+              },
+              "reasonProvided": {
+                "type": "boolean",
+                "description": "Si el usuario escribió un motivo (el texto no se emite)."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "obligatorio",
+          "category": "inventory",
+          "hypothesis": "cuántas órdenes de salida se registran por día, restaurante e insumo, y si ese volumen refleja el consumo real de cocina o mermas",
+          "decision": "ajustar los pedidos de reposición por restaurante y detectar días con consumo anómalo",
+          "currentSituation": "Pregunta literal del tech lead («¿cuántas órdenes de salida se registran por día?»). Hoy solo se puede contar con una consulta manual a la base de datos.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "cada hora",
+            "justification": "La pregunta de operaciones es «cuántas órdenes de salida por día»: una cifra diaria no cambia ninguna decisión en segundos; un corte horario alimenta el panel del turno sin coste de streaming."
+          },
+          "throttle": "Ninguno: una orden = un evento (baja frecuencia, se crea desde un formulario).",
+          "pii": "Sin PII. `reason` (texto libre) **no** se captura: puede contener nombres o datos personales; solo `reasonProvided`.",
+          "emittedAt": "`services/api/app/inventory/routes.py` → `create_outbound_order`, justo después de `session.commit()`. `stockBefore` es el `current_stock` ya calculado para validar; `stockAfter = stockBefore − quantity`."
+        }
+      },
+      "inventory_validation_failed": {
+        "title": "inventory_validation_failed",
+        "description": "Capturamos inventory_validation_failed porque necesitamos saber qué productos acumulan más errores de validación y si esos rechazos se concentran en pocos insumos, lo que nos permite tomar la decisión de dar un stock de seguridad mayor o corregir los datos maestros de esos insumos, y decidir si hay que bloquear antes en la interfaz.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "inventory_validation_failed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "operation",
+              "errorCode",
+              "httpStatus"
+            ],
+            "properties": {
+              "operation": {
+                "type": "string",
+                "enum": [
+                  "inbound_order",
+                  "outbound_order"
+                ],
+                "description": "Operación rechazada."
+              },
+              "errorCode": {
+                "type": "string",
+                "enum": [
+                  "insufficient_stock",
+                  "ingredient_not_found",
+                  "invalid_quantity",
+                  "invalid_payload"
+                ],
+                "description": "Causa normalizada."
+              },
+              "httpStatus": {
+                "type": "integer",
+                "enum": [
+                  400,
+                  404
+                ],
+                "description": "Código HTTP devuelto."
+              },
+              "ingredientId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Insumo implicado; ausente si el cuerpo no trae un id válido."
+              },
+              "restaurant": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Restaurante del insumo, solo si el insumo existe."
+              },
+              "requestedQuantity": {
+                "type": "number",
+                "description": "Cantidad pedida, si es numérica."
+              },
+              "availableStock": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Stock disponible; solo con `insufficient_stock`."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "obligatorio",
+          "category": "inventory",
+          "hypothesis": "qué productos acumulan más errores de validación y si esos rechazos se concentran en pocos insumos",
+          "decision": "dar un stock de seguridad mayor o corregir los datos maestros de esos insumos, y decidir si hay que bloquear antes en la interfaz",
+          "currentSituation": "Pregunta literal del tech lead («¿qué productos acumulan más errores de validación?»). Hoy los rechazos devuelven 400/404 al cliente y no dejan rastro agregable.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Se analiza como ranking semanal de insumos problemáticos; nadie actúa sobre un rechazo concreto en minutos."
+          },
+          "throttle": "Ninguno. Nota: la interfaz ya bloquea el envío si la cantidad supera el stock mostrado, así que un `insufficient_stock` que llega al servidor indica una carrera (el stock cambió después de leerlo) o un cliente que no usa la interfaz.",
+          "pii": "Sin PII. El texto del error HTTP (`detail`) **no** se captura: incluye el nombre del insumo y del restaurante en texto libre.",
+          "emittedAt": "`inventory/routes.py` → ramas `404` de `create_inbound_order`/`create_outbound_order` y `400` de stock insuficiente; y el handler `RequestValidationError` de `main.py` cuando la ruta es `/inventory/orders/inbound` o `/inventory/orders/outbound` (`invalid_quantity` si el error es del campo `quantity`, `invalid_payload` en otro caso). Este evento **sustituye** a `request_validation_failed` en esas dos rutas (no se emiten los dos)."
+        }
+      },
+      "direct_stock_edit_rejected": {
+        "title": "direct_stock_edit_rejected",
+        "description": "Capturamos direct_stock_edit_rejected porque necesitamos saber si hay usuarios o clientes que intentan fijar el stock directamente en lugar de usar órdenes de entrada y salida, y cuántas veces lo repiten, lo que nos permite tomar la decisión de dar formación, crear un flujo oficial de «ajuste de inventario» (con motivo y aprobación) o alertar de seguridad sobre esa cuenta.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "direct_stock_edit_rejected"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "attemptKind",
+              "httpMethod",
+              "routeTemplate",
+              "httpStatus"
+            ],
+            "properties": {
+              "attemptKind": {
+                "type": "string",
+                "enum": [
+                  "extra_field_on_create",
+                  "unsupported_method"
+                ],
+                "description": "Cómo se intentó."
+              },
+              "httpMethod": {
+                "type": "string",
+                "enum": [
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE"
+                ],
+                "description": "Método HTTP usado."
+              },
+              "routeTemplate": {
+                "type": "string",
+                "enum": [
+                  "/inventory/products",
+                  "/inventory/products/{ingredient_id}"
+                ],
+                "description": "Plantilla de ruta (nunca la ruta con ids)."
+              },
+              "httpStatus": {
+                "type": "integer",
+                "enum": [
+                  400,
+                  405
+                ],
+                "description": "Código devuelto."
+              },
+              "offendingFields": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "current_stock",
+                    "stock",
+                    "quantity"
+                  ]
+                },
+                "uniqueItems": true,
+                "minItems": 1,
+                "description": "Campos de stock enviados (solo `attemptKind = extra_field_on_create`)."
+              },
+              "ingredientId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Insumo de la ruta, si el intento fue contra `/{ingredient_id}`."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "obligatorio",
+          "category": "inventory",
+          "hypothesis": "si hay usuarios o clientes que intentan fijar el stock directamente en lugar de usar órdenes de entrada y salida, y cuántas veces lo repiten",
+          "decision": "dar formación, crear un flujo oficial de «ajuste de inventario» (con motivo y aprobación) o alertar de seguridad sobre esa cuenta",
+          "currentSituation": "Pregunta literal del tech lead («¿hay usuarios intentando modificar el stock directamente y siendo rechazados?»). La regla del CONTEXT es que el stock solo cambia por órdenes trazables; hoy el rechazo (400 o 405) no se registra.",
+          "delivery": {
+            "mode": "stream",
+            "cadence": "≤ 60 s",
+            "justification": "Es una señal de integridad: intentar saltarse la regla «el stock solo cambia por órdenes» una vez es una duda; repetido en minutos desde la misma cuenta puede ser un error de integración o un uso indebido, y hay que poder avisar mientras ocurre."
+          },
+          "throttle": "Sin throttle (evento raro). El procesador de stream agrupa por `userId` y avisa a partir de 3 intentos en 10 minutos.",
+          "pii": "Sin PII. Solo se guardan los **nombres** de los campos ofensivos (lista cerrada), nunca sus valores.",
+          "emittedAt": "Dos puntos: (a) handler `RequestValidationError` de `main.py`: ruta `/inventory/products`, error de tipo `extra_forbidden` cuyo campo sea `current_stock`, `stock` o `quantity` (`IngredientCreate` usa `extra=\"forbid\"`); (b) nuevo handler de `StarletteHTTPException` para `405` en `/inventory/products` y `/inventory/products/{ingredient_id}` con método `PUT`, `PATCH` o `DELETE` (hoy esas rutas no existen y Starlette responde 405). Cualquier otro campo extra va a `request_validation_failed`."
+        }
+      },
+      "stock_threshold_triggered": {
+        "title": "stock_threshold_triggered",
+        "description": "Capturamos stock_threshold_triggered porque necesitamos saber cuándo y dónde se disparan más las alertas de stock mínimo, y si la reposición llega tarde en ciertos restaurantes u horarios, lo que nos permite tomar la decisión de avisar de inmediato al encargado del restaurante para pedir reposición y, a medio plazo, redefinir umbrales y frecuencia de pedido por restaurante.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "stock_threshold_triggered"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ingredientId",
+              "restaurant",
+              "level",
+              "thresholdValue",
+              "stockBefore",
+              "stockAfter",
+              "triggeringExitId"
+            ],
+            "properties": {
+              "ingredientId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Insumo afectado."
+              },
+              "restaurant": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Restaurante del insumo."
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "critical"
+                ],
+                "description": "Umbral cruzado."
+              },
+              "thresholdValue": {
+                "type": "number",
+                "enum": [
+                  30,
+                  10
+                ],
+                "description": "Valor del umbral cruzado (30 o 10 en la v1)."
+              },
+              "stockBefore": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Stock antes de la orden."
+              },
+              "stockAfter": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Stock después de la orden."
+              },
+              "triggeringExitId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "`IngredientExit.id` que provocó el cruce."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "obligatorio",
+          "category": "inventory",
+          "hypothesis": "cuándo y dónde se disparan más las alertas de stock mínimo, y si la reposición llega tarde en ciertos restaurantes u horarios",
+          "decision": "avisar de inmediato al encargado del restaurante para pedir reposición y, a medio plazo, redefinir umbrales y frecuencia de pedido por restaurante",
+          "currentSituation": "Pregunta literal del tech lead («¿cuándo se disparan más las alertas de stock mínimo?»). Hoy el umbral (10 y 30) solo existe en el frontend, solo colorea una tabla y no genera ningún aviso ni registro.",
+          "delivery": {
+            "mode": "stream",
+            "cadence": "≤ 60 s",
+            "justification": "Un restaurante sin un ingrediente base para la brasa no puede servir: la reposición se pide en horas, así que el aviso al encargado debe llegar en menos de un minuto; un informe diario llegaría después de que se agote."
+          },
+          "throttle": "Disparo por **cruce** (edge-triggered), no por nivel: no se repite mientras el stock siga por debajo; solo se vuelve a emitir tras recuperarse por encima del umbral. Evita inundar el canal con cada lectura.",
+          "pii": "Sin PII.",
+          "emittedAt": "`create_outbound_order`, tras `commit()`: se emite cuando el stock **cruza hacia abajo** un umbral (`stockBefore > T` y `stockAfter ≤ T`). Umbrales: `T = 30` → `low`, `T = 10` → `critical` (los de `LOW_STOCK_THRESHOLD`/`HEALTHY_STOCK_THRESHOLD` de `uis/backoffice/lib/inventory.ts`, que hoy solo existen en el frontend). Si una orden cruza ambos, se emite solo `critical`. No se emite al leer ni al crear un insumo (nace con stock 0)."
+        }
+      },
+      "login_failed": {
+        "title": "login_failed",
+        "description": "Capturamos login_failed porque necesitamos saber cuántos intentos de login fallidos hay por día y si son olvidos de contraseña (pocos intentos por cuenta) o ataques de relleno de credenciales (muchas cuentas desde un mismo origen), lo que nos permite tomar la decisión de activar un bloqueo temporal o limitación de intentos y reforzar el flujo de recuperación de contraseña.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "login_failed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "failureReason"
+            ],
+            "properties": {
+              "failureReason": {
+                "type": "string",
+                "enum": [
+                  "unknown_account",
+                  "wrong_password",
+                  "invalid_credentials",
+                  "network_error",
+                  "server_error"
+                ],
+                "description": "Causa. Backend: `unknown_account`/`wrong_password` (nunca se devuelve al cliente). Frontend: `invalid_credentials` (401), `network_error` (sin respuesta), `server_error` (otro estado)."
+              },
+              "accountKey": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$",
+                "description": "HMAC truncado del email intentado (16 hex)."
+              },
+              "sourceKey": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$",
+                "description": "HMAC truncado de la IP, clave rotada a diario (16 hex)."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "obligatorio",
+          "category": "authentication",
+          "hypothesis": "cuántos intentos de login fallidos hay por día y si son olvidos de contraseña (pocos intentos por cuenta) o ataques de relleno de credenciales (muchas cuentas desde un mismo origen)",
+          "decision": "activar un bloqueo temporal o limitación de intentos y reforzar el flujo de recuperación de contraseña",
+          "currentSituation": "Pregunta literal del tech lead («¿cuántos intentos de login fallidos hay por día?»). Hoy `POST /auth/login` no limita intentos ni deja rastro de ellos.",
+          "delivery": {
+            "mode": "stream",
+            "cadence": "≤ 60 s",
+            "justification": "Detectar relleno de credenciales requiere contar intentos por ventana de minutos; con un informe diario el ataque ya habría terminado."
+          },
+          "throttle": "Sin throttle: es baja frecuencia y cada intento cuenta. Si hubiera un ataque, el procesador agrega y el almacenamiento aplica el tope de volumen (ver sección 7).",
+          "pii": "**Sí, seudonimizado.** Nunca se guarda el email ni la IP. `accountKey` = primeros 16 hex de HMAC-SHA256(email en minúsculas, clave secreta de telemetría); `sourceKey` = ídem sobre la IP con una clave que rota cada día (permite correlacionar dentro del día, no seguir a una persona entre días). `userId` es siempre `anonymous` (una identificación fallida no es una sesión).",
+          "emittedAt": "`services/api/app/auth/routes.py` → `login`, en la rama que lanza el `401`. Hoy el endpoint no limita intentos ni deja rastro de ellos."
+        }
+      },
+      "navigation_section_viewed": {
+        "title": "navigation_section_viewed",
+        "description": "Capturamos navigation_section_viewed porque necesitamos saber qué secciones visitan más los operadores y cuáles casi no se usan, lo que nos permite tomar la decisión de priorizar qué secciones mejorar o simplificar y qué colocar primero en el menú.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "navigation_section_viewed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "section",
+              "entryKind"
+            ],
+            "properties": {
+              "section": {
+                "type": "string",
+                "enum": [
+                  "dashboard",
+                  "suppliers",
+                  "incident_analysis",
+                  "incidents_manager",
+                  "incident_new",
+                  "inventory_products",
+                  "inventory_orders",
+                  "inventory_inbound",
+                  "inventory_outbound",
+                  "account_profile",
+                  "account_password",
+                  "login",
+                  "register",
+                  "forgot_password",
+                  "reset_password"
+                ],
+                "description": "Sección vista."
+              },
+              "previousSection": {
+                "type": "string",
+                "enum": [
+                  "dashboard",
+                  "suppliers",
+                  "incident_analysis",
+                  "incidents_manager",
+                  "incident_new",
+                  "inventory_products",
+                  "inventory_orders",
+                  "inventory_inbound",
+                  "inventory_outbound",
+                  "account_profile",
+                  "account_password",
+                  "login",
+                  "register",
+                  "forgot_password",
+                  "reset_password"
+                ],
+                "description": "Sección anterior en la sesión; ausente en la primera."
+              },
+              "entryKind": {
+                "type": "string",
+                "enum": [
+                  "menu_click",
+                  "direct_url",
+                  "redirect",
+                  "anchor_link",
+                  "scroll_into_view"
+                ],
+                "description": "Cómo se llegó."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "obligatorio",
+          "category": "navigation",
+          "hypothesis": "qué secciones visitan más los operadores y cuáles casi no se usan",
+          "decision": "priorizar qué secciones mejorar o simplificar y qué colocar primero en el menú",
+          "currentSituation": "Pregunta literal del tech lead («¿qué secciones visitan más los operadores?»). Hoy no hay ninguna medición de uso del backoffice.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Es una pregunta de producto de largo plazo (qué secciones mantener): una agregación diaria basta."
+          },
+          "throttle": "Deduplicar: misma sección dentro de 30 s (re-render, cambio de hash, volver a la pestaña) no vuelve a emitir.",
+          "pii": "Sin PII. Solo valores de una lista cerrada; nunca la URL completa ni la query string.",
+          "emittedAt": "Hook de cliente `useTrackSectionView(section)` en cada `app/**/page.tsx`, una vez la sesión está autorizada (tras `AuthGuard`). En la home, `suppliers` e `incident_analysis` emiten cuando la sección se hace visible: si el PR #12 (caché y carga diferida) está fusionado, desde el callback de visibilidad de `DeferUntilVisible`; si no, al montarse cada sección."
+        }
+      },
+      "flow_abandoned": {
+        "title": "flow_abandoned",
+        "description": "Capturamos flow_abandoned porque necesitamos saber qué flujos se abandonan a la mitad, en qué punto y por qué desencadenante, lo que nos permite tomar la decisión de simplificar el formulario que más abandona, adelantar validaciones y revisar si la caducidad de sesión (30 min) interrumpe trabajo a medias.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "flow_abandoned"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "flow",
+              "flowInstanceId",
+              "lastStep",
+              "fieldsTouchedCount",
+              "elapsedMs",
+              "exitTrigger",
+              "hadSubmitError"
+            ],
+            "properties": {
+              "flow": {
+                "type": "string",
+                "enum": [
+                  "outbound_order",
+                  "inbound_order",
+                  "incident_report",
+                  "csv_analysis",
+                  "registration",
+                  "password_reset",
+                  "password_change"
+                ],
+                "description": "Flujo abandonado."
+              },
+              "flowInstanceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "description": "UUID de la instancia, el mismo de `flow_started`."
+              },
+              "lastStep": {
+                "type": "string",
+                "enum": [
+                  "editing",
+                  "ready_to_submit",
+                  "submit_rejected"
+                ],
+                "description": "Último estado alcanzado."
+              },
+              "fieldsTouchedCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Cuántos campos modificó el usuario."
+              },
+              "elapsedMs": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Milisegundos desde `flow_started`."
+              },
+              "exitTrigger": {
+                "type": "string",
+                "enum": [
+                  "navigation_away",
+                  "tab_closed",
+                  "session_expired",
+                  "idle_timeout"
+                ],
+                "description": "Qué provocó la salida."
+              },
+              "hadSubmitError": {
+                "type": "boolean",
+                "description": "Si el servidor rechazó al menos un envío antes de salir."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "obligatorio",
+          "category": "navigation",
+          "hypothesis": "qué flujos se abandonan a la mitad, en qué punto y por qué desencadenante",
+          "decision": "simplificar el formulario que más abandona, adelantar validaciones y revisar si la caducidad de sesión (30 min) interrumpe trabajo a medias",
+          "currentSituation": "Pregunta literal del tech lead («¿hay flujos que se abandonan a la mitad?»). Hoy un formulario a medias que se descarta es invisible.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "El abandono se estudia sobre cientos de casos para rediseñar un formulario; ninguna acción depende de saberlo al instante."
+          },
+          "throttle": "Una emisión por instancia de flujo; se envía con `navigator.sendBeacon` para no perderlo al cerrar la pestaña.",
+          "pii": "Sin PII. **No** se envían valores de los campos: solo cuántos se tocaron.",
+          "emittedAt": "Hook `useFlowTracking(flow)` en los formularios (ver `flow_started`). Se emite una vez por `flowInstanceId` si el usuario sale (cambio de ruta, cierre de pestaña vía `pagehide`, caducidad de sesión o 10 min sin actividad) con el formulario modificado y sin `flow_completed`."
+        }
+      },
+      "inbound_order_created": {
+        "title": "inbound_order_created",
+        "description": "Capturamos inbound_order_created porque necesitamos saber cuánto stock entra por insumo y restaurante y qué proporción de entradas se registra sin proveedor, lo que nos permite tomar la decisión de hacer obligatorio el proveedor y enlazarlo con el módulo de proveedores para poder medir la fiabilidad de cada uno.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "inbound_order_created"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "backend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entryId",
+              "ingredientId",
+              "restaurant",
+              "quantity",
+              "stockAfter",
+              "supplierProvided"
+            ],
+            "properties": {
+              "entryId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "`IngredientEntry.id`."
+              },
+              "ingredientId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Insumo."
+              },
+              "restaurant": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Restaurante del insumo."
+              },
+              "quantity": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Cantidad recibida (> 0)."
+              },
+              "stockAfter": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Stock tras la entrada."
+              },
+              "supplierProvided": {
+                "type": "boolean",
+                "description": "Si se indicó proveedor."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "inventory",
+          "hypothesis": "cuánto stock entra por insumo y restaurante y qué proporción de entradas se registra sin proveedor",
+          "decision": "hacer obligatorio el proveedor y enlazarlo con el módulo de proveedores para poder medir la fiabilidad de cada uno",
+          "currentSituation": "El campo `supplier` de la entrada es texto libre, opcional y sin enlace al directorio de proveedores: hoy no se puede cruzar una entrada con un proveedor real.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Se usa para planificar compras y negociar con proveedores, decisiones semanales."
+          },
+          "throttle": "Ninguno.",
+          "pii": "Sin PII. El nombre del proveedor (texto libre) no se emite en la v1: solo `supplierProvided`.",
+          "emittedAt": "`create_inbound_order`, tras `commit()`. `stockAfter` requiere llamar a `repository.get_current_stock` una vez más."
+        }
+      },
+      "ingredient_created": {
+        "title": "ingredient_created",
+        "description": "Capturamos ingredient_created porque necesitamos saber quién da de alta insumos y con qué frecuencia, lo que nos permite tomar la decisión de restringir el alta de insumos a administradores o guardar el creador como auditoría.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "ingredient_created"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "backend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ingredientId",
+              "restaurant",
+              "creatorRole"
+            ],
+            "properties": {
+              "ingredientId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Insumo creado."
+              },
+              "restaurant": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Restaurante asignado."
+              },
+              "creatorRole": {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "user"
+                ],
+                "description": "Rol del usuario que lo creó."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "inventory",
+          "hypothesis": "quién da de alta insumos y con qué frecuencia",
+          "decision": "restringir el alta de insumos a administradores o guardar el creador como auditoría",
+          "currentSituation": "`POST /inventory/products` solo exige estar autenticado (no comprueba el rol) y el insumo no guarda quién lo creó, a diferencia de las órdenes, que guardan `user_uuid`.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "El alta de insumos es esporádica; se revisa en el informe diario."
+          },
+          "throttle": "Ninguno.",
+          "pii": "Sin PII. No se emiten `name` ni `sku`.",
+          "emittedAt": "`create_product`, tras `commit()`. Hay que añadir `current_user=Depends(get_current_user)` como parámetro del handler (FastAPI reutiliza la dependencia ya resuelta por el router, sin decodificar el token dos veces)."
+        }
+      },
+      "outbound_overdraw_warning_shown": {
+        "title": "outbound_overdraw_warning_shown",
+        "description": "Capturamos outbound_overdraw_warning_shown porque necesitamos saber con qué frecuencia los operadores piden más cantidad de la disponible, es decir, si el stock que ven no coincide con lo que hay en cocina, lo que nos permite tomar la decisión de añadir un botón «sacar todo lo disponible», un recuento físico periódico o un stock de seguridad visible.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "outbound_overdraw_warning_shown"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ingredientId",
+              "requestedQuantity",
+              "availableStock",
+              "trigger"
+            ],
+            "properties": {
+              "ingredientId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Insumo seleccionado."
+              },
+              "requestedQuantity": {
+                "type": "number",
+                "description": "Cantidad escrita."
+              },
+              "availableStock": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Stock que mostraba la interfaz."
+              },
+              "trigger": {
+                "type": "string",
+                "enum": [
+                  "typing",
+                  "submit_blocked"
+                ],
+                "description": "Qué lo provocó."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "inventory",
+          "hypothesis": "con qué frecuencia los operadores piden más cantidad de la disponible, es decir, si el stock que ven no coincide con lo que hay en cocina",
+          "decision": "añadir un botón «sacar todo lo disponible», un recuento físico periódico o un stock de seguridad visible",
+          "currentSituation": "El formulario de salida ya avisa y bloquea el envío si la cantidad supera el stock mostrado, pero ese aviso no se mide.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Mide un hábito de uso (cuántas veces se corrige a mano), no una urgencia."
+          },
+          "throttle": "Debounce de 1 s tras dejar de teclear; como máximo una vez por insumo y por apertura del formulario.",
+          "pii": "Sin PII.",
+          "emittedAt": "`uis/backoffice/components/inventory-outbound-form.tsx`: cuando `quantityExceedsStock` pasa a verdadero (`trigger = typing`) y cuando `submit` se interrumpe por esa causa (`trigger = submit_blocked`)."
+        }
+      },
+      "stock_snapshot_recorded": {
+        "title": "stock_snapshot_recorded",
+        "description": "Capturamos stock_snapshot_recorded porque necesitamos saber cómo evoluciona el nivel de stock por restaurante a lo largo del tiempo y qué restaurantes están crónicamente en nivel bajo, lo que nos permite tomar la decisión de fijar umbrales por restaurante o insumo en lugar de uno global y priorizar la reposición donde el nivel bajo es crónico.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "stock_snapshot_recorded"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "job"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "restaurant",
+              "ingredientsTotal",
+              "zeroCount",
+              "criticalCount",
+              "lowCount",
+              "healthyCount"
+            ],
+            "properties": {
+              "restaurant": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Restaurante agregado."
+              },
+              "ingredientsTotal": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Insumos del restaurante."
+              },
+              "zeroCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Insumos con stock 0."
+              },
+              "criticalCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Insumos con stock ≤ 10 (incluye los de stock 0)."
+              },
+              "lowCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Insumos con stock entre 11 y 30."
+              },
+              "healthyCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Insumos con stock > 30."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "inventory",
+          "hypothesis": "cómo evoluciona el nivel de stock por restaurante a lo largo del tiempo y qué restaurantes están crónicamente en nivel bajo",
+          "decision": "fijar umbrales por restaurante o insumo en lugar de uno global y priorizar la reposición donde el nivel bajo es crónico",
+          "currentSituation": "El stock se calcula al momento (entradas − salidas): no existe histórico, solo el valor de hoy.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Es una foto diaria por definición; su valor está en la serie histórica."
+          },
+          "throttle": "Un evento por restaurante y día (14 al día).",
+          "pii": "Sin PII.",
+          "emittedAt": "Tarea programada diaria a las 02:00 UTC (fuera del servicio web). Agrega `repository.list_ingredients_with_stock` por restaurante con los umbrales de `stock_threshold_triggered`. `sessionId` y `userId` valen `system`; `requestId` es un UUID por ejecución."
+        }
+      },
+      "incident_created": {
+        "title": "incident_created",
+        "description": "Capturamos incident_created porque necesitamos saber cuántas incidencias se crean por sede, origen y categoría, y qué sedes generan más fallos operativos frente a quejas, lo que nos permite tomar la decisión de dirigir mantenimiento o formación a las sedes con más fallos operativos y medir si bajan.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "incident_created"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "incidentId",
+              "category",
+              "origin",
+              "branch"
+            ],
+            "properties": {
+              "incidentId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Id de la incidencia."
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "Queja",
+                  "Solicitud",
+                  "Fallo operativo"
+                ],
+                "description": "Categoría."
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "customer",
+                  "branch",
+                  "internal"
+                ],
+                "description": "Origen."
+              },
+              "branch": {
+                "type": "string",
+                "enum": [
+                  "central",
+                  "Brasaland El Poblado",
+                  "Brasaland Laureles",
+                  "Brasaland Envigado",
+                  "Brasaland Sabaneta",
+                  "Brasaland Usaquén",
+                  "Brasaland Chapinero",
+                  "Brasaland Zona Rosa",
+                  "Brasaland Granada",
+                  "Brasaland Ciudad Jardín",
+                  "Brasaland Unicentro",
+                  "Brasaland Brickell",
+                  "Brasaland Coral Gables",
+                  "Brasaland Downtown",
+                  "Brasaland International Drive"
+                ],
+                "description": "Sede."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "incidents",
+          "hypothesis": "cuántas incidencias se crean por sede, origen y categoría, y qué sedes generan más fallos operativos frente a quejas",
+          "decision": "dirigir mantenimiento o formación a las sedes con más fallos operativos y medir si bajan",
+          "currentSituation": "El panel de incidencias muestra el estado actual, no la tasa de creación a lo largo del tiempo.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "La asignación de recursos se revisa por semanas, no por minutos."
+          },
+          "throttle": "Ninguno.",
+          "pii": "**Ni `title` ni `description` se emiten**: en incidencias de clientes pueden contener nombres, teléfonos o emails.",
+          "emittedAt": "`services/api/app/incidents/routes.py` → `create_incident`, tras guardar."
+        }
+      },
+      "incident_status_changed": {
+        "title": "incident_status_changed",
+        "description": "Capturamos incident_status_changed porque necesitamos saber cuánto tarda una incidencia en resolverse según su categoría y cuántas se descartan, lo que nos permite tomar la decisión de definir un objetivo de tiempo de resolución por categoría y escalar las que lo superen.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "incident_status_changed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "incidentId",
+              "fromStatus",
+              "toStatus",
+              "category",
+              "ageHours"
+            ],
+            "properties": {
+              "incidentId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Incidencia."
+              },
+              "fromStatus": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "in_progress",
+                  "resolved",
+                  "discarded"
+                ],
+                "description": "Estado anterior."
+              },
+              "toStatus": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "in_progress",
+                  "resolved",
+                  "discarded"
+                ],
+                "description": "Estado nuevo."
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "Queja",
+                  "Solicitud",
+                  "Fallo operativo"
+                ],
+                "description": "Categoría de la incidencia."
+              },
+              "ageHours": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Horas desde la creación hasta el cambio."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "incidents",
+          "hypothesis": "cuánto tarda una incidencia en resolverse según su categoría y cuántas se descartan",
+          "decision": "definir un objetivo de tiempo de resolución por categoría y escalar las que lo superen",
+          "currentSituation": "Se guardan el estado actual y las fechas, pero no se calcula ningún tiempo de resolución.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "cada hora",
+            "justification": "El tiempo de resolución alimenta un panel de seguimiento durante la jornada; no requiere segundos."
+          },
+          "throttle": "Ninguno.",
+          "pii": "Sin PII.",
+          "emittedAt": "`update_incident_status`, solo cuando el estado cambia de verdad (el caso sin cambio no emite, igual que no invalida la caché)."
+        }
+      },
+      "incident_csv_analyzed": {
+        "title": "incident_csv_analyzed",
+        "description": "Capturamos incident_csv_analyzed porque necesitamos saber con qué frecuencia el CSV se rechaza o trae una proporción alta de filas inválidas, lo que nos permite tomar la decisión de arreglar la exportación de origen o mejorar los mensajes de validación del análisis.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "incident_csv_analyzed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "outcome",
+              "durationMs"
+            ],
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "analyzed",
+                  "rejected_extension",
+                  "rejected_empty",
+                  "rejected_encoding",
+                  "rejected_format"
+                ],
+                "description": "Resultado."
+              },
+              "fileSizeBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tamaño del fichero (si se leyó)."
+              },
+              "totalRows": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Filas procesadas (solo `analyzed`)."
+              },
+              "invalidRows": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Filas inválidas (solo `analyzed`)."
+              },
+              "durationMs": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Duración del análisis en servidor."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "incidents",
+          "hypothesis": "con qué frecuencia el CSV se rechaza o trae una proporción alta de filas inválidas",
+          "decision": "arreglar la exportación de origen o mejorar los mensajes de validación del análisis",
+          "currentSituation": "El análisis devuelve conteos al usuario pero no queda registro de cuántos ficheros fallan ni por qué.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Se revisa la calidad de los ficheros por semanas."
+          },
+          "throttle": "Ninguno.",
+          "pii": "**No** se emiten nombre de fichero ni filas (pueden contener datos de clientes); solo conteos y tamaño.",
+          "emittedAt": "`services/api/app/main.py` → `analyze_incidents`, en todas sus salidas (éxito y los cuatro rechazos: extensión, vacío, codificación, formato)."
+        }
+      },
+      "incident_list_filtered": {
+        "title": "incident_list_filtered",
+        "description": "Capturamos incident_list_filtered porque necesitamos saber qué filtros aplican los usuarios al listar incidencias y si repiten siempre los mismos, lo que nos permite tomar la decisión de cambiar los filtros por defecto o guardar vistas por usuario.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "incident_list_filtered"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "filtersApplied",
+              "resultCount"
+            ],
+            "properties": {
+              "filtersApplied": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "status",
+                    "origin",
+                    "branch"
+                  ]
+                },
+                "uniqueItems": true,
+                "description": "Filtros activos tras el cambio (vacío = restablecer)."
+              },
+              "resultCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Filas devueltas."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "incidents",
+          "hypothesis": "qué filtros aplican los usuarios al listar incidencias y si repiten siempre los mismos",
+          "decision": "cambiar los filtros por defecto o guardar vistas por usuario",
+          "currentSituation": "La vista por defecto muestra todas las incidencias; no sabemos si esa es la que necesitan.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Decide el diseño de la vista por defecto; no es urgente."
+          },
+          "throttle": "Debounce de 800 ms para no emitir en cada cambio intermedio.",
+          "pii": "Sin PII. Solo qué filtros se usaron, no los valores libres (no hay filtros de texto libre).",
+          "emittedAt": "`uis/backoffice/components/incident-list-panel.tsx`, al cambiar cualquier filtro."
+        }
+      },
+      "incident_results_exported": {
+        "title": "incident_results_exported",
+        "description": "Capturamos incident_results_exported porque necesitamos saber si exportar el resultado del análisis a CSV es un paso habitual, lo que nos permite tomar la decisión de construir un informe o panel recurrente en lugar de exportaciones manuales.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "incident_results_exported"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "backend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "outcome"
+            ],
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "downloaded",
+                  "no_analysis_available"
+                ],
+                "description": "Resultado."
+              },
+              "rowCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Filas exportadas (solo `downloaded`)."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "incidents",
+          "hypothesis": "si exportar el resultado del análisis a CSV es un paso habitual",
+          "decision": "construir un informe o panel recurrente en lugar de exportaciones manuales",
+          "currentSituation": "`GET /api/incidents/results/export` existe pero no sabemos si se usa.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Es una señal de producto, no operativa."
+          },
+          "throttle": "Ninguno.",
+          "pii": "Sin PII (el CSV exportado ya excluye datos de clientes; el evento solo cuenta filas).",
+          "emittedAt": "`main.py` → `export_latest_results`, en la descarga correcta y en el `404` «todavía no hay análisis»."
+        }
+      },
+      "supplier_rate_updated": {
+        "title": "supplier_rate_updated",
+        "description": "Capturamos supplier_rate_updated porque necesitamos saber con qué frecuencia se editan las tarifas de los proveedores y de cuánto son los cambios, lo que nos permite tomar la decisión de añadir historial de tarifas con auditoría y alertar cuando un cambio supere un porcentaje.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "supplier_rate_updated"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "backend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "supplierId",
+              "country",
+              "previousRate",
+              "newRate"
+            ],
+            "properties": {
+              "supplierId": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Proveedor."
+              },
+              "country": {
+                "type": "string",
+                "enum": [
+                  "Colombia",
+                  "Estados Unidos"
+                ],
+                "description": "País del proveedor."
+              },
+              "previousRate": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Tarifa anterior."
+              },
+              "newRate": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Tarifa nueva."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "suppliers",
+          "hypothesis": "con qué frecuencia se editan las tarifas de los proveedores y de cuánto son los cambios",
+          "decision": "añadir historial de tarifas con auditoría y alertar cuando un cambio supere un porcentaje",
+          "currentSituation": "La tarifa se sobrescribe con `PATCH /{supplier_id}/rate`: no queda historial de valores anteriores.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Se revisa en negociación de contratos, no en tiempo real."
+          },
+          "throttle": "Ninguno.",
+          "pii": "Sin PII (proveedores = empresas). No se emite el nombre; solo el id.",
+          "emittedAt": "`services/api/app/suppliers/routes.py` → `PATCH /{supplier_id}/rate`, tras guardar."
+        }
+      },
+      "login_succeeded": {
+        "title": "login_succeeded",
+        "description": "Capturamos login_succeeded porque necesitamos saber cuántos inicios de sesión correctos hay por día, para calcular la proporción de fallos y cuánta gente usa el backoffice, lo que nos permite tomar la decisión de calibrar el umbral de bloqueo por intentos fallidos y dimensionar el soporte de acceso.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "login_succeeded"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tokenTtlMinutes"
+            ],
+            "properties": {
+              "tokenTtlMinutes": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Vigencia del token emitido (`ACCESS_TOKEN_EXPIRE_MINUTES`, hoy 30)."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "authentication",
+          "hypothesis": "cuántos inicios de sesión correctos hay por día, para calcular la proporción de fallos y cuánta gente usa el backoffice",
+          "decision": "calibrar el umbral de bloqueo por intentos fallidos y dimensionar el soporte de acceso",
+          "currentSituation": "Es el denominador de `login_failed`: sin él, 50 fallos no se pueden interpretar.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Es el denominador de `login_failed`; se calcula la tasa diaria."
+          },
+          "throttle": "Ninguno.",
+          "pii": "Sin PII adicional (el `userId` seudónimo ya va en el envelope).",
+          "emittedAt": "`auth/routes.py` → `login`, antes de devolver el token."
+        }
+      },
+      "session_expired": {
+        "title": "session_expired",
+        "description": "Capturamos session_expired porque necesitamos saber con qué frecuencia caduca la sesión (token de 30 minutos) con trabajo en curso, lo que nos permite tomar la decisión de alargar la vigencia, añadir renovación silenciosa del token o avisar antes de caducar.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "session_expired"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "section",
+              "sessionAgeMinutes",
+              "formDirty"
+            ],
+            "properties": {
+              "section": {
+                "type": "string",
+                "enum": [
+                  "dashboard",
+                  "suppliers",
+                  "incident_analysis",
+                  "incidents_manager",
+                  "incident_new",
+                  "inventory_products",
+                  "inventory_orders",
+                  "inventory_inbound",
+                  "inventory_outbound",
+                  "account_profile",
+                  "account_password",
+                  "login",
+                  "register",
+                  "forgot_password",
+                  "reset_password"
+                ],
+                "description": "Sección donde ocurrió."
+              },
+              "sessionAgeMinutes": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Minutos desde el último inicio de sesión."
+              },
+              "formDirty": {
+                "type": "boolean",
+                "description": "Si había un formulario modificado sin enviar."
+              },
+              "flow": {
+                "type": "string",
+                "enum": [
+                  "outbound_order",
+                  "inbound_order",
+                  "incident_report",
+                  "csv_analysis",
+                  "registration",
+                  "password_reset",
+                  "password_change"
+                ],
+                "description": "Flujo en curso, si lo había."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "authentication",
+          "hypothesis": "con qué frecuencia caduca la sesión (token de 30 minutos) con trabajo en curso",
+          "decision": "alargar la vigencia, añadir renovación silenciosa del token o avisar antes de caducar",
+          "currentSituation": "`apiFetch` ante un 401 limpia el token y redirige a login sin aviso; un formulario a medias se pierde.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Se estudia el patrón para decidir una política de sesión; no requiere inmediatez."
+          },
+          "throttle": "Una vez por sesión (tras emitirlo se redirige a login).",
+          "pii": "Sin PII.",
+          "emittedAt": "`uis/backoffice/lib/api-client.ts` → `apiFetch`, en la rama `401` de una petición autenticada, justo antes de `redirectToLogin()`."
+        }
+      },
+      "password_reset_requested": {
+        "title": "password_reset_requested",
+        "description": "Capturamos password_reset_requested porque necesitamos saber cuántas solicitudes de restablecimiento son de correos no registrados (sondeo) y cuántas fallan al enviar el email, lo que nos permite tomar la decisión de alertar de los fallos de envío y limitar las solicitudes por origen.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "password_reset_requested"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "accountKnown",
+              "emailSendOutcome"
+            ],
+            "properties": {
+              "accountKnown": {
+                "type": "boolean",
+                "description": "Si el email correspondía a una cuenta."
+              },
+              "emailSendOutcome": {
+                "type": "string",
+                "enum": [
+                  "sent",
+                  "send_failed",
+                  "not_attempted"
+                ],
+                "description": "Resultado del envío."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "authentication",
+          "hypothesis": "cuántas solicitudes de restablecimiento son de correos no registrados (sondeo) y cuántas fallan al enviar el email",
+          "decision": "alertar de los fallos de envío y limitar las solicitudes por origen",
+          "currentSituation": "Si el envío falla (Resend), el error solo se escribe en el log del servidor y el usuario ve el mismo mensaje de éxito.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "cada hora",
+            "justification": "Un fallo de envío deja a usuarios sin poder entrar durante horas; el corte horario permite reaccionar en la misma jornada."
+          },
+          "throttle": "Ninguno.",
+          "pii": "**Sí, seudonimizado.** No se guarda el email; `accountKnown` es información interna que nunca se devuelve al cliente.",
+          "emittedAt": "`auth/routes.py` → `forgot_password`, tras intentar el envío. La respuesta al cliente no cambia (sigue sin revelar si el correo existe)."
+        }
+      },
+      "password_reset_completed": {
+        "title": "password_reset_completed",
+        "description": "Capturamos password_reset_completed porque necesitamos saber qué parte de los restablecimientos solicitados se completa y cuánto tarda la gente en usar el enlace, lo que nos permite tomar la decisión de ajustar la caducidad del enlace (30 min) o simplificar el proceso.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "password_reset_completed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tokenAgeMinutes"
+            ],
+            "properties": {
+              "tokenAgeMinutes": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Minutos entre la solicitud y el uso del enlace."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "authentication",
+          "hypothesis": "qué parte de los restablecimientos solicitados se completa y cuánto tarda la gente en usar el enlace",
+          "decision": "ajustar la caducidad del enlace (30 min) o simplificar el proceso",
+          "currentSituation": "Hoy no se relaciona la solicitud con la finalización.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Mide la tasa de finalización del flujo."
+          },
+          "throttle": "Ninguno.",
+          "pii": "Sin PII adicional.",
+          "emittedAt": "`reset_password`, tras actualizar la contraseña y marcar el token como usado."
+        }
+      },
+      "password_reset_failed": {
+        "title": "password_reset_failed",
+        "description": "Capturamos password_reset_failed porque necesitamos saber por qué fallan los enlaces de restablecimiento: caducados, ya usados o inválidos, lo que nos permite tomar la decisión de alargar la caducidad o mostrar un mensaje distinto según la causa.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "password_reset_failed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "failureReason"
+            ],
+            "properties": {
+              "failureReason": {
+                "type": "string",
+                "enum": [
+                  "invalid_token",
+                  "expired_token",
+                  "used_token"
+                ],
+                "description": "Causa."
+              },
+              "tokenAgeMinutes": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Antigüedad del token, si existía."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "authentication",
+          "hypothesis": "por qué fallan los enlaces de restablecimiento: caducados, ya usados o inválidos",
+          "decision": "alargar la caducidad o mostrar un mensaje distinto según la causa",
+          "currentSituation": "El endpoint devuelve el mismo 400 para las tres causas, así que no se distinguen.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Decide un ajuste de política, no una acción inmediata."
+          },
+          "throttle": "Ninguno.",
+          "pii": "Sin PII. El token nunca se emite (ni en claro ni su hash).",
+          "emittedAt": "`reset_password`, en la rama `400` de enlace inválido o caducado (hoy una sola respuesta para tres causas)."
+        }
+      },
+      "user_registered": {
+        "title": "user_registered",
+        "description": "Capturamos user_registered porque necesitamos saber cuántas cuentas nuevas se crean por día y si hay altas inesperadas, lo que nos permite tomar la decisión de cerrar el registro público o exigir invitación o aprobación de un administrador.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "user_registered"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "registrationOutcome",
+              "hasPhone",
+              "hasAddress"
+            ],
+            "properties": {
+              "registrationOutcome": {
+                "type": "string",
+                "enum": [
+                  "created",
+                  "email_already_registered"
+                ],
+                "description": "Resultado."
+              },
+              "hasPhone": {
+                "type": "boolean",
+                "description": "Si el perfil incluye teléfono."
+              },
+              "hasAddress": {
+                "type": "boolean",
+                "description": "Si el perfil incluye dirección."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "authentication",
+          "hypothesis": "cuántas cuentas nuevas se crean por día y si hay altas inesperadas",
+          "decision": "cerrar el registro público o exigir invitación o aprobación de un administrador",
+          "currentSituation": "`POST /users` es público y una cuenta nueva ya puede iniciar sesión en un backoffice con datos operativos.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "cada hora",
+            "justification": "Una oleada de altas desconocidas conviene verla el mismo día; un corte horario es suficiente y más barato que streaming."
+          },
+          "throttle": "Ninguno.",
+          "pii": "**Sí, derivado.** No se emiten nombre, email, teléfono ni dirección: solo si se rellenaron (`hasPhone`, `hasAddress`).",
+          "emittedAt": "`services/api/app/users/routes.py` → `create_user`, en el alta y en el `409` de email ya registrado."
+        }
+      },
+      "api_latency_recorded": {
+        "title": "api_latency_recorded",
+        "description": "Capturamos api_latency_recorded porque necesitamos saber qué endpoints son lentos o crecen con el volumen de datos en producción, lo que nos permite tomar la decisión de elegir qué endpoint paginar o cachear a continuación con datos reales.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "api_latency_recorded"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "enum": [
+              "backend",
+              "frontend"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "method",
+              "routeTemplate",
+              "statusClass",
+              "durationMs",
+              "sampleRate"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE"
+                ],
+                "description": "Método HTTP."
+              },
+              "routeTemplate": {
+                "type": "string",
+                "pattern": "^/[A-Za-z0-9_/{}.-]*$",
+                "maxLength": 96,
+                "description": "Plantilla de ruta de FastAPI."
+              },
+              "statusClass": {
+                "type": "string",
+                "enum": [
+                  "2xx",
+                  "3xx",
+                  "4xx",
+                  "5xx"
+                ],
+                "description": "Familia del código de estado."
+              },
+              "durationMs": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Tiempo de servidor en ms."
+              },
+              "responseBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Tamaño de la respuesta si se conoce (`Content-Length`)."
+              },
+              "cache": {
+                "type": "string",
+                "enum": [
+                  "hit",
+                  "miss",
+                  "none"
+                ],
+                "description": "Resultado de caché (`none` si el endpoint no usa caché)."
+              },
+              "sampleRate": {
+                "type": "number",
+                "enum": [
+                  1,
+                  0.05
+                ],
+                "description": "Probabilidad con la que se muestreó (1 o 0.05)."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "performance",
+          "hypothesis": "qué endpoints son lentos o crecen con el volumen de datos en producción",
+          "decision": "elegir qué endpoint paginar o cachear a continuación con datos reales",
+          "currentSituation": "Con datos de prueba, `/inventory/orders` tarda 503 ms y devuelve 3 MB con 20 000 movimientos (`CACHING_REPORT.md` del PR #12); en producción no se mide.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "cada hora",
+            "justification": "El dato sirve para priorizar optimizaciones y vigilar tendencias; una alerta de caída de servicio ya la da `api_unhandled_error_raised`."
+          },
+          "throttle": "Muestreo: 100 % de peticiones con `durationMs > 500` o `statusClass = 5xx`; 5 % del resto (`sampleRate` = 1 o 0.05, para poder reescalar).",
+          "pii": "Sin PII. Siempre la **plantilla** de ruta (`/inventory/products/{ingredient_id}`), nunca la ruta real ni la query string.",
+          "emittedAt": "Middleware HTTP de `main.py`. Si el PR #12 (caché) ya está fusionado, se amplía el middleware de tiempos que ya mide con `perf_counter` y escribe `X-Process-Time-Ms`; si no, se crea uno equivalente. `cache` sale de la cabecera de respuesta `X-Cache` (que solo fija ese PR en el listado de incidencias); `none` si no está."
+        }
+      },
+      "web_vital_measured": {
+        "title": "web_vital_measured",
+        "description": "Capturamos web_vital_measured porque necesitamos saber qué pantallas del backoffice se sienten lentas en los equipos y redes reales de los restaurantes, lo que nos permite tomar la decisión de optimizar esas pantallas (carga diferida, memoización, paginación) con datos de campo.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "web_vital_measured"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "metric",
+              "value",
+              "rating",
+              "routeTemplate",
+              "navigationType"
+            ],
+            "properties": {
+              "metric": {
+                "type": "string",
+                "enum": [
+                  "LCP",
+                  "INP",
+                  "CLS",
+                  "FCP",
+                  "TTFB"
+                ],
+                "description": "Métrica."
+              },
+              "value": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Valor (ms; adimensional en CLS)."
+              },
+              "rating": {
+                "type": "string",
+                "enum": [
+                  "good",
+                  "needs-improvement",
+                  "poor"
+                ],
+                "description": "Clasificación de Web Vitals."
+              },
+              "routeTemplate": {
+                "type": "string",
+                "pattern": "^/[A-Za-z0-9_/{}.-]*$",
+                "maxLength": 96,
+                "description": "Plantilla de la ruta de Next."
+              },
+              "navigationType": {
+                "type": "string",
+                "enum": [
+                  "navigate",
+                  "reload",
+                  "back-forward",
+                  "prerender",
+                  "restore"
+                ],
+                "description": "Tipo de navegación."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "performance",
+          "hypothesis": "qué pantallas del backoffice se sienten lentas en los equipos y redes reales de los restaurantes",
+          "decision": "optimizar esas pantallas (carga diferida, memoización, paginación) con datos de campo",
+          "currentSituation": "Las auditorías Lighthouse son de laboratorio, con un solo equipo y una red simulada.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Las métricas de campo se evalúan por percentiles sobre muchos usuarios; un único valor no se actúa."
+          },
+          "throttle": "Una emisión por métrica y carga de página (las métricas finales `INP`/`CLS` se envían al ocultarse la página, con `sendBeacon`).",
+          "pii": "Sin PII. Plantilla de ruta, sin parámetros.",
+          "emittedAt": "`useReportWebVitals` de Next.js en un componente cliente del `layout.tsx` raíz."
+        }
+      },
+      "api_unhandled_error_raised": {
+        "title": "api_unhandled_error_raised",
+        "description": "Capturamos api_unhandled_error_raised porque necesitamos saber con qué frecuencia ocurren errores 500 y cuáles se repiten, lo que nos permite tomar la decisión de avisar al responsable de guardia en minutos y priorizar el arreglo de los errores más repetidos.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "api_unhandled_error_raised"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "backend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "method",
+              "routeTemplate",
+              "exceptionType",
+              "fingerprint"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE"
+                ],
+                "description": "Método HTTP."
+              },
+              "routeTemplate": {
+                "type": "string",
+                "pattern": "^/[A-Za-z0-9_/{}.-]*$",
+                "maxLength": 96,
+                "description": "Plantilla de ruta."
+              },
+              "exceptionType": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$",
+                "maxLength": 96,
+                "description": "Nombre de la clase de la excepción."
+              },
+              "fingerprint": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$",
+                "description": "Huella estable: 16 hex de SHA-256(`exceptionType` + archivo + línea)."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "errors",
+          "hypothesis": "con qué frecuencia ocurren errores 500 y cuáles se repiten",
+          "decision": "avisar al responsable de guardia en minutos y priorizar el arreglo de los errores más repetidos",
+          "currentSituation": "El cliente solo recibe un mensaje genérico (por diseño) y el detalle queda únicamente en el log de uvicorn.",
+          "delivery": {
+            "mode": "stream",
+            "cadence": "≤ 60 s",
+            "justification": "Un 500 repetido es una caída parcial; los restaurantes no pueden esperar al informe del día siguiente."
+          },
+          "throttle": "Deduplicación por `fingerprint`: máximo 1 evento por huella y minuto, con el número de repeticiones agregado en el procesador.",
+          "pii": "Sin PII. **No** se emiten el mensaje de la excepción ni el traceback (pueden contener datos de usuarios o SQL con valores); el detalle sigue solo en el log del servidor.",
+          "emittedAt": "`main.py` → `unhandled_exception_handler`, junto al `logger.exception` existente."
+        }
+      },
+      "frontend_error_captured": {
+        "title": "frontend_error_captured",
+        "description": "Capturamos frontend_error_captured porque necesitamos saber qué errores de JavaScript ocurren en el navegador y a cuántas sesiones afectan, lo que nos permite tomar la decisión de corregir primero los que más sesiones afectan y detectar regresiones tras cada despliegue.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "frontend_error_captured"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "errorSource",
+              "errorName",
+              "fingerprint",
+              "routeTemplate"
+            ],
+            "properties": {
+              "errorSource": {
+                "type": "string",
+                "enum": [
+                  "error_boundary",
+                  "window_error",
+                  "unhandled_rejection"
+                ],
+                "description": "Origen de la captura."
+              },
+              "errorName": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "maxLength": 64,
+                "description": "`error.name` (p. ej. `TypeError`)."
+              },
+              "fingerprint": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$",
+                "description": "16 hex de SHA-256(`errorName` + `topFrame`)."
+              },
+              "topFrame": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_./-]+:[0-9]+$",
+                "maxLength": 128,
+                "description": "Archivo y línea del primer frame de la app, sin URL (`inventory-outbound-form.tsx:84`)."
+              },
+              "routeTemplate": {
+                "type": "string",
+                "pattern": "^/[A-Za-z0-9_/{}.-]*$",
+                "maxLength": 96,
+                "description": "Plantilla de la ruta de Next."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "errors",
+          "hypothesis": "qué errores de JavaScript ocurren en el navegador y a cuántas sesiones afectan",
+          "decision": "corregir primero los que más sesiones afectan y detectar regresiones tras cada despliegue",
+          "currentSituation": "No hay `app/error.tsx` ni captura global de errores: solo los ve el usuario.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "cada hora",
+            "justification": "Priorizar arreglos de frontend se decide por ranking diario; un corte horario permite detectar un despliegue roto en la misma jornada."
+          },
+          "throttle": "Máximo 20 eventos por sesión y 1 por `fingerprint` cada 60 s, para no inundar si un error se repite en bucle.",
+          "pii": "Sin PII. **No** se envían `error.message` ni el stack completo (pueden incluir datos de formularios o URLs con tokens); solo nombre del error y el primer frame de la app, sin URL ni query.",
+          "emittedAt": "Nuevo `app/error.tsx` (error boundary) y listeners de `window.onerror` y `unhandledrejection` en un componente cliente del layout."
+        }
+      },
+      "network_request_failed": {
+        "title": "network_request_failed",
+        "description": "Capturamos network_request_failed porque necesitamos saber con qué frecuencia falla la conexión entre el navegador y la API, y desde qué situaciones (sin conexión, tiempo agotado), lo que nos permite tomar la decisión de añadir reintento automático, guardar borradores de formularios o revisar la conectividad de ciertos locales.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "network_request_failed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "method",
+              "routeTemplate",
+              "errorKind",
+              "online",
+              "elapsedMs"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE"
+                ],
+                "description": "Método HTTP."
+              },
+              "routeTemplate": {
+                "type": "string",
+                "pattern": "^/[A-Za-z0-9_/{}.-]*$",
+                "maxLength": 96,
+                "description": "Plantilla de ruta de la API."
+              },
+              "errorKind": {
+                "type": "string",
+                "enum": [
+                  "network",
+                  "timeout"
+                ],
+                "description": "Tipo de fallo."
+              },
+              "online": {
+                "type": "boolean",
+                "description": "`navigator.onLine` en ese momento."
+              },
+              "elapsedMs": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Milisegundos hasta el fallo."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "errors",
+          "hypothesis": "con qué frecuencia falla la conexión entre el navegador y la API, y desde qué situaciones (sin conexión, tiempo agotado)",
+          "decision": "añadir reintento automático, guardar borradores de formularios o revisar la conectividad de ciertos locales",
+          "currentSituation": "Un fallo de red nunca llega al servidor; cada formulario solo muestra «No se pudo conectar con el servidor».",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Se analiza la tendencia por local y franja horaria; no se actúa sobre un fallo aislado."
+          },
+          "throttle": "Máximo 1 evento por `routeTemplate` cada 30 s y 10 por sesión.",
+          "pii": "Sin PII. Plantilla de ruta, nunca la URL real.",
+          "emittedAt": "`lib/api-client.ts` → `apiFetch`, cuando `fetch` lanza excepción (hoy cada formulario muestra «No se pudo conectar con el servidor» sin dejar rastro)."
+        }
+      },
+      "request_validation_failed": {
+        "title": "request_validation_failed",
+        "description": "Capturamos request_validation_failed porque necesitamos saber qué campos fallan más la validación del servidor, lo que nos permite tomar la decisión de mejorar el texto de ayuda, el formato esperado o la validación en el cliente de esos campos.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "request_validation_failed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "backend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "method",
+              "routeTemplate",
+              "failedFields",
+              "errorTypes"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "POST",
+                  "PUT",
+                  "PATCH"
+                ],
+                "description": "Método HTTP."
+              },
+              "routeTemplate": {
+                "type": "string",
+                "pattern": "^/[A-Za-z0-9_/{}.-]*$",
+                "maxLength": 96,
+                "description": "Plantilla de ruta."
+              },
+              "failedFields": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z_][a-z0-9_]*$",
+                  "maxLength": 48
+                },
+                "minItems": 1,
+                "maxItems": 20,
+                "description": "Campos inválidos (nombres, máximo 20)."
+              },
+              "errorTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z_0-9.]+$",
+                  "maxLength": 48
+                },
+                "minItems": 1,
+                "maxItems": 20,
+                "description": "Tipos de error de Pydantic (p. ej. `missing`, `string_too_short`)."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "errors",
+          "hypothesis": "qué campos fallan más la validación del servidor",
+          "decision": "mejorar el texto de ayuda, el formato esperado o la validación en el cliente de esos campos",
+          "currentSituation": "El handler devuelve el 400 pero no deja constancia de qué campos fallan con más frecuencia.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Es una mejora de usabilidad que se decide con el ranking semanal de campos."
+          },
+          "throttle": "Ninguno.",
+          "pii": "Sin PII. Solo **nombres** de campo y tipos de error de Pydantic; nunca el valor enviado (`input`) ni el mensaje (`msg`).",
+          "emittedAt": "Handler `RequestValidationError` de `main.py` (el que ya responde `400`), **salvo** las rutas de órdenes de inventario (las cubre `inventory_validation_failed`) y los intentos de editar stock (los cubre `direct_stock_edit_rejected`)."
+        }
+      },
+      "flow_started": {
+        "title": "flow_started",
+        "description": "Capturamos flow_started porque necesitamos saber cuántos flujos se empiezan, para calcular la tasa de finalización y de abandono, lo que nos permite tomar la decisión de comparar los flujos entre sí y elegir cuál rediseñar primero.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "flow_started"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "flow",
+              "flowInstanceId",
+              "section"
+            ],
+            "properties": {
+              "flow": {
+                "type": "string",
+                "enum": [
+                  "outbound_order",
+                  "inbound_order",
+                  "incident_report",
+                  "csv_analysis",
+                  "registration",
+                  "password_reset",
+                  "password_change"
+                ],
+                "description": "Flujo iniciado."
+              },
+              "flowInstanceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "description": "UUID v4 de esta instancia."
+              },
+              "section": {
+                "type": "string",
+                "enum": [
+                  "dashboard",
+                  "suppliers",
+                  "incident_analysis",
+                  "incidents_manager",
+                  "incident_new",
+                  "inventory_products",
+                  "inventory_orders",
+                  "inventory_inbound",
+                  "inventory_outbound",
+                  "account_profile",
+                  "account_password",
+                  "login",
+                  "register",
+                  "forgot_password",
+                  "reset_password"
+                ],
+                "description": "Sección donde ocurre."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "navigation",
+          "hypothesis": "cuántos flujos se empiezan, para calcular la tasa de finalización y de abandono",
+          "decision": "comparar los flujos entre sí y elegir cuál rediseñar primero",
+          "currentSituation": "Es el denominador del embudo de `flow_completed` y `flow_abandoned`.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Es el denominador del embudo; se calcula por día."
+          },
+          "throttle": "Una emisión por instancia (`flowInstanceId` nuevo cada vez que el formulario vuelve a estado limpio).",
+          "pii": "Sin PII.",
+          "emittedAt": "Hook `useFlowTracking(flow)` en: `inventory-outbound-form.tsx` (`outbound_order`), `inventory-inbound-form.tsx` (`inbound_order`), `incident-form.tsx` (`incident_report`), `incident-analysis.tsx` (`csv_analysis`: al elegir fichero), `register-form.tsx` (`registration`), `forgot-password-form.tsx` (`password_reset`) y `change-password-form.tsx` (`password_change`). Se emite en la **primera modificación** de un campo, no al abrir la página (eso lo cubre `navigation_section_viewed`)."
+        }
+      },
+      "flow_completed": {
+        "title": "flow_completed",
+        "description": "Capturamos flow_completed porque necesitamos saber cuánto tarda y cuántos intentos exige terminar cada flujo, lo que nos permite tomar la decisión de localizar los pasos que más tiempo o reintentos exigen y simplificarlos.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "timestamp",
+          "sessionId",
+          "userId",
+          "event_type",
+          "schemaVersion",
+          "requestId",
+          "source",
+          "properties"
+        ],
+        "properties": {
+          "eventId": {
+            "$ref": "#/definitions/envelope/properties/eventId"
+          },
+          "timestamp": {
+            "$ref": "#/definitions/envelope/properties/timestamp"
+          },
+          "sessionId": {
+            "$ref": "#/definitions/envelope/properties/sessionId"
+          },
+          "userId": {
+            "$ref": "#/definitions/envelope/properties/userId"
+          },
+          "event_type": {
+            "const": "flow_completed"
+          },
+          "schemaVersion": {
+            "const": "1.1.0"
+          },
+          "requestId": {
+            "$ref": "#/definitions/envelope/properties/requestId"
+          },
+          "source": {
+            "const": "frontend"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "flow",
+              "flowInstanceId",
+              "elapsedMs",
+              "submitAttempts"
+            ],
+            "properties": {
+              "flow": {
+                "type": "string",
+                "enum": [
+                  "outbound_order",
+                  "inbound_order",
+                  "incident_report",
+                  "csv_analysis",
+                  "registration",
+                  "password_reset",
+                  "password_change"
+                ],
+                "description": "Flujo completado."
+              },
+              "flowInstanceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "description": "UUID de la instancia, el de `flow_started`."
+              },
+              "elapsedMs": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Milisegundos desde `flow_started`."
+              },
+              "submitAttempts": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Envíos necesarios (1 = a la primera)."
+              }
+            }
+          }
+        },
+        "x-catalog": {
+          "group": "oportunidad",
+          "category": "navigation",
+          "hypothesis": "cuánto tarda y cuántos intentos exige terminar cada flujo",
+          "decision": "localizar los pasos que más tiempo o reintentos exigen y simplificarlos",
+          "currentSituation": "Los eventos de servidor cuentan órdenes, pero no cuántos envíos costó cada una.",
+          "delivery": {
+            "mode": "batch",
+            "cadence": "diario",
+            "justification": "Se compara con `flow_started` y `flow_abandoned` en el informe diario."
+          },
+          "throttle": "Una emisión por instancia.",
+          "pii": "Sin PII.",
+          "emittedAt": "El mismo hook, cuando el servidor responde con éxito al envío. El evento de servidor (`outbound_order_created`, etc.) sigue siendo la fuente de verdad para volúmenes; este mide la experiencia."
+        }
+      }
+    }
+  }
+}
