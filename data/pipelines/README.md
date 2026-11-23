@@ -24,3 +24,10 @@ python -m pytest tests/pipelines/test_pipeline.py                              #
 Requires `DATABASE_URL` (in `.env` or `services/api/.env`). Results are shown in the `/reporting` dashboard of `uis/backoffice/`.
 
 > _Spanish version: [README.es.md](./README.es.md)._
+
+## RAG — retrieval and generation (`rag.py`)
+
+Milestone 7: `retrieve()` searches Qdrant and drops anything below `min_score`; `generate_answer()` builds the prompt
+with the BRIEFING's voice and audience and calls the generation LLM; `query()` is `retrieve()` + `generate_answer()`
+and is the only function external consumers call (the `POST /knowledge/query` endpoint). Design in
+`docs/rag/rag-design.md`.

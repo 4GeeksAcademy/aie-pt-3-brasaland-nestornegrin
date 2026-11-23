@@ -18,3 +18,10 @@ Resultados del modelo de predicción de ventas (`scripts/train_sales_forecast.py
 K2 Score, validación y huella del dataset), `predictions.csv`, `forecast.png` y la descomposición en tendencia, estacionalidad y residuo de los meses de
 entrenamiento (`decomposition.csv`, `decomposition.png`). Se regeneran con
 `uv run python scripts/train_sales_forecast.py`; la explicación está en `scripts/sales_forecast/README.es.md`.
+
+## Evaluación del RAG (`test-queries.json`, `rag_eval_results.json`)
+
+`test-queries.json` tiene 16 preguntas sobre los cuatro documentos de `docs/company-knowledge-base/` (12 respondibles con
+su chunk y respuesta esperados, 2 fuera de tema y 2 sin respuesta en los documentos). `scripts/evaluate_rag.py` mide
+Recall@3 (objetivo del BRIEFING ≥ 80 %), recomienda el umbral de similitud y, con `--answers`, comprueba la fidelidad de
+las respuestas. Se ejecuta con `uv run python -m scripts.evaluate_rag --answers`.

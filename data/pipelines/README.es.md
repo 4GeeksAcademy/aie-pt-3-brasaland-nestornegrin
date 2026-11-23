@@ -7,6 +7,12 @@ Cada subcarpeta o archivo dentro de `data/pipelines/` debe representar **un pipe
 - **Propósito principal**: unificar en un único lugar la lógica de movimiento y transformación de datos que soporta las aplicaciones y analíticas de la compañía.
 - **Recomendación**: documenta aquí los pipelines que vayas añadiendo, describiendo su objetivo, orígenes/destinos de datos, dependencias y cómo ejecutarlos en desarrollo, pruebas y producción.
 
+## RAG — recuperación y generación (`rag.py`)
+
+Hito 7: `retrieve()` busca en Qdrant y descarta lo que no llega a `min_score`; `generate_answer()` arma el prompt con la
+voz y audiencia del BRIEFING y llama al LLM de generación; `query()` es `retrieve()` + `generate_answer()` y es lo único
+que llaman los consumidores externos (el endpoint `POST /knowledge/query`). Diseño en `docs/rag/rag-design.md`.
+
 ## Pipelines actuales
 
 ### `pipeline.py` — Desempeño de Inventario por Restaurante
