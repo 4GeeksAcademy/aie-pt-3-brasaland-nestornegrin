@@ -1,0 +1,155 @@
+{
+  "dataset": {
+    "path": "data/raw/brasaland_sales.csv",
+    "sha256": "a3e082d2a7161ef03b97c681e80083d952c6fc2629b54bfe994f144660fa130d",
+    "rows": 120
+  },
+  "split": {
+    "rule": "primeros 8 años = entrenamiento, 2 años más recientes = prueba",
+    "train": [
+      "2016-01",
+      "2023-12",
+      96
+    ],
+    "test": [
+      "2024-01",
+      "2025-12",
+      24
+    ],
+    "effective_training_rows": 84
+  },
+  "reproducibility": {
+    "random_state": 42,
+    "sklearn": "1.9.1",
+    "xgboost": "3.4.1",
+    "statsmodels": "0.15.0",
+    "numpy": "2.5.4",
+    "pandas": "3.1.0"
+  },
+  "decomposition": {
+    "method": "STL robusto sobre logaritmos (descomposición multiplicativa), periodo 12",
+    "months_used": 96,
+    "range": [
+      "2016-01",
+      "2023-12"
+    ],
+    "trend": {
+      "annual_growth_pct": 5.712463885607666,
+      "first_usd": 487295.2758511956,
+      "last_usd": 756469.1938127954,
+      "strength": 0.9598276834439866
+    },
+    "seasonality": {
+      "strength": 0.8986187019289117,
+      "factor_by_month": {
+        "ene": 0.8603391930865273,
+        "feb": 1.026846769413373,
+        "mar": 1.0001036451370717,
+        "abr": 1.0316612392401316,
+        "may": 0.9941392524429178,
+        "jun": 0.9782107917935776,
+        "jul": 1.0049524762757274,
+        "ago": 1.0074084806014265,
+        "sep": 0.9723435464891235,
+        "oct": 0.9850145209003472,
+        "nov": 0.968612245830445,
+        "dic": 1.1940381082491056
+      },
+      "lowest_month": "ene",
+      "highest_month": "dic"
+    },
+    "residual": {
+      "std_pct": 2.3985598456549435,
+      "mean_abs_pct": 1.8773796820437052,
+      "max_abs_pct": 8.279860725315991
+    }
+  },
+  "model_selection": {
+    "method": "validación walk-forward en los últimos 3 años de ENTRENAMIENTO (pronóstico recursivo de 12 meses)",
+    "validation": {
+      "random_forest": {
+        "mean_rmse_usd": 27902.194146677455,
+        "mean_mape_pct": 3.5238243601010786,
+        "folds": [
+          {
+            "validation_year": 2021,
+            "rmse_usd": 21846.685560225724,
+            "mape_pct": 2.8462860327165838
+          },
+          {
+            "validation_year": 2022,
+            "rmse_usd": 25548.663209676517,
+            "mape_pct": 3.3753254218497
+          },
+          {
+            "validation_year": 2023,
+            "rmse_usd": 36311.23367013013,
+            "mape_pct": 4.349861625736951
+          }
+        ]
+      },
+      "xgboost": {
+        "mean_rmse_usd": 27263.223525916386,
+        "mean_mape_pct": 3.329319938719443,
+        "folds": [
+          {
+            "validation_year": 2021,
+            "rmse_usd": 21536.178943186347,
+            "mape_pct": 2.9475724149992084
+          },
+          {
+            "validation_year": 2022,
+            "rmse_usd": 28073.480587698232,
+            "mape_pct": 3.667728528233438
+          },
+          {
+            "validation_year": 2023,
+            "rmse_usd": 32180.011046864583,
+            "mape_pct": 3.3726588729256815
+          }
+        ]
+      }
+    },
+    "chosen": "random_forest",
+    "reason": "Diferencia de RMSE de validación entre algoritmos: +2.3% a favor de XGBoost, por debajo del 5% exigido. Con solo 84 filas útiles es un empate técnico, así que se elige Random Forest: más simple de explicar a Finanzas, menos hiperparámetros y menos riesgo de sobreajuste."
+  },
+  "test_metrics": {
+    "primary_recursive_24_months": {
+      "mse_usd2": 583655556.7591871,
+      "rmse_usd": 24158.964314704946,
+      "mape_pct": 2.7178354222383483,
+      "gini_normalized": 0.9078374087244727,
+      "k2_score_r2": 0.8927637404146983
+    },
+    "one_step_ahead": {
+      "mse_usd2": 593534266.0570446,
+      "rmse_usd": 24362.558692736784,
+      "mape_pct": 2.632654461115393,
+      "gini_normalized": 0.8766376770215363,
+      "k2_score_r2": 0.8909487044360896
+    },
+    "baseline_same_month_last_year": {
+      "mape_pct": 4.778523953668703,
+      "rmse_usd": 44340.42255447679
+    }
+  },
+  "psi": {
+    "bins": 5,
+    "revenue_train_vs_test": {
+      "value": 5.653125544575661,
+      "noise_threshold_p95": 0.6735845855667325,
+      "reading": "cambio real (supera el ruido muestral)"
+    },
+    "revenue_to_level_ratio_train_vs_test": {
+      "value": 0.23450877616154156,
+      "noise_threshold_p95": 0.5954131389954334,
+      "reading": "dentro del ruido muestral (sin cambio)"
+    }
+  },
+  "interval": {
+    "coverage_target": 0.8,
+    "coverage_observed_test": 0.875,
+    "relative_margin_low": -0.041907724340487285,
+    "relative_margin_high": 0.0569690654010242
+  }
+}
