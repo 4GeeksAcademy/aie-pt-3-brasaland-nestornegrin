@@ -158,3 +158,5 @@ El agente se asegura con varias capas independientes (detector de cambio de inst
 conversación, uso personal, small talk con reconducción obligatoria, aislamiento del contenido externo, guardia de salida y
 monitor por tipo de fallo). Diseño, pruebas por criterio, variantes de jailbreak documentadas y límites en
 [`guardrails.md`](guardrails.md); tabla de intentos en [`guardrails-evidence.md`](guardrails-evidence.md).
+
+- **Recepción de RFPs (Hito 9 · Parte 1):** [`rfp-intake.md`](rfp-intake.md) — grafo `rfp_intake`, tickets en PostgreSQL, handoff a la Parte 2.
