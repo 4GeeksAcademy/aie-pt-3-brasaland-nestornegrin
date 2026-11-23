@@ -142,6 +142,13 @@ def test_oversized_batch_is_413(client):
 
 
 def test_logs_batch_summary(client, caplog):
-    with caplog.at_level(logging.INFO, logger="telemetry"):
-        client.post("/telemetry/events", json={"events": [_event()]})
-    assert "received=1 stored=1 rejected=0" in caplog.text
+    # El logger "telemetry" no propaga (propagate=False) para que uvicorn lo muestre sin
+    # duplicados; enganchamos el handler de caplog directamente para poder asertar.
+    telemetry_logger = logging.getLogger("telemetry")
+    telemetry_logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.INFO, logger="telemetry"):
+            client.post("/telemetry/events", json={"events": [_event()]})
+        assert "received=1 stored=1 rejected=0" in caplog.text
+    finally:
+        telemetry_logger.removeHandler(caplog.handler)

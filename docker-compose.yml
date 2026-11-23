@@ -1,0 +1,60 @@
+services:
+  # Contenedor único de interfaces: sitio público (3000) + backoffice (3001).
+  interfaces:
+    build:
+      context: ./uis
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    volumes:
+      # Bind mount del código fuente para recarga en caliente.
+      - ./uis/website:/app/website
+      - ./uis/backoffice:/app/backoffice
+      # website y backoffice importan utilidades TypeScript de la raíz del
+      # monorepo (../../../src/... -- ver backoffice-dashboard.tsx,
+      # brasa-points-form.tsx, locations-data.ts, sample-registrations.ts).
+      # Esa ruta relativa, desde /app/website|backoffice/*, sube 3 niveles
+      # hasta la raíz del contenedor -- por eso se monta en /src, no en
+      # /app/src.
+      - ./src:/src
+      # Volúmenes nombrados para que node_modules (instalado dentro de la
+      # imagen al construirla) no quede tapado por el bind mount de arriba
+      # -- si no, el contenedor se quedaría sin dependencias instaladas.
+      - website_node_modules:/app/website/node_modules
+      - backoffice_node_modules:/app/backoffice/node_modules
+    env_file:
+      - .env
+    environment:
+      # Server-side (dentro del proceso de Next.js, nunca en el navegador):
+      # nombre de servicio Docker real, usado por
+      # app/api/internal-health/route.ts para demostrar la comunicación
+      # contenedor-a-contenedor que pide el ticket.
+      - API_INTERNAL_URL=http://api:8000
+    networks:
+      - brasaland
+
+  # Backend de FastAPI.
+  api:
+    build:
+      context: ./services
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/api:/app/services/api
+      # scripts/ y packages/ viven fuera de services/ en el monorepo, pero
+      # app/main.py los importa como paquetes de nivel superior -- ver el
+      # comentario en services/Dockerfile.
+      - ./scripts:/app/scripts
+      - ./packages:/app/packages
+    env_file:
+      - .env
+    networks:
+      - brasaland
+
+networks:
+  brasaland:
+    driver: bridge
+
+volumes:
+  website_node_modules:
+  backoffice_node_modules:
