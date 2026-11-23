@@ -11,6 +11,7 @@ from threading import Lock
 from typing import Any, Callable
 
 from fastapi import HTTPException
+from pydantic import BaseModel, ConfigDict, Field
 from sqlmodel import Session
 
 from app.telemetry.analysis import build_metrics
@@ -19,6 +20,32 @@ DEFAULT_WINDOW = timedelta(days=7)
 MAX_WINDOW = timedelta(days=90)
 CACHE_TTL_SECONDS = 60
 CACHE_MAX_ENTRIES = 64
+
+
+class ReportPeriod(BaseModel):
+    """Ventana `[from, to)` del informe, en UTC (ISO 8601)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: str = Field(alias="from")
+    to: str
+
+
+class ReportMetrics(BaseModel):
+    """Una lista de filas por métrica (ver `analysis.build_metrics`)."""
+
+    events_per_day: list[dict[str, Any]]
+    event_type_distribution: list[dict[str, Any]]
+    error_rate_by_type: list[dict[str, Any]]
+    latency_by_day: list[dict[str, Any]]
+    auth_failure_rate: list[dict[str, Any]]
+
+
+class TelemetryReport(BaseModel):
+    """Contrato de respuesta de `GET /telemetry/report`."""
+
+    period: ReportPeriod
+    metrics: ReportMetrics
 
 
 def _as_utc(value: datetime) -> datetime:
