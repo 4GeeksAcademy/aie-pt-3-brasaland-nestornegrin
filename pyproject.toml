@@ -1,0 +1,21 @@
+[project]
+name = "brasaland-monorepo"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.11.2",
+    "pandas>=3.1.0",
+    "scikit-learn>=1.9.1",
+    "statsmodels>=0.15.0",
+    "xgboost>=3.4.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+# Los tests del monorepo Python viven en tests/; `scripts/test_analyze.py` (Hito 5) se ejecuta aparte.
+testpaths = ["tests"]
+pythonpath = ["."]
