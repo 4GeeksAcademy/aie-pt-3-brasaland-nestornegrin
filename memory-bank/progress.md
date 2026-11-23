@@ -225,6 +225,15 @@
 - Decisión: `requestId` y `schemaVersion` se validan pero no se guardan (el ticket fija 8 columnas); un `eventId` repetido cuenta como `rejected`.
 - Verificado con Postgres real: migración idempotente, índices, trigger, `tags @>` y E2E con el backoffice sin cambios (eventos técnicos y de negocio en la tabla).
 
+
+## Reporte técnico de telemetría (`feat: telemetry report endpoint`)
+
+- **Pipeline de análisis** `services/api/app/telemetry/analysis.py` (Pandas): 5 funciones de métrica independientes y sin efectos secundarios — `events_per_day`, `event_type_distribution`, `error_rate_by_type`, `latency_by_day`, `auth_failure_rate`. Fórmula fija: cargar (SQL con rango `[start, end)` y `event_type`) → refinar (campos de `tags`, flags `is_error`/`is_failure`) → `pd.to_datetime(utc=True)` → `groupby` → `agg`; sin bucles (un test lo comprueba con `ast`); cada una devuelve una lista de dicts serializable.
+- **Endpoint** `GET /telemetry/report` (`report.py` + `routes.py`): requiere autenticación (la ingesta `POST /telemetry/events` sigue pública); `start_date`/`end_date` ISO 8601 opcionales, por defecto los últimos 7 días en UTC (máx. 90, 400 si es vacío o invertido); resuelve el período una vez y lo pasa a todas las métricas; devuelve `{period, metrics}`; caché en memoria con TTL de 60 s por combinación de fechas (cabecera `X-Cache: HIT|MISS`; las peticiones sin parámetros comparten clave).
+- **Actividades adicionales hechas:** `auth_failure_rate` (con nuestros eventos `login_failed`/`login_succeeded`) y dashboard técnico `/telemetry` en `uis/backoffice` (tablas y barras CSS, muestra el `period`, ventanas 7 d/24 h/30 d).
+- **Decisiones:** `analysis.py` vive en el módulo existente `services/api/app/telemetry/` (no hay carpeta `services/telemetry/`); errores técnicos = `frontend_error_captured`, `network_request_failed`, `api_unhandled_error_raised`, `request_validation_failed` (los rechazos de reglas de negocio no cuentan); la latencia viene de `api_latency_recorded`, que el frontend muestrea (5 % de las rápidas), así que `samples` no es volumen real. Dependencia nueva: `pandas` (`requirements.txt`, `pyproject.toml`, `uv.lock`).
+- Verificado: 73 tests de la API (18 nuevos; también contra Postgres real), 55 de jest, `tsc`, build, y prueba en navegador con una réplica local de las 46 filas reales. Límite: hoy solo el frontend emite eventos, así que `api_unhandled_error_raised` y `request_validation_failed` (backend) no aparecen todavía.
+
 ## Auditoría de serialización de la API
 
 - Auditados todos los endpoints de `services/api` (33 lógicos); el detalle por endpoint, con su estado inicial y final, está en `docs/serialization-audit.md`. Ningún endpoint devolvía un objeto ORM ni `hashed_password`; los problemas eran esquemas de salida heredados del de entrada, claves de almacenamiento expuestas, el email repetido en el registro y `/api/incidents/analyze` devolviendo un `dict` sin tipar.
