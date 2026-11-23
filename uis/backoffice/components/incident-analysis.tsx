@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
+import { waitForTask, type TaskStatus } from "@/lib/tasks";
+import { StatCard } from "./stat-card";
+import { useFlowTracking } from "@/lib/use-flow-tracking";
+import { track } from "@/services/telemetry";
 
 type Analysis = {
   total_processed: number;
@@ -18,8 +22,14 @@ export function IncidentAnalysis() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null);
+  const pollController = useRef<AbortController | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const flow = useFlowTracking("csv_analysis", "incident_analysis"); // telemetría
+
+  // Si el usuario sale de la página mientras se espera el resultado, se deja de consultar.
+  useEffect(() => () => pollController.current?.abort(), []);
 
   async function submitFile() {
     if (!file) {
@@ -31,14 +41,43 @@ export function IncidentAnalysis() {
     setAnalysis(null);
     const formData = new FormData();
     formData.append("file", file);
+    pollController.current?.abort();
+    const controller = new AbortController();
+    pollController.current = controller;
+    const startedAt = performance.now();
     try {
+      // 202 Accepted: la API encola el análisis y devuelve un task_id al instante; un worker lo procesa aparte.
       const response = await apiFetch("/api/incidents/analyze", { method: "POST", body: formData });
-      if (!response.ok) throw new Error(await readApiError(response, "No se pudo analizar el fichero"));
-      setAnalysis((await response.json()) as Analysis);
+      if (!response.ok) {
+        // Telemetría: nunca el nombre del fichero ni su contenido, solo el resultado.
+        track("incident_csv_analyzed", {
+          outcome: !file.name.toLowerCase().endsWith(".csv") ? "rejected_extension" : file.size === 0 ? "rejected_empty" : "rejected_format",
+          fileSizeBytes: file.size,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+        flow.submitAttempt(false);
+        throw new Error(await readApiError(response, "No se pudo analizar el fichero"));
+      }
+      const { task_id: taskId } = (await response.json()) as { task_id: string };
+      setTaskStatus("pending");
+      const result = await waitForTask<Analysis>(taskId, { onStatus: setTaskStatus, signal: controller.signal });
+      track("incident_csv_analyzed", {
+        outcome: "analyzed",
+        fileSizeBytes: file.size,
+        totalRows: result.total_processed,
+        invalidRows: result.invalid_records,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+      flow.submitAttempt(true);
+      setAnalysis(result);
     } catch (requestError) {
+      if (controller.signal.aborted) return;
       setError(requestError instanceof Error ? requestError.message : "No se pudo conectar con la API");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setTaskStatus(null);
+      }
     }
   }
 
@@ -75,7 +114,7 @@ export function IncidentAnalysis() {
             id="incident-file"
             type="file"
             accept=".csv,text/csv"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            onChange={(event) => { flow.touch("file"); setFile(event.target.files?.[0] ?? null); }}
             className="block max-w-full text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-red-800 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-red-900"
           />
           <button
@@ -84,7 +123,7 @@ export function IncidentAnalysis() {
             disabled={loading}
             className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-bold text-white hover:bg-zinc-700 disabled:cursor-wait disabled:opacity-60"
           >
-            {loading ? "Analizando..." : "Analizar CSV"}
+            {loading ? (taskStatus === "started" ? "Analizando..." : "En cola...") : "Analizar CSV"}
           </button>
         </div>
         {file ? <p className="mt-2 text-xs text-zinc-500">Seleccionado: {file.name}</p> : null}
@@ -94,10 +133,10 @@ export function IncidentAnalysis() {
       {analysis ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat label="Filas procesadas" value={analysis.total_processed} />
-            <Stat label="Registros válidos" value={analysis.valid_records} />
-            <Stat label="Registros inválidos" value={analysis.invalid_records} />
-            <Stat label="Satisfacción cerrados" value={analysis.average_closed_satisfaction?.toFixed(2) ?? "N/D"} />
+            <StatCard label="Filas procesadas" value={analysis.total_processed} compact />
+            <StatCard label="Registros válidos" value={analysis.valid_records} compact />
+            <StatCard label="Registros inválidos" value={analysis.invalid_records} compact />
+            <StatCard label="Satisfacción cerrados" value={analysis.average_closed_satisfaction?.toFixed(2) ?? "N/D"} compact />
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             <Breakdown title="Por categoría" values={analysis.by_category} />
@@ -110,10 +149,6 @@ export function IncidentAnalysis() {
       ) : null}
     </div>
   );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"><p className="text-2xl font-black text-red-800">{value}</p><p className="mt-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p></div>;
 }
 
 function Breakdown({ title, values, emptyLabel = "Sin datos" }: { title: string; values: Record<string, number>; emptyLabel?: string }) {
