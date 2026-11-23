@@ -23,7 +23,7 @@ analisis_completo ─POST /rfp/tickets/{id}/generate (o encadenado al terminar l
   `iterations`, `evaluation_history`, `needs_human_review`, `pending_items`, `generation_status`; `rfp_tickets` guarda `part3_handoff`
   y `response_completed_at`. `create_all` no añade columnas a tablas existentes → `schema_sync.ensure_columns` hace `ALTER TABLE … ADD COLUMN`
   idempotente al arrancar la API (columnas nuevas nullable).
-- **Estados del ticket** (solo los de esta parte; no se reescribe `analisis_completo`, no existen los de la Parte 3):
+- **Estados del ticket** (solo los de esta parte; no se reescribe `analisis_completo`, los de la Parte 3, `esperando_aprobación` y `terminado`, los escribe [`rfp-approval.md`](rfp-approval.md)):
   `analisis_completo` → `generando_borrador` → `en_evaluación` (todas pasaron: queda con `response_completed_at`) | `needs_human_review`.
 - **Estados de sección**: `pendiente | generando | en_evaluacion | paso | needs_human_review | error`.
 - **Endpoint** `POST /rfp/tickets/{id}/generate` (202): arranca desde `analisis_completo`; **reanuda** tras un fallo/parada (solo rehace las

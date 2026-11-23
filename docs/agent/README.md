@@ -161,3 +161,4 @@ monitor por tipo de fallo). Diseño, pruebas por criterio, variantes de jailbrea
 
 - **Recepción de RFPs (Hito 9 · Parte 1):** [`rfp-intake.md`](rfp-intake.md) — grafo `rfp_intake`, tickets en PostgreSQL, handoff a la Parte 2.
 - **Generación de respuestas a RFPs (Hito 9 · Parte 2):** [`rfp-response.md`](rfp-response.md) — generadores por departamento, 3 evaluadores en paralelo, bucle con feedback, `needs_human_review`.
+- **Aprobación humana y cierre (Hito 9 · Parte 3):** [`rfp-approval.md`](rfp-approval.md) — `interrupt` por departamento con checkpointer, arbitraje §7, documento final y trazabilidad.
