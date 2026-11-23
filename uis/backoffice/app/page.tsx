@@ -1,6 +1,5 @@
 import { BackofficeDashboard } from "@/components/backoffice-dashboard";
-import { IncidentAnalysis } from "@/components/incident-analysis";
-import { SupplierDirectory } from "@/components/supplier-directory";
+import { LazyIncidentAnalysis, LazySupplierDirectory } from "@/components/lazy-sections";
 import { AuthGuard } from "@/components/auth-guard";
 
 export default function BackofficePage() {
@@ -16,7 +15,7 @@ export default function BackofficePage() {
         <BackofficeDashboard />
       </div>
       <div className="mt-12 border-t border-zinc-200 pt-10">
-        <SupplierDirectory />
+        <LazySupplierDirectory />
       </div>
       <section id="incidents" className="mt-12 border-t border-zinc-200 pt-10">
         <h2 className="text-2xl font-black text-zinc-900">Análisis de incidencias postventa</h2>
@@ -24,7 +23,7 @@ export default function BackofficePage() {
           Carga un CSV para validar sus registros y obtener el resumen operativo sin exponer datos de clientes.
         </p>
         <div className="mt-6">
-          <IncidentAnalysis />
+          <LazyIncidentAnalysis />
         </div>
       </section>
     </main></AuthGuard>;
