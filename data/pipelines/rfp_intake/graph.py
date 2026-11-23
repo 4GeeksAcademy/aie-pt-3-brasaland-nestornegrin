@@ -49,7 +49,9 @@ class IntakeState(TypedDict, total=False):
 
 
 def build_graph(llm: agents.Llm, store: RfpStore, *, converter: Callable[[str | Path], object] = pdf_to_markdown,
-                measure_fn: Callable[[str], dict] = measure):
+                measure_fn: Callable[[str], dict] = measure, on_ticket_ready: Callable[[int], None] | None = None):
+    """`on_ticket_ready(ticket_id)`: se llama UNA vez por intento cuando el documento ya es una RFP válida y sus metadatos están
+    guardados (el ticket sigue en `analizando`). Es el gancho de las notificaciones en tiempo real; si falla, el pipeline sigue."""
     agent_of = {NODE_CONVERT: "converter", NODE_CLASSIFY: "classifier", NODE_DISCARD: "classifier", NODE_MEASURE: "readability-meter",
                 NODE_METADATA: "metadata-extractor", NODE_ORCHESTRATE: "orchestrator", NODE_SYNTHESIZE: "synthesizer"}
 
@@ -101,6 +103,11 @@ def build_graph(llm: agents.Llm, store: RfpStore, *, converter: Callable[[str | 
         meta = agents.extract_metadata(llm, state["markdown"])
         reference = meta.reference or f"RFP-{state['ticket_id']:05d}"
         store.save_metadata(state["ticket_id"], meta.model_dump(), state["readability"], reference)
+        if on_ticket_ready is not None:
+            try:
+                on_ticket_ready(state["ticket_id"])
+            except Exception:  # noqa: BLE001 - avisar es secundario: nunca debe tumbar el análisis
+                logging.getLogger(__name__).exception("rfp_intake: falló la notificación del ticket %s", state["ticket_id"])
         return {"metadata": meta.model_dump()}
 
     def orchestrate(state: IntakeState) -> dict:

@@ -129,7 +129,7 @@ def test_every_json_endpoint_declares_a_response_schema():
                 if not code.startswith("2") or code == "204":
                     continue
                 content = response.get("content", {})
-                if "text/csv" in content:
+                if "text/csv" in content or "text/event-stream" in content:  # descarga CSV y stream SSE: no son JSON
                     continue
                 schema = content.get("application/json", {}).get("schema", {})
                 # Un esquema tipado es una referencia a un modelo o una lista
@@ -168,6 +168,6 @@ def test_every_route_declares_an_explicit_response_model_or_has_no_body():
             without_model.append((route.status_code, route.path))
     assert without_model, "se esperaban los borrados 204 y la exportación CSV"
     for status_code, path in without_model:
-        assert status_code == 204 or path == "/api/incidents/results/export", (
+        assert status_code == 204 or path in ("/api/incidents/results/export", "/rfp/events"), (
             f"{path} no declara response_model"
         )
