@@ -16,7 +16,7 @@ import logging
 from typing import Annotated, Callable
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from data.process.rag_config import RagConfigError
 
@@ -46,7 +46,16 @@ class AgentAnswer(BaseModel):
     run_id: str
     sources: list[str] = []  # fuentes consultadas, en orden: "rag", "tool:tickets", "tool:inventory"
     conversation_id: str | None = None
+    guardrails: list[dict] = []  # intervenciones de los guardrails en este turno (tipo de fallo incluido)
     memory: dict | None = None  # {"resolution": {...}, "proposal": {...}}: qué pasó con la propuesta y si hay una nueva
+
+
+class GuardrailsSummary(BaseModel):
+    """Contadores de los guardrails: `enabled` y, si están activos, los que expone `monitor.summary()`."""
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool
 
 
 def create_router(
@@ -77,7 +86,16 @@ def create_router(
         if run.status == STATUS_INVALID_QUESTION:
             raise HTTPException(status_code=422, detail=run.answer)
         return AgentAnswer(answer=run.answer, status=run.status, run_id=run.run_id, sources=run.sources,
-                           conversation_id=run.conversation_id, memory=run.memory)
+                           conversation_id=run.conversation_id, memory=run.memory,
+                           guardrails=run.guardrails or [])
+
+    @router.get("/guardrails/summary", response_model=GuardrailsSummary)
+    def guardrails_summary() -> GuardrailsSummary:
+        """Cuántas veces disparó cada guardrail en esta sesión (contadores en memoria del proceso)."""
+        guardrails = service.deps.guardrails
+        if guardrails is None:
+            return GuardrailsSummary(enabled=False)
+        return GuardrailsSummary(enabled=True, **guardrails.monitor.summary())
 
     return router
 

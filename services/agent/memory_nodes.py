@@ -16,12 +16,12 @@ from typing import Callable
 from .memory.models import StructuredAnswer
 from .nodes import (
     MAX_QUESTION_LENGTH,
+    answer_context,
     NO_INFORMATION_ANSWER,
     TOO_LONG_QUESTION_ANSWER,
     AgentDependencies,
     failed_tools,
     failure_message,
-    tool_chunks,
 )
 from .state import (
     STATUS_ANSWERED,
@@ -83,7 +83,7 @@ def make_recall_node(deps: AgentDependencies) -> Callable[[AgentState], dict]:
 
 def make_memory_generate_node(deps: AgentDependencies) -> Callable[[AgentState], dict]:
     def generate_answer(state: AgentState) -> dict:
-        context = [*state.get("context", []), *tool_chunks(state.get("tool_results", []))]
+        context = answer_context(state)
         memories = state.get("memories", [])
         result: StructuredAnswer = deps.structured_fn(state["question"], context, memories)
         if not context and not memories and not result.proposal:
