@@ -29,9 +29,12 @@ class TelemetryEvent(BaseModel):
     properties: dict[str, Any] = Field(default_factory=dict)
 
 
-class TelemetryBatch(BaseModel):
-    events: list[TelemetryEvent] = Field(max_length=500)
+# Nota: el body de POST /telemetry/events NO se tipa como list[TelemetryEvent]
+# (un evento inválido provocaría un 422 para todo el lote). El endpoint recibe el
+# envelope laxo y valida cada evento con TelemetryEvent.model_validate(...).
 
 
 class TelemetryReceipt(BaseModel):
     received: int
+    stored: int
+    rejected: int
