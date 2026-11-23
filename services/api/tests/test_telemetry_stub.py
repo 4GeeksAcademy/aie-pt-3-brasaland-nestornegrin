@@ -58,3 +58,18 @@ def test_accepts_text_plain_body(client):
 def test_malformed_json_rejected(client):
     response = client.post("/telemetry/events", content="not json", headers={"Content-Type": "text/plain"})
     assert response.status_code == 400
+
+
+import pytest as _pytest  # noqa: E402
+
+
+@_pytest.fixture(autouse=True)
+def _capture_telemetry_logger(caplog):
+    """El logger "telemetry" no propaga (propagate=False) para que uvicorn lo muestre
+    sin duplicados; enganchamos el handler de caplog directamente para poder asertar."""
+    import logging
+
+    telemetry_logger = logging.getLogger("telemetry")
+    telemetry_logger.addHandler(caplog.handler)
+    yield
+    telemetry_logger.removeHandler(caplog.handler)
