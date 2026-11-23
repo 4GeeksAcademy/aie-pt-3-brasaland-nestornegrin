@@ -83,16 +83,17 @@ class AgentDependencies:
 
 
 def default_dependencies() -> AgentDependencies:
-    """El RAG real (reutilizado desde `data/pipelines/rag.py`, sin copiarlo) y las tools que leen del backend real."""
+    """El RAG real (reutilizado desde `data/pipelines/rag.py`, sin copiarlo) y las tools que consumen el servidor MCP."""
     from data.pipelines.rag import generate_answer, retrieve
 
-    from .tools import InventoryTool, TicketTool
+    from .mcp_tools import McpGateway, McpInventoryTool, McpTicketTool
 
+    gateway = McpGateway()  # único camino a los datos operativos: el servidor MCP (no hay acceso directo al backend)
     return AgentDependencies(
         retrieve_fn=lambda question: retrieve(question),
         generate_fn=generate_answer,
-        ticket_fn=TicketTool(),
-        inventory_fn=InventoryTool(),
+        ticket_fn=McpTicketTool(gateway),
+        inventory_fn=McpInventoryTool(gateway),
     )
 
 

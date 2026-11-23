@@ -88,23 +88,29 @@ concreto, listados por estado, stock de un producto); conocimiento → RAG; las 
 el RAG). Sin señal de datos en vivo → RAG. Es determinista y deja su `reason` en el trace; se puede sustituir por un
 clasificador con LLM vía `AgentDependencies.router_fn` sin tocar el grafo.
 
-## Tools (`services/agent/tools.py`)
+## Tools: el agente consume el servidor MCP (`services/agent/mcp_tools.py`)
 
-| Tool | Lee de | Entrada → salida (pydantic) |
+Desde el ticket "MCP Server con OAuth" el agente **ya no llama al gestor de incidentes ni al de inventario**. Hay un único
+camino: `nodo → McpTicketTool / McpInventoryTool → McpGateway → servidor MCP (HTTP + Bearer OAuth) → backend`.
+Las tools directas (`TicketTool`, `InventoryTool`, `BackendClient`) se **eliminaron**; `tools.py` conserva solo el contrato.
+
+| Tool del agente | Tool MCP que invoca | Entrada → salida (pydantic, sin cambios) |
 |---|---|---|
-| `TicketTool` | `GET /api/incidents` y `GET /api/incidents/{id}` (gestor de incidentes real) | `TicketQuery(ticket_id \| status, limit)` → `TicketsResult(outcome, tickets[id, title, description, category, origin, branch, status, created_at, updated_at], total, error)` |
-| `InventoryTool` (extra) | `GET /inventory/products` (gestor de inventario real) | `InventoryQuery(product_id \| product_name, limit)` → `InventoryResult(outcome, products[id, name, sku, restaurant, current_stock], total, error)` |
+| `McpTicketTool` | `incidents_get_ticket` / `incidents_list_tickets` | `TicketQuery(ticket_id \| status, limit)` → `TicketsResult(outcome, tickets[...], total, error)` |
+| `McpInventoryTool` | `inventory_get_stock` | `InventoryQuery(product_id \| product_name, limit)` → `InventoryResult(outcome, products[...], total, error)` |
 
-- **Datos reales, por HTTP.** Las tools llaman al backend propio (`services/api`); no hay datos simulados ni dataset
-  paralelo. Se eligió HTTP (y no la capa en-proceso) porque el agente puede ejecutarse desde la CLI sin importar la API.
-- **Autenticación.** Estos endpoints exigen JWT: la tool hace `POST /auth/login` con credenciales del entorno
-  (`AGENT_API_EMAIL`, `AGENT_API_PASSWORD`; base `AGENT_API_BASE_URL`, por defecto `http://localhost:8000`), reutiliza el
-  token y lo renueva una vez si recibe 401. Nada hardcodeado. El login es lo único que no es un GET.
-- **Solo lectura.** `BackendClient` solo expone `get()`; ninguna tool puede crear, modificar ni borrar.
-- **Timeout explícito y numérico:** `TOOL_TIMEOUT_SECONDS = 4.0` por operación HTTP.
-- **Nunca lanzan.** Un fallo vuelve como `outcome` ≠ `ok` (`not_found`, `timeout`, `unavailable`, `unauthorized`,
-  `invalid`) con un mensaje sin URLs ni stack traces.
-- **Una responsabilidad por tool**: tickets e inventario son tools distintas.
+- **Cliente:** `langchain-mcp-adapters` (`MultiServerMCPClient`, transporte Streamable HTTP) con discovery real de las tools.
+- **OAuth:** `TokenProvider` pide un token por *client credentials* al proveedor (Auth0) y lo cachea hasta que caduca.
+  Solo solicita `tickets:read inventory:read` (mínimo privilegio). Variables: `MCP_SERVER_URL`, `AGENT_MCP_TOKEN_URL`,
+  `AGENT_MCP_CLIENT_ID`, `AGENT_MCP_CLIENT_SECRET` (`AGENT_MCP_AUDIENCE`, `AGENT_MCP_SCOPES` opcionales). Nada hardcodeado.
+- **Solo lectura.** El agente solo invoca tools de lectura; el servidor además rechaza escrituras de inventario.
+- **Timeout explícito:** `CALL_TIMEOUT_SECONDS = 8.0` por invocación completa (token + conexión + tool).
+- **Nunca lanzan.** Los códigos del servidor (`[NOT_FOUND]`, `[FORBIDDEN_SCOPE]`, `[BACKEND_TIMEOUT]`...) se traducen a
+  `outcome` (`not_found`, `unauthorized`, `timeout`, `unavailable`, `invalid`) con un mensaje sin URLs ni stack traces.
+- **Enrutamiento intacto:** `routing.py` y los nodos no cambian; solo cambia qué hay detrás de `ticket_fn` / `inventory_fn`.
+- Los nodos son síncronos y el cliente MCP es asíncrono: `McpGateway` ejecuta cada llamada con `asyncio.run` (o en un hilo si ya hay un bucle).
+
+Documentación del servidor (transporte, scopes, errores, Auth0, Playground): [`mcps/brasaland_mcp/README.md`](../../mcps/brasaland_mcp/README.md).
 
 ## Fallback (ruta explícita, sin inventar)
 Si una tool agota el timeout, el servicio está caído, no hay credenciales o el recurso no existe, el grafo **no se
@@ -119,8 +125,7 @@ de `POST /agent/query` incluye `sources`. Ejemplos en `docs/agent/example-trace-
 
 ## Cómo ejecutarlo
 ```bash
-# 1) API en marcha (README de services/api) y un usuario registrado para el agente
-export AGENT_API_EMAIL=agente@brasaland.test AGENT_API_PASSWORD='...'
+# 1) API en marcha (puerto 8000), servidor MCP en marcha (puerto 8001) y las variables de mcps/brasaland_mcp/.env.example
 python -m services.agent "¿En qué estado está el ticket 1?" --export docs/agent/example-trace-tool.json
 python -m services.agent "¿Cuántos puntos necesito para el nivel Oro?" --export docs/agent/example-trace-rag.json
 # 2) Evals de enrutamiento y fallback (sin red ni claves)

@@ -24,7 +24,7 @@ from services.agent import nodes
 from services.agent.nodes import AgentDependencies
 from services.agent.service import AgentService
 from services.agent.state import STATUS_ANSWERED, STATUS_TOOL_FALLBACK
-from services.agent.tools import InventoryTool, TicketTool
+from services.agent.mcp_tools import McpInventoryTool, McpTicketTool
 from services.agent.tracing import TraceStore
 
 FAKE_MIN_SCORE = 0.30
@@ -69,7 +69,7 @@ def counting(knowledge_client) -> Counting:
 
 def make_agent(backend: FakeBackend, counting: Counting, tmp_path) -> AgentService:
     client = backend.client()
-    deps = AgentDependencies(counting.retrieve, counting.generate, TicketTool(client), InventoryTool(client))
+    deps = AgentDependencies(counting.retrieve, counting.generate, McpTicketTool(client), McpInventoryTool(client))
     return AgentService(deps, checkpointer=InMemorySaver(), trace_store=TraceStore(tmp_path / "traces"))
 
 
@@ -86,7 +86,7 @@ def _save_results():
 
 
 def _api_calls(backend: FakeBackend) -> list[tuple[str, str]]:
-    return [call for call in backend.requests if call[1] != "/auth/login"]
+    return list(backend.requests)  # cada invocación MCP: ("MCP", nombre de la tool)
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -104,7 +104,7 @@ def test_eval_ticket_question_is_resolved_by_the_tool_not_the_rag(counting, tmp_
         and trace["route"]["sources"] == ["tickets"]
         and counting.retrievals == 0  # el RAG no se consultó
         and "Estado: en progreso" in trace["final_state"]["answer"]  # el dato sale del ticket 482 del backend
-        and _api_calls(backend) == [("GET", "/api/incidents/482")]
+        and _api_calls(backend) == [("MCP", "incidents_get_ticket")]
     )
     _record("routing:ticket_question_uses_tool", ok, f"fuentes={trace['sources_used']}")
     assert ok, trace["node_order"]
@@ -122,7 +122,7 @@ def test_eval_knowledge_question_is_resolved_by_the_rag_not_a_tool(counting, tmp
         trace["status"] == STATUS_ANSWERED
         and [item["source"] for item in trace["sources_used"]] == ["rag"]
         and nodes.NODE_TICKETS not in trace["node_order"] and nodes.NODE_INVENTORY not in trace["node_order"]
-        and backend.requests == []  # no se llamó al backend (ni siquiera al login)
+        and backend.requests == []  # no se llamó al backend (ni al servidor MCP)
         and "50+ puntos" in trace["final_state"]["answer"]
     )
     _record("routing:knowledge_question_uses_rag", ok, f"fuentes={trace['sources_used']}")
@@ -202,15 +202,16 @@ def test_eval_failed_tool_does_not_hide_the_rag_part_of_a_mixed_question(countin
 
 
 # --------------------------------------------------------------------------------------------------------------
-# Eval 5 — las tools son de solo lectura (todas las peticiones del trace son GET, salvo el login)
+# Eval 5 — las tools son de solo lectura (el agente solo invoca tools MCP de lectura)
 # --------------------------------------------------------------------------------------------------------------
 def test_eval_a_whole_run_only_reads(counting, tmp_path):
     backend = FakeBackend()
     agent = make_agent(backend, counting, tmp_path)
     for question in (TICKET_QUESTION, STOCK_QUESTION, BOTH_QUESTION):
         agent.run(question)
-    writes = [call for call in backend.requests if call[0] != "GET" and call != ("POST", "/auth/login")]
-    ok = writes == [] and ("GET", "/inventory/products") in backend.requests
+    allowed = {"incidents_get_ticket", "incidents_list_tickets", "inventory_get_stock"}  # las tools de LECTURA
+    writes = [call for call in backend.requests if call[1] not in allowed]
+    ok = writes == [] and ("MCP", "inventory_get_stock") in backend.requests
     _record("read_only:no_writes_to_services", ok, f"peticiones={sorted(set(backend.requests))}")
     assert ok
 

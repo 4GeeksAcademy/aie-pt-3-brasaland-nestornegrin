@@ -8,3 +8,6 @@ Each subfolder inside `mcps/` must correspond to **one specific MCP server** (fo
 - **Recommendation**: document the tools and resources exposed by each MCP server.
 
 > _Spanish version: [README.es.md](./README.es.md)._
+
+## Servidores disponibles
+- [`brasaland_mcp`](./brasaland_mcp/README.md): tickets (crear, consultar, cambiar de estado) e inventario (solo lectura), con OAuth.
