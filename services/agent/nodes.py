@@ -185,10 +185,13 @@ def tool_chunks(tool_results: list[dict]) -> list[dict]:
             for index, ticket in enumerate(tickets):
                 text = (
                     f"Ticket #{ticket['id']}: {ticket['title']}. Estado: {_STATUS_LABELS.get(ticket['status'], ticket['status'])}. "
-                    f"Categoría: {ticket['category']}. Origen: {ticket['origin']}. Sede: {ticket['branch']}. "
-                    f"Creado: {ticket['created_at']}. Última actualización: {ticket['updated_at']}. "
-                    f"Descripción: {ticket['description']}"
+                    f"Categoría: {ticket['category']}. Origen: {ticket['origin']}. Sede: {ticket['branch']}."
                 )
+                # El listado ligero de la API no trae fechas ni descripción (solo el detalle por id).
+                if ticket.get("created_at"):
+                    text += f" Creado: {ticket['created_at']}. Última actualización: {ticket.get('updated_at')}."
+                if ticket.get("description"):
+                    text += f" Descripción: {ticket['description']}"
                 if len(tickets) < result["total"] and index == len(tickets) - 1:
                     text += f" (se muestran {len(tickets)} de {result['total']} tickets)"
                 chunks.append({"source_document": LIVE_SOURCE[SOURCE_TICKETS], "section": f"Ticket {ticket['id']}",

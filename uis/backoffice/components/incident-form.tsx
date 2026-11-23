@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { apiFetch, readApiErrorDetails } from "@/lib/api-client";
 import { BRANCHES, CATEGORIES, ORIGINS } from "@/lib/incidents";
+import { useFlowTracking } from "@/lib/use-flow-tracking";
+import { track } from "@/services/telemetry";
 
 type FormState = {
   title: string;
@@ -35,8 +37,10 @@ export function IncidentForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const flow = useFlowTracking("incident_report", "incident_new"); // telemetría
 
   function update(field: keyof FormState, value: string) {
+    flow.touch(field);
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: "", form: "" }));
     setSuccess(false);
@@ -50,6 +54,7 @@ export function IncidentForm() {
     // innecesaria y muestra el error junto al campo de inmediato.
     const clientErrors = validate(form);
     if (Object.keys(clientErrors).length > 0) {
+      flow.submitAttempt(false);
       setErrors(clientErrors);
       return;
     }
@@ -64,12 +69,17 @@ export function IncidentForm() {
       });
       if (!response.ok) {
         const details = await readApiErrorDetails(response, "No se pudo registrar la incidencia. Inténtalo de nuevo.");
+        flow.submitAttempt(false);
         setErrors(Object.keys(details.fields).length ? details.fields : { form: details.message });
         return;
       }
+      const created = (await response.json()) as { id: number };
+      track("incident_created", { incidentId: created.id, category: form.category, origin: form.origin, branch: form.branch });
+      flow.submitAttempt(true);
       setForm(EMPTY);
       setSuccess(true);
     } catch {
+      flow.submitAttempt(false);
       setErrors({ form: "No se pudo conectar con el servidor. Inténtalo de nuevo en unos minutos." });
     } finally {
       setLoading(false);
