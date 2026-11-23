@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from kombu.exceptions import OperationalError
+from pydantic import BaseModel
 from redis.exceptions import RedisError
 
 from app.auth.dependencies import get_current_user
@@ -15,10 +16,18 @@ from services.async_tasks.status import describe_task
 logger = logging.getLogger(__name__)
 
 
+class TaskStatusResponse(BaseModel):
+    """Contrato de `GET /tasks/{task_id}` (ver `services.async_tasks.status.describe_task`)."""
+
+    task_id: str
+    status: Literal["pending", "started", "success", "failure"]
+    result: dict[str, Any] | None = None
+
+
 def create_router() -> APIRouter:
     router = APIRouter(tags=["tasks"], dependencies=[Depends(get_current_user)])
 
-    @router.get("/tasks/{task_id}")
+    @router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
     def get_task_status(task_id: str) -> dict[str, Any]:
         """`{"task_id", "status": pending | started | success | failure, "result"}`.
 
