@@ -7,6 +7,13 @@ This folder is for **evaluation and validation**: evaluation datasets, golden se
 
 > _Spanish version: [README.es.md](./README.es.md)._
 
+## Model evaluation (`evaluation_report.md`, `evaluation_metrics.json`, `learning_curve.png`)
+
+Technical evaluation of the sales forecast model (`scripts/evaluate_sales_model.py`, training months only): temporal
+cross-validation (5 folds, mean ± std), MAE / RMSE for training and validation, the learning curve, the
+well-fitted / underfitting / overfitting diagnosis and the corrective action. Regenerate with
+`uv run python scripts/evaluate_sales_model.py`; the written report is `evaluation_report.md` (in Spanish).
+
 ## `sales_forecast/`
 
 Output of the sales forecast model (`scripts/train_sales_forecast.py`): `metrics.json` (MSE, PSI, Gini, K2 Score,

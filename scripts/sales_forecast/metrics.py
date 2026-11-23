@@ -10,6 +10,11 @@ def mse(actual, predicted) -> float:
     return float(mean_squared_error(actual, predicted))
 
 
+def mae(actual, predicted) -> float:
+    """Error absoluto medio (en USD si las ventas están en USD): el error típico, sin dar más peso a los grandes."""
+    return float(np.mean(np.abs(np.asarray(actual, dtype=float) - np.asarray(predicted, dtype=float))))
+
+
 def rmse(actual, predicted) -> float:
     """Raíz del MSE, en USD: es el error típico en dólares."""
     return float(np.sqrt(mse(actual, predicted)))
