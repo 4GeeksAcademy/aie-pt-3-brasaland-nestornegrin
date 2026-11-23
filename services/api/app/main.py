@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import time
 from threading import Lock
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
@@ -35,6 +36,15 @@ from sqlmodel import SQLModel
 
 app = FastAPI(title="Brasaland Operations API", version="1.0.0")
 logger = logging.getLogger(__name__)
+timing_logger = logging.getLogger("api.timing")
+if not timing_logger.handlers:
+    # uvicorn solo configura sus propios loggers: sin handler propio, las
+    # líneas de timing (nivel INFO) no llegarían a la consola.
+    _timing_handler = logging.StreamHandler()
+    _timing_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    timing_logger.addHandler(_timing_handler)
+    timing_logger.setLevel(logging.INFO)
+    timing_logger.propagate = False
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001"],
@@ -42,6 +52,21 @@ app.add_middleware(
         allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def timing_middleware(request: Request, call_next):
+    """Una línea de log por petición con su duración, para decidir con datos
+    qué endpoints merecen caché (ver CACHING_REPORT.md). También se devuelve
+    en la cabecera X-Process-Time-Ms para medirla desde el cliente."""
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start) * 1000
+    response.headers["X-Process-Time-Ms"] = f"{duration_ms:.1f}"
+    timing_logger.info("%s %s -> %s | %.1fms", request.method, request.url.path, response.status_code, duration_ms)
+    return response
+
+
 _latest_result: AnalysisResult | None = None
 _result_lock = Lock()
 supplier_repository = SupplierRepository(DATABASE_PATH)
