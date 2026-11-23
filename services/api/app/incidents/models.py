@@ -146,3 +146,9 @@ class AnalysisResponse(BaseModel):
     by_status: dict[str, int]
     average_closed_satisfaction: float | None
     invalid_reasons: dict[str, int]
+
+
+class TaskAccepted(BaseModel):
+    """Respuesta 202 de POST /api/incidents/analyze: identificador de la tarea encolada."""
+
+    task_id: str

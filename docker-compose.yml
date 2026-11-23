@@ -1,3 +1,35 @@
+# Configuración común de los servicios Python (api, worker, flower): misma imagen, mismo código, mismo Redis.
+x-backend: &backend
+  build:
+    context: ./services
+  image: brasaland-backend
+  volumes:
+    - ./services/api:/app/services/api
+    # La cola de tareas vive en services/ pero fuera de services/api: celery_app.py y async_tasks/ se importan
+    # como `services.celery_app` / `services.async_tasks` (PYTHONPATH incluye /app, ver services/Dockerfile).
+    - ./services/celery_app.py:/app/services/celery_app.py
+    - ./services/async_tasks:/app/services/async_tasks
+    # scripts/ y packages/ viven fuera de services/ en el monorepo, pero
+    # app/main.py los importa como paquetes de nivel superior -- ver el
+    # comentario en services/Dockerfile.
+    - ./scripts:/app/scripts
+    - ./packages:/app/packages
+    # CSV subidos: la API los deja aquí y el worker los lee. Es lo que hace que el mensaje de la cola sea
+    # ligero (solo el nombre del fichero, nunca su contenido).
+    - task_uploads:/app/uploads
+  env_file:
+    - .env
+  environment:
+    # Misma URL para la API (productor) y los workers (consumidores): el nombre del servicio Docker de Redis.
+    # Tiene prioridad sobre un REDIS_URL del .env (que, apuntando a localhost, no funcionaría dentro de un contenedor).
+    - REDIS_URL=redis://redis:6379/0
+    - TASK_UPLOAD_DIR=/app/uploads
+  depends_on:
+    redis:
+      condition: service_healthy
+  networks:
+    - brasaland
+
 services:
   # Contenedor único de interfaces: sitio público (3000) + backoffice (3001).
   interfaces:
@@ -33,21 +65,40 @@ services:
     networks:
       - brasaland
 
-  # Backend de FastAPI.
+  # Backend de FastAPI (productor de la cola de tareas).
   api:
-    build:
-      context: ./services
+    <<: *backend
     ports:
       - "8000:8000"
+
+  # Worker de Celery (consumidor): proceso INDEPENDIENTE de FastAPI. Misma imagen que `api`, otro comando.
+  # Detener `api` no lo detiene, y los mensajes pendientes viven en Redis, no en el proceso de la API.
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "services.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+
+  # Flower: panel de monitoreo de la cola (tareas en cola, en proceso, completadas y fallidas).
+  flower:
+    <<: *backend
+    command: ["celery", "-A", "services.celery_app", "flower", "--port=5555"]
+    ports:
+      - "5555:5555"
+
+  # Redis: broker (cola de mensajes) y result backend de Celery.
+  redis:
+    image: redis:7-alpine
+    # noeviction: con la memoria llena Redis rechaza escrituras en vez de borrar mensajes de la cola.
+    # appendonly: persistencia en disco, para que los mensajes sobrevivan a un reinicio de Redis.
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
     volumes:
-      - ./services/api:/app/services/api
-      # scripts/ y packages/ viven fuera de services/ en el monorepo, pero
-      # app/main.py los importa como paquetes de nivel superior -- ver el
-      # comentario en services/Dockerfile.
-      - ./scripts:/app/scripts
-      - ./packages:/app/packages
-    env_file:
-      - .env
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     networks:
       - brasaland
 
@@ -56,5 +107,7 @@ networks:
     driver: bridge
 
 volumes:
+  redis_data:
+  task_uploads:
   website_node_modules:
   backoffice_node_modules:

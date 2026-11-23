@@ -6,13 +6,14 @@ import logging
 import sys
 from pathlib import Path
 import time
-from threading import Lock
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from redis.exceptions import RedisError
 
 # `data/` (pipelines) y `services/reporting/` viven en la raíz del monorepo, fuera de `services/api`:
 # se añade la raíz al path para poder importarlos, arranque la API desde donde arranque.
@@ -20,7 +21,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.analyze import AnalysisResult, analyze_csv_text
+from scripts.analyze import AnalysisResult
+from services.async_tasks import results as task_results
+from services.async_tasks import staging
+from services.async_tasks.incident_tasks import analyze_incidents_csv
 from app.auth.dependencies import get_current_user
 from app.auth.repository import PasswordResetRepository, ProfileRepository, UserRepository
 from app.auth.routes import create_router as create_auth_router
@@ -31,11 +35,12 @@ from app.database import (
     PROFILES_DATABASE_PATH,
     USERS_DATABASE_PATH,
 )
-from app.incidents.models import AnalysisResponse
+from app.incidents.models import TaskAccepted
 from app.incidents.repository import IncidentRepository
 from app.incidents.routes import create_router as create_incidents_router
 from app.profiles.routes import create_router as create_profiles_router
 from app.suppliers.repository import SupplierRepository
+from app.tasks.routes import create_router as create_tasks_router
 from app.telemetry.routes import create_router as create_telemetry_router
 from app.routes.suppliers import create_router
 from app.users.routes import create_router as create_users_router
@@ -76,9 +81,6 @@ async def timing_middleware(request: Request, call_next):
     timing_logger.info("%s %s -> %s | %.1fms", request.method, request.url.path, response.status_code, duration_ms)
     return response
 
-
-_latest_result: AnalysisResult | None = None
-_result_lock = Lock()
 supplier_repository = SupplierRepository(DATABASE_PATH)
 user_repository = UserRepository(USERS_DATABASE_PATH)
 profile_repository = ProfileRepository(PROFILES_DATABASE_PATH)
@@ -90,6 +92,7 @@ app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 app.include_router(create_incidents_router(incident_repository))
+app.include_router(create_tasks_router())  # GET /tasks/{task_id} (cola de tareas asíncronas, DEV-55)
 app.include_router(create_telemetry_router())
 app.include_router(create_reporting_router())  # pipeline de desempeño de negocio (services/reporting/, separado de telemetry)
 
@@ -116,35 +119,34 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "Ha ocurrido un error inesperado. Inténtalo de nuevo más tarde."})
 
 
-@app.post("/api/incidents/analyze", response_model=AnalysisResponse, tags=["incidents"])
+@app.post("/api/incidents/analyze", status_code=202, response_model=TaskAccepted, tags=["incidents"])
 async def analyze_incidents(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
-) -> AnalysisResponse:
+) -> TaskAccepted:
+    """Encola el análisis del CSV y responde al instante con el `task_id` (202 Accepted).
+
+    El análisis ya no se ejecuta en esta petición: lo hace un worker de Celery (proceso aparte). Aquí solo se
+    validan lo barato (extensión, fichero no vacío), se aparca el CSV y se encola su identificador —el mensaje
+    nunca lleva el contenido—. El cliente consulta el progreso en `GET /tasks/{task_id}`.
+    """
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=415, detail="El fichero debe tener extensión .csv")
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="El fichero CSV está vacío")
-    try:
-        result = analyze_csv_text(content.decode("utf-8-sig"))
-    except UnicodeDecodeError as error:
-        raise HTTPException(status_code=400, detail="El fichero debe estar codificado en UTF-8") from error
-    except (csv.Error, ValueError) as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
 
-    global _latest_result
-    with _result_lock:
-        _latest_result = result
-    return AnalysisResponse(
-        total_processed=result.total_processed,
-        valid_records=result.valid_records,
-        invalid_records=result.invalid_records,
-        by_category=result.by_category,
-        by_status=result.by_status,
-        average_closed_satisfaction=result.average_closed_satisfaction,
-        invalid_reasons=result.invalid_reasons,
-    )
+    upload_id = await run_in_threadpool(staging.stage_upload, content)
+    try:
+        # `.delay()` publica en Redis (E/S bloqueante): fuera del bucle de eventos.
+        task = await run_in_threadpool(analyze_incidents_csv.delay, upload_id)
+    except Exception as error:
+        # Sin cola no hay tarea: se limpia el fichero aparcado y se avisa de que reintente.
+        await run_in_threadpool(staging.delete_upload, upload_id)
+        logger.exception("No se pudo encolar el análisis de incidencias")
+        raise HTTPException(status_code=503, detail="La cola de tareas no está disponible. Inténtalo de nuevo en unos segundos.") from error
+    logger.info("analyze enqueued task_id=%s upload_id=%s bytes=%d", task.id, upload_id, len(content))
+    return TaskAccepted(task_id=task.id)
 
 
 @app.get(
@@ -155,10 +157,14 @@ async def analyze_incidents(
     responses={200: {"content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}}, "description": "CSV con columnas metric,dimension,value"}},
 )
 def export_latest_results(current_user=Depends(get_current_user)) -> StreamingResponse:
-    with _result_lock:
-        result = _latest_result
-    if result is None:
+    try:
+        payload = task_results.load_latest()
+    except RedisError as error:
+        logger.exception("No se pudo leer el último resultado de Redis")
+        raise HTTPException(status_code=503, detail="La cola de tareas no está disponible. Inténtalo de nuevo en unos segundos.") from error
+    if payload is None:
         raise HTTPException(status_code=404, detail="Todavía no hay ningún análisis disponible")
+    result = AnalysisResult(**payload)
     output = io.StringIO(newline="")
     writer = csv.writer(output)
     writer.writerow(("metric", "dimension", "value"))

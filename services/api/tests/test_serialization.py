@@ -103,19 +103,21 @@ def test_incident_list_is_lighter_than_incident_detail(client, auth_headers):
     assert set(detail) == {"id", "title", "description", "category", "origin", "branch", "status", "created_at", "updated_at"}
 
 
-def test_analyze_returns_the_typed_analysis_payload(client, auth_headers):
+def test_analyze_returns_the_typed_task_receipt(client, auth_headers, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from services.async_tasks import config
+
+    task_id = "00000000-0000-0000-0000-000000000001"
+    monkeypatch.setattr(config, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(main_module.analyze_incidents_csv, "delay", lambda *args, **kwargs: SimpleNamespace(id=task_id))
     headers = auth_headers(email="analyze@example.com")
-    csv_bytes = "id,category,status\n".encode()
 
-    response = client.post("/api/incidents/analyze", headers=headers, files={"file": ("x.csv", csv_bytes, "text/csv")})
+    response = client.post("/api/incidents/analyze", headers=headers, files={"file": ("x.csv", b"id,category,status\n", "text/csv")})
 
-    # Con un CSV sin columnas válidas la API responde 400 con detalle, nunca un dict ad hoc.
-    assert response.status_code in (200, 400)
-    if response.status_code == 200:
-        assert set(response.json()) == {
-            "total_processed", "valid_records", "invalid_records", "by_category",
-            "by_status", "average_closed_satisfaction", "invalid_reasons",
-        }
+    # El analisis lo calcula un worker (DEV-55): la API solo devuelve el recibo tipado, nunca un dict ad hoc.
+    assert response.status_code == 202
+    assert response.json() == {"task_id": task_id}
 
 
 def test_every_json_endpoint_declares_a_response_schema():
