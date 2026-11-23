@@ -44,6 +44,7 @@ from app.tasks.routes import create_router as create_tasks_router
 from app.telemetry.routes import create_router as create_telemetry_router
 from app.routes.suppliers import create_router
 from app.routes.knowledge import create_router as create_knowledge_router
+from services.agent.router import create_router as create_agent_router  # tras knowledge: añade la raíz del repo a sys.path
 from app.users.routes import create_router as create_users_router
 from app.inventory.routes import create_router as create_inventory_router
 from services.reporting.router import create_router as create_reporting_router
@@ -94,6 +95,7 @@ app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 app.include_router(create_incidents_router(incident_repository))
 app.include_router(create_knowledge_router())  # POST /knowledge/query (Hito 7 — RAG)
+app.include_router(create_agent_router())  # POST /agent/query (agente LangGraph; compila el grafo al arrancar)
 app.include_router(create_tasks_router())  # GET /tasks/{task_id} (cola de tareas asíncronas, DEV-55)
 app.include_router(create_telemetry_router())
 app.include_router(create_reporting_router())  # pipeline de desempeño de negocio (services/reporting/, separado de telemetry)

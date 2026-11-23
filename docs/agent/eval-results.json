@@ -1,0 +1,49 @@
+{
+  "results": [
+    {
+      "eval": "anchored:oro",
+      "passed": true,
+      "detail": "fuentes=['loyalty-program'] dato='50+ puntos'"
+    },
+    {
+      "eval": "anchored:merma",
+      "passed": true,
+      "detail": "fuentes=['waste-protocol'] dato='2 kg'"
+    },
+    {
+      "eval": "anchored:proveedores",
+      "passed": true,
+      "detail": "fuentes=['supplier-ordering'] dato='10:00'"
+    },
+    {
+      "eval": "anchored:gluten",
+      "passed": true,
+      "detail": "fuentes=['menu-allergens'] dato='No existe versión sin gluten certificada'"
+    },
+    {
+      "eval": "no_information_without_generation",
+      "passed": true,
+      "detail": "ruta=['receive_question', 'retrieve_context', 'no_information']"
+    },
+    {
+      "eval": "empty_question:''",
+      "passed": true,
+      "detail": "ruta=['receive_question', 'reject_question']"
+    },
+    {
+      "eval": "empty_question:'   \\n\\t '",
+      "passed": true,
+      "detail": "ruta=['receive_question', 'reject_question']"
+    },
+    {
+      "eval": "trace_consistency",
+      "passed": true,
+      "detail": "nodos=['receive_question', 'retrieve_context', 'generate_answer'] checkpoints=5"
+    },
+    {
+      "eval": "generation_gets_retrieved_context",
+      "passed": true,
+      "detail": "3 fragmentos"
+    }
+  ]
+}

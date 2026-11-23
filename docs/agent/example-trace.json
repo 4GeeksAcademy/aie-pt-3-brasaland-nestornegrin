@@ -1,0 +1,153 @@
+{
+  "run_id": "20261109T134754-f6d6963e",
+  "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+  "status": "answered",
+  "started_at": "2026-11-09T13:47:54.233+00:00",
+  "finished_at": "2026-11-09T13:48:40.361+00:00",
+  "duration_ms": 46128.359,
+  "node_order": [
+    "receive_question",
+    "retrieve_context",
+    "generate_answer"
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "node": "receive_question",
+      "started_at": "2026-11-09T13:47:54.240+00:00",
+      "input": {
+        "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?"
+      },
+      "output": {
+        "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+        "status": "received"
+      },
+      "error": null,
+      "duration_ms": 0.004
+    },
+    {
+      "order": 2,
+      "node": "retrieve_context",
+      "started_at": "2026-11-09T13:47:54.241+00:00",
+      "input": {
+        "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+        "status": "received"
+      },
+      "output": {
+        "context": [
+          {
+            "source_document": "loyalty-program",
+            "section": "Niveles del programa",
+            "chunk_index": 1
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Redención de puntos",
+            "chunk_index": 2
+          }
+        ]
+      },
+      "error": null,
+      "duration_ms": 40309.417
+    },
+    {
+      "order": 3,
+      "node": "generate_answer",
+      "started_at": "2026-11-09T13:48:34.551+00:00",
+      "input": {
+        "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+        "context": [
+          {
+            "source_document": "loyalty-program",
+            "section": "Niveles del programa",
+            "chunk_index": 1
+          },
+          {
+            "source_document": "loyalty-program",
+            "section": "Redención de puntos",
+            "chunk_index": 2
+          }
+        ],
+        "status": "received"
+      },
+      "output": {
+        "answer": "Para el nivel Oro necesitas **50 puntos o más**. A partir de ahí obtienes **15% de descuento permanente** y acceso al menú de temporada antes que el público general.\n\nFuente: loyalty-program — Niveles del programa",
+        "status": "answered"
+      },
+      "error": null,
+      "duration_ms": 5808.088
+    }
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_id": "1f1dc442-9cc8-6ab0-bfff-d2d2095d9800",
+      "step": -1,
+      "next": [
+        "__start__"
+      ],
+      "state_keys": []
+    },
+    {
+      "checkpoint_id": "1f1dc442-9ccf-6790-8000-c678c0c3c1c0",
+      "step": 0,
+      "next": [
+        "receive_question"
+      ],
+      "state_keys": [
+        "question"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc442-9cd5-6b62-8001-081a1ecaae61",
+      "step": 1,
+      "next": [
+        "retrieve_context"
+      ],
+      "state_keys": [
+        "question",
+        "status"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc444-1d43-6d75-8002-f02f5256da94",
+      "step": 2,
+      "next": [
+        "generate_answer"
+      ],
+      "state_keys": [
+        "context",
+        "question",
+        "status"
+      ]
+    },
+    {
+      "checkpoint_id": "1f1dc444-54aa-6700-8003-70c3344895dd",
+      "step": 3,
+      "next": [],
+      "state_keys": [
+        "answer",
+        "context",
+        "question",
+        "status"
+      ]
+    }
+  ],
+  "final_state": {
+    "question": "¿Cuántos puntos necesito para el nivel Oro y qué descuento da?",
+    "context": [
+      {
+        "source_document": "loyalty-program",
+        "section": "Niveles del programa",
+        "chunk_index": 1
+      },
+      {
+        "source_document": "loyalty-program",
+        "section": "Redención de puntos",
+        "chunk_index": 2
+      }
+    ],
+    "answer": "Para el nivel Oro necesitas **50 puntos o más**. A partir de ahí obtienes **15% de descuento permanente** y acceso al menú de temporada antes que el público general.\n\nFuente: loyalty-program — Niveles del programa",
+    "status": "answered"
+  },
+  "error": null
+}
