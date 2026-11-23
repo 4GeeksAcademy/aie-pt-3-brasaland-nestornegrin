@@ -3,6 +3,9 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import sys
+from pathlib import Path
+import time
 from threading import Lock
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
@@ -10,6 +13,12 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+# `data/` (pipelines) y `services/reporting/` viven en la raíz del monorepo, fuera de `services/api`:
+# se añade la raíz al path para poder importarlos, arranque la API desde donde arranque.
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.analyze import AnalysisResult, analyze_csv_text
 from app.auth.dependencies import get_current_user
@@ -22,18 +31,30 @@ from app.database import (
     PROFILES_DATABASE_PATH,
     USERS_DATABASE_PATH,
 )
+from app.incidents.models import AnalysisResponse
 from app.incidents.repository import IncidentRepository
 from app.incidents.routes import create_router as create_incidents_router
 from app.profiles.routes import create_router as create_profiles_router
 from app.suppliers.repository import SupplierRepository
+from app.telemetry.routes import create_router as create_telemetry_router
 from app.routes.suppliers import create_router
 from app.users.routes import create_router as create_users_router
 from app.inventory.routes import create_router as create_inventory_router
+from services.reporting.router import create_router as create_reporting_router
 from app.database import engine
 from sqlmodel import SQLModel
 
 app = FastAPI(title="Brasaland Operations API", version="1.0.0")
 logger = logging.getLogger(__name__)
+timing_logger = logging.getLogger("api.timing")
+if not timing_logger.handlers:
+    # uvicorn solo configura sus propios loggers: sin handler propio, las
+    # líneas de timing (nivel INFO) no llegarían a la consola.
+    _timing_handler = logging.StreamHandler()
+    _timing_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    timing_logger.addHandler(_timing_handler)
+    timing_logger.setLevel(logging.INFO)
+    timing_logger.propagate = False
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001"],
@@ -41,6 +62,21 @@ app.add_middleware(
         allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def timing_middleware(request: Request, call_next):
+    """Una línea de log por petición con su duración, para decidir con datos
+    qué endpoints merecen caché (ver CACHING_REPORT.md). También se devuelve
+    en la cabecera X-Process-Time-Ms para medirla desde el cliente."""
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start) * 1000
+    response.headers["X-Process-Time-Ms"] = f"{duration_ms:.1f}"
+    timing_logger.info("%s %s -> %s | %.1fms", request.method, request.url.path, response.status_code, duration_ms)
+    return response
+
+
 _latest_result: AnalysisResult | None = None
 _result_lock = Lock()
 supplier_repository = SupplierRepository(DATABASE_PATH)
@@ -54,6 +90,8 @@ app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
 app.include_router(create_incidents_router(incident_repository))
+app.include_router(create_telemetry_router())
+app.include_router(create_reporting_router())  # pipeline de desempeño de negocio (services/reporting/, separado de telemetry)
 
 # Inventory (Supabase/SQLModel) - create schema, then mount routes.
 SQLModel.metadata.create_all(engine)
@@ -78,11 +116,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "Ha ocurrido un error inesperado. Inténtalo de nuevo más tarde."})
 
 
-@app.post("/api/incidents/analyze")
+@app.post("/api/incidents/analyze", response_model=AnalysisResponse, tags=["incidents"])
 async def analyze_incidents(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
-) -> dict[str, object]:
+) -> AnalysisResponse:
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=415, detail="El fichero debe tener extensión .csv")
     content = await file.read()
@@ -98,18 +136,24 @@ async def analyze_incidents(
     global _latest_result
     with _result_lock:
         _latest_result = result
-    return {
-        "total_processed": result.total_processed,
-        "valid_records": result.valid_records,
-        "invalid_records": result.invalid_records,
-        "by_category": result.by_category,
-        "by_status": result.by_status,
-        "average_closed_satisfaction": result.average_closed_satisfaction,
-        "invalid_reasons": result.invalid_reasons,
-    }
+    return AnalysisResponse(
+        total_processed=result.total_processed,
+        valid_records=result.valid_records,
+        invalid_records=result.invalid_records,
+        by_category=result.by_category,
+        by_status=result.by_status,
+        average_closed_satisfaction=result.average_closed_satisfaction,
+        invalid_reasons=result.invalid_reasons,
+    )
 
 
-@app.get("/api/incidents/results/export")
+@app.get(
+    "/api/incidents/results/export",
+    tags=["incidents"],
+    response_class=StreamingResponse,
+    response_model=None,
+    responses={200: {"content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}}, "description": "CSV con columnas metric,dimension,value"}},
+)
 def export_latest_results(current_user=Depends(get_current_user)) -> StreamingResponse:
     with _result_lock:
         result = _latest_result
