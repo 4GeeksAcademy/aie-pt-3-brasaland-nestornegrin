@@ -82,7 +82,10 @@ def _as_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
-        loaded = json.loads(value)
+        try:
+            loaded = json.loads(value)
+        except ValueError:  # texto que no es JSON: se trata como «sin tags» (acabará en UNATTRIBUTED), no tumba la corrida
+            return {}
         return loaded if isinstance(loaded, dict) else {}
     return {}
 
@@ -132,7 +135,8 @@ def flatten_events(raw: pd.DataFrame) -> pd.DataFrame:
     tags.index = raw.index
     flat = raw[base_columns].join(tags)
     return flat.assign(
-        timestamp=pd.to_datetime(flat["timestamp"], utc=True),
+        # `errors="coerce"`: un timestamp ilegible o fuera de rango (p. ej. año 2999) pasa a NaT y la cuarentena lo aparta.
+        timestamp=pd.to_datetime(flat["timestamp"], utc=True, errors="coerce"),
         quantity=pd.to_numeric(flat["quantity"], errors="coerce"),
         exitId=pd.to_numeric(flat["exitId"], errors="coerce"),
         triggeringExitId=pd.to_numeric(flat["triggeringExitId"], errors="coerce"),
@@ -148,7 +152,7 @@ def quarantine_events(events: pd.DataFrame, now: datetime, max_age: timedelta | 
     if events.empty:
         return events, 0
     now_utc = pd.Timestamp(now).tz_convert("UTC") if pd.Timestamp(now).tzinfo else pd.Timestamp(now, tz="UTC")
-    bad = events["timestamp"] > now_utc + FUTURE_TOLERANCE
+    bad = events["timestamp"].isna() | (events["timestamp"] > now_utc + FUTURE_TOLERANCE)  # NaT = timestamp ilegible
     if max_age is not None:
         bad = bad | (events["timestamp"] < now_utc - max_age)
     return events[~bad], int(bad.sum())
@@ -266,67 +270,108 @@ def _pct(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
     return (numerator / denominator.where(denominator > 0) * 100).round(2)
 
 
-def compute_daily_kpis(
-    events: pd.DataFrame,
-    exits: pd.DataFrame,
-    movements: pd.DataFrame,
-    buckets: pd.DataFrame,
-    dim: pd.DataFrame,
-    dropped: pd.DataFrame,
-    source_max_event_id: int,
-    low: float = DEFAULT_LOW_THRESHOLD,
-    critical: float = DEFAULT_CRITICAL_THRESHOLD,
-) -> pd.DataFrame:
-    """Una fila por cubo con K1–K6, columnas de calidad y `kpi_hash`. Determinista: mismos datos → mismas filas.
+def prepare_events(raw_events: pd.DataFrame, dim: pd.DataFrame, now: datetime) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Aplana el payload, asigna el día local de cada restaurante y deduplica. Devuelve `(conservados, descartados)`.
 
-    `events`: TODOS los eventos (ya aplanados, con cubo asignado y deduplicados) de los cubos a recalcular.
-    `exits`: `ingredient_exits` del dominio (`exit_id`, `reason`, `created_at`, `restaurant`) → merma y cobertura.
-    `movements`: entradas/salidas de stock (`ingredient_id`, `restaurant`, `ts`, `delta`) → K6.
-    `dropped`: eventos descartados por la deduplicación → `events_deduplicated`.
+    En el recálculo solo se descartan los timestamps del futuro (`max_age=None`): los cubos se recalculan enteros.
     """
-    in_buckets = events.merge(buckets, on=BUCKET) if not events.empty else events
+    events, _ = quarantine_events(flatten_events(raw_events), now, max_age=None)  # antes del día local: NaT no tiene día
+    return dedupe_events(assign_buckets(events, dim))
 
-    # K1/K2/K3 — órdenes de salida (una fila por orden gracias a la deduplicación por exitId)
-    orders = in_buckets[in_buckets["event_type"] == OUTBOUND_ORDER_CREATED] if not events.empty else events
-    orders = orders.merge(exits[["exit_id", "reason"]], left_on="exitId", right_on="exit_id", how="left") if not orders.empty else orders.assign(reason=pd.Series(dtype=object))
+
+def _in_buckets(events: pd.DataFrame, buckets: pd.DataFrame, event_type: str) -> pd.DataFrame:
+    """Eventos de un tipo que caen en los cubos (restaurante, día local) a recalcular."""
+    if events.empty:
+        return events
+    joined = events.merge(buckets, on=BUCKET)
+    return joined[joined["event_type"] == event_type]
+
+
+def _with_buckets(buckets: pd.DataFrame, part: pd.DataFrame) -> pd.DataFrame:
+    """Cada KPI devuelve UNA fila por cubo (los cubos sin eventos valen 0), para poder ensamblarlos sin huecos."""
+    return buckets.merge(part, on=BUCKET, how="left")
+
+
+def _order_totals(orders: pd.DataFrame) -> pd.DataFrame:
+    return orders.groupby(BUCKET, as_index=False).agg(outbound_orders=("event_id", "size"), units_issued=("quantity", "sum"))
+
+
+def kpi_outbound_orders_and_units_issued(events: pd.DataFrame, buckets: pd.DataFrame) -> pd.DataFrame:
+    """K1 `outbound_orders` y K2 `units_issued`: órdenes de salida (una por `exitId`) y Σ `quantity`, por cubo."""
+    orders = _in_buckets(events, buckets, OUTBOUND_ORDER_CREATED)
+    result = _with_buckets(buckets, _order_totals(orders))
+    result["outbound_orders"] = pd.to_numeric(result["outbound_orders"], errors="coerce").fillna(0).astype(int)
+    result["units_issued"] = pd.to_numeric(result["units_issued"], errors="coerce").fillna(0.0).astype(float).round(4)
+    return result
+
+
+def kpi_spoilage_rate_pct(events: pd.DataFrame, exits: pd.DataFrame, buckets: pd.DataFrame) -> pd.DataFrame:
+    """K3 `spoilage_units` y `spoilage_rate_pct`: unidades de salidas cuya razón empieza por «Merma» ÷ `units_issued` × 100.
+
+    La razón se lee de `ingredient_exits` (por `exitId`) solo para clasificar; el texto nunca sale de esta función.
+    """
+    orders = _in_buckets(events, buckets, OUTBOUND_ORDER_CREATED)
+    if not orders.empty:
+        orders = orders.merge(exits[["exit_id", "reason"]], left_on="exitId", right_on="exit_id", how="left")
+    else:
+        orders = orders.assign(reason=pd.Series(dtype=object))
     is_spoilage = orders["reason"].fillna("").astype(str).str.strip().str.lower().str.startswith(SPOILAGE_PREFIX)
     orders = orders.assign(spoilage_quantity=orders["quantity"].where(is_spoilage, 0.0))
-    k1_k3 = orders.groupby(BUCKET, as_index=False).agg(
-        outbound_orders=("event_id", "size"), units_issued=("quantity", "sum"), spoilage_units=("spoilage_quantity", "sum")
-    )
+    totals = orders.groupby(BUCKET, as_index=False).agg(units_issued=("quantity", "sum"), spoilage_units=("spoilage_quantity", "sum"))
+    result = _with_buckets(buckets, totals)
+    units = pd.to_numeric(result["units_issued"], errors="coerce").fillna(0.0).astype(float).round(4)
+    spoiled = pd.to_numeric(result["spoilage_units"], errors="coerce").fillna(0.0).astype(float).round(4)
+    return result[BUCKET].assign(spoilage_units=spoiled, spoilage_rate_pct=_pct(spoiled, units))
 
-    # K4 — cruces de umbral hacia abajo
-    thresholds = in_buckets[in_buckets["event_type"] == STOCK_THRESHOLD_TRIGGERED] if not events.empty else events
-    k4 = thresholds.assign(is_low=thresholds["level"] == "low", is_critical=thresholds["level"] == "critical").groupby(
+
+def kpi_stock_alerts(events: pd.DataFrame, buckets: pd.DataFrame) -> pd.DataFrame:
+    """K4 `stock_alerts_low` / `stock_alerts_critical`: cruces de umbral hacia abajo (ya deduplicados por exitId+nivel)."""
+    alerts = _in_buckets(events, buckets, STOCK_THRESHOLD_TRIGGERED)
+    counted = alerts.assign(is_low=alerts["level"] == "low", is_critical=alerts["level"] == "critical").groupby(
         BUCKET, as_index=False
     ).agg(stock_alerts_low=("is_low", "sum"), stock_alerts_critical=("is_critical", "sum"))
+    result = _with_buckets(buckets, counted)
+    for column in ("stock_alerts_low", "stock_alerts_critical"):
+        result[column] = pd.to_numeric(result[column], errors="coerce").fillna(0).astype(int)
+    return result
 
-    # K5 — rechazos de validación (el denominador son órdenes + rechazos)
-    failures = in_buckets[in_buckets["event_type"] == INVENTORY_VALIDATION_FAILED] if not events.empty else events
-    k5 = failures.groupby(BUCKET, as_index=False).agg(validation_failures=("event_id", "size"))
 
-    # Calidad: salidas reales del día (cobertura) y duplicados descartados
+def kpi_validation_rejection_rate_pct(events: pd.DataFrame, buckets: pd.DataFrame) -> pd.DataFrame:
+    """K5 `validation_failures` y `validation_rejection_rate_pct`: rechazos ÷ (órdenes + rechazos) × 100."""
+    failures = _in_buckets(events, buckets, INVENTORY_VALIDATION_FAILED)
+    counted = failures.groupby(BUCKET, as_index=False).agg(validation_failures=("event_id", "size"))
+    rejected = pd.to_numeric(_with_buckets(buckets, counted)["validation_failures"], errors="coerce").fillna(0).astype(int)
+    orders = kpi_outbound_orders_and_units_issued(events, buckets)["outbound_orders"]
+    return buckets[BUCKET].assign(validation_failures=rejected, validation_rejection_rate_pct=_pct(rejected, orders + rejected))
+
+
+def kpi_ingredients_at_risk_eod(buckets: pd.DataFrame, movements: pd.DataFrame, dim: pd.DataFrame, low: float, critical: float) -> pd.DataFrame:
+    """K6 `ingredients_at_risk_eod` / `ingredients_critical_eod`: insumos con stock al cierre local ≤ umbral."""
+    result = _with_buckets(buckets, _ingredients_at_risk(buckets, movements, dim, low, critical))
+    for column in ("ingredients_at_risk_eod", "ingredients_critical_eod"):
+        result[column] = pd.to_numeric(result[column], errors="coerce").fillna(0).astype(int)
+    return result
+
+
+def assemble_daily_kpis(
+    buckets: pd.DataFrame,
+    kpi_parts: list[pd.DataFrame],
+    exits: pd.DataFrame,
+    dropped: pd.DataFrame,
+    dim: pd.DataFrame,
+    source_max_event_id: int,
+) -> pd.DataFrame:
+    """Une los KPIs (una fila por cubo), añade las columnas de calidad y el `kpi_hash`. Determinista."""
     exits_local = exits.assign(report_date=local_date(exits["created_at"], _zone_of(exits["restaurant"], dim))) if not exits.empty else exits.assign(report_date=pd.Series(dtype=object))
     real_exits = exits_local.groupby(BUCKET, as_index=False).agg(real_exits=("exit_id", "size"))
     deduplicated = dropped.groupby(BUCKET, as_index=False).agg(events_deduplicated=("event_id", "size")) if not dropped.empty else pd.DataFrame({c: pd.Series(dtype=object) for c in BUCKET + ["events_deduplicated"]})
 
     result = buckets.copy()
-    for part in (k1_k3, k4, k5, real_exits, deduplicated, _ingredients_at_risk(buckets, movements, dim, low, critical)):
+    for part in (*kpi_parts, real_exits, deduplicated):
         result = result.merge(part, on=BUCKET, how="left")
+    for column in ("real_exits", "events_deduplicated"):
+        result[column] = pd.to_numeric(result[column], errors="coerce").fillna(0).astype(int)
 
-    counts = [
-        "outbound_orders", "stock_alerts_low", "stock_alerts_critical", "validation_failures",
-        "ingredients_at_risk_eod", "ingredients_critical_eod", "events_deduplicated", "real_exits",
-    ]
-    result[counts] = result[counts].apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
-    result[["units_issued", "spoilage_units"]] = (
-        result[["units_issued", "spoilage_units"]].apply(pd.to_numeric, errors="coerce").fillna(0.0).astype(float).round(4)
-    )
-
-    result["spoilage_rate_pct"] = _pct(result["spoilage_units"], result["units_issued"])
-    result["validation_rejection_rate_pct"] = _pct(
-        result["validation_failures"], result["outbound_orders"] + result["validation_failures"]
-    )
     result["telemetry_coverage_pct"] = _pct(result["outbound_orders"], result["real_exits"])
     # capture_health: distingue «no hubo salidas» de «hubo salidas pero la telemetría no las vio» (diseño §10.4)
     result["capture_health"] = np.select(
@@ -339,6 +384,35 @@ def compute_daily_kpis(
     )
     result["source_max_event_id"] = int(source_max_event_id)
     return result.drop(columns=["real_exits"]).sort_values(BUCKET).reset_index(drop=True)
+
+
+def compute_daily_kpis(
+    events: pd.DataFrame,
+    exits: pd.DataFrame,
+    movements: pd.DataFrame,
+    buckets: pd.DataFrame,
+    dim: pd.DataFrame,
+    dropped: pd.DataFrame,
+    source_max_event_id: int,
+    low: float = DEFAULT_LOW_THRESHOLD,
+    critical: float = DEFAULT_CRITICAL_THRESHOLD,
+) -> pd.DataFrame:
+    """Una fila por cubo con K1–K6, columnas de calidad y `kpi_hash`: compone las funciones de arriba (misma lógica
+    que las tasks del pipeline). Determinista: mismos datos → mismas filas.
+
+    `events`: TODOS los eventos (ya aplanados, con cubo asignado y deduplicados) de los cubos a recalcular.
+    `exits`: `ingredient_exits` del dominio (`exit_id`, `reason`, `created_at`, `restaurant`) → merma y cobertura.
+    `movements`: entradas/salidas de stock (`ingredient_id`, `restaurant`, `ts`, `delta`) → K6.
+    `dropped`: eventos descartados por la deduplicación → `events_deduplicated`.
+    """
+    parts = [
+        kpi_outbound_orders_and_units_issued(events, buckets),
+        kpi_spoilage_rate_pct(events, exits, buckets),
+        kpi_stock_alerts(events, buckets),
+        kpi_validation_rejection_rate_pct(events, buckets),
+        kpi_ingredients_at_risk_eod(buckets, movements, dim, low, critical),
+    ]
+    return assemble_daily_kpis(buckets, parts, exits, dropped, dim, source_max_event_id)
 
 
 # --------------------------------------------------------------------------- #

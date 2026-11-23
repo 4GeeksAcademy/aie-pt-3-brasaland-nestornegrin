@@ -335,6 +335,16 @@
 - **Decisiones/limitaciones:** no existe `CONTEXT-company.md` (se usan las propuestas ⚑); `analysis.py` real en `services/api/app/telemetry/` (intacto); el disparo manual solo exige autenticación; Dockerfile debe copiar `data/` y `services/reporting/`.
 - Verificado: suite por defecto (104 passed, 15 skipped) y 15 tests de integración contra Postgres real; dos ejecuciones seguidas (2.ª: transform en caché, 0 insertadas, 43 sin cambios).
 
+
+## Pipeline a producción: subflows, tests y dashboard (`feat: refactor business performance pipeline into subflows, add unit tests, and add reporting dashboard`)
+
+- **Subflows** en `data/pipelines/pipeline.py`: `extract_inventory_telemetry`, `compute_inventory_kpis`, `load_restaurant_inventory_daily` y el opcional `export_inventory_validation_snapshot` (con `return_state=True`). El flow principal solo coordina. La transformación pasó a una task por KPI (`compute_outbound_orders_and_units_issued`, `compute_spoilage_rate_pct`, `compute_stock_alerts`, `compute_validation_rejection_rate_pct`, `compute_ingredients_at_risk_eod`, `assemble_daily_kpis`) sobre funciones puras de `data/process/business_kpis.py`. Valores y `kpi_hash` idénticos a antes.
+- **Tests** `tests/pipelines/test_pipeline.py` (`python -m pytest tests/pipelines/test_pipeline.py`, sin BD) + `tests/conftest.py`. Destapó dos fallos reales (tags no-JSON y timestamps fuera de rango tumbaban la corrida), ya corregidos.
+- **Dashboard** `/reporting` en `uis/backoffice/` (`lib/inventory-performance.ts`, `components/inventory-performance-*.tsx`): K1–K6 con nombres del diseño, período, filtros y avisos de datos desactualizados / captura incompleta. Tests de jest en `__tests__/inventory-performance.test.tsx`.
+- **Decisiones:** sigue sin existir `CONTEXT-company.md` (nombres ⚑ del diseño); `analysis.py` real en `services/api/app/telemetry/` (intacto). Mejoras adicionales anotadas en `PIPELINE_DESIGN.md` §16.2.
+- Verificado: pytest raíz 18, API 104 (+15 de integración contra Postgres), jest 66, `tsc`, eslint, `npm run build` y prueba en navegador con la API y datos reales.
+
+
 ## Auditoría de serialización de la API
 
 - Auditados todos los endpoints de `services/api` (33 lógicos); el detalle por endpoint, con su estado inicial y final, está en `docs/serialization-audit.md`. Ningún endpoint devolvía un objeto ORM ni `hashed_password`; los problemas eran esquemas de salida heredados del de entrada, claves de almacenamiento expuestas, el email repetido en el registro y `/api/incidents/analyze` devolviendo un `dict` sin tipar.

@@ -8,6 +8,10 @@ dependencies = [
     "scikit-learn>=1.9.1",
     "statsmodels>=0.15.0",
     "xgboost>=3.4.1",
+    # Pipeline de desempeño de negocio (data/pipelines): Prefect, SQLAlchemy y carga de .env.
+    "prefect>=3,<4",
+    "python-dotenv>=1.2.3",
+    "sqlalchemy>=2.0,<2.1",
 ]
 
 [dependency-groups]

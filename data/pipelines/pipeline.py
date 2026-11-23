@@ -24,6 +24,7 @@ Qué hace resiliente al pipeline (los cuatro requisitos del ticket):
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import json
 import sys
@@ -159,38 +160,67 @@ def extract_domain_snapshot(extraction: dict[str, Any], window: tuple[date, date
 
 
 def _transform_cache_key(context: Any, parameters: dict[str, Any]) -> str:
-    """Define la CLAVE DE CACHÉ de `transform_daily_kpis`.
+    """Define la CLAVE DE CACHÉ de cada task de transformación.
 
-    La clave es la huella (`fingerprint`) de lo que alimenta el cálculo: versión del código, umbrales, tope de
-    `telemetry_events.id`, lista de cubos, estado de las tablas de inventario y rango. Mismos datos y mismo código
-    → misma clave → se reutiliza el resultado; en cuanto llega un evento nuevo, cambia el tope de id y la clave
-    cambia sola, así que la caché NUNCA sirve números de datos viejos. (`run_id` y `computed_at` no entran:
+    La clave es el nombre de la task + la huella (`fingerprint`) de lo que alimenta el cálculo: versión del código,
+    umbrales, tope de `telemetry_events.id`, lista de cubos, estado de las tablas de inventario y rango. Mismos datos
+    y mismo código → misma clave → se reutiliza el resultado; en cuanto llega un evento nuevo, cambia el tope de id y la
+    clave cambia sola, así que la caché NUNCA sirve números de datos viejos. (`run_id` y `computed_at` no entran:
     los estampa la carga, para que una corrida cacheada conserve su propio linaje).
     """
-    return f"inventory-performance-transform-{parameters['fingerprint']}"
+    return f"inventory-performance-{context.task.name}-{parameters['fingerprint']}"
 
 
-@task(
-    name="transform_daily_kpis",
-    # No lleva `retries`: es una función determinista y sin red; repetirla daría el mismo resultado (o el mismo error).
-    cache_key_fn=_transform_cache_key,
-    # Vigencia de 1 hora (requisito del ticket: «si una task ya corrió bien en la última hora, no repetirla»).
-    cache_expiration=settings.CACHE_EXPIRATION,
-    persist_result=True,  # el resultado debe guardarse en disco para poder reutilizarse en la siguiente corrida
-)
-def transform_daily_kpis(snapshot: dict[str, Any], fingerprint: str) -> dict[str, Any]:
-    """Transformación (la costosa): dedupe → día local → recalcular K1–K6 de cada cubo afectado."""
-    dim = snapshot["dim"]
-    events = kpi.assign_buckets(kpi.flatten_events(snapshot["events"]), dim)
-    # En el recálculo solo se descartan los timestamps del futuro (max_age=None): los cubos se recalculan enteros.
-    events, _ = kpi.quarantine_events(events, datetime.now(UTC), max_age=None)
-    kept, dropped = kpi.dedupe_events(events)
-    exits = snapshot["exits"].assign(created_at=pd.to_datetime(snapshot["exits"]["created_at"], utc=True))
-    rows = kpi.compute_daily_kpis(
-        kept, exits, snapshot["movements"], snapshot["buckets"], dim, dropped,
-        source_max_event_id=snapshot["max_event_id"], low=settings.LOW_THRESHOLD, critical=settings.CRITICAL_THRESHOLD,
-    )
-    return {"rows": rows, "rows_deduplicated": int(len(dropped)), "buckets_recomputed": int(len(rows))}
+# Todas las tasks de transformación comparten política: sin `retries` (son funciones deterministas y sin red; repetirlas
+# daría el mismo resultado o el mismo error), caché de 1 h (requisito del ticket: «si una task ya corrió bien en la última
+# hora, no repetirla») y resultado persistido en disco para poder reutilizarse en la siguiente corrida.
+transformation_task = functools.partial(task, cache_key_fn=_transform_cache_key, cache_expiration=settings.CACHE_EXPIRATION, persist_result=True)
+
+
+@transformation_task(name="prepare_telemetry_events")
+def prepare_telemetry_events(snapshot: dict[str, Any], fingerprint: str) -> dict[str, pd.DataFrame]:
+    """Transformación: aplana el payload, asigna el día local de cada restaurante y deduplica por clave de negocio."""
+    kept, dropped = kpi.prepare_events(snapshot["events"], snapshot["dim"], datetime.now(UTC))
+    return {"events": kept, "dropped": dropped}
+
+
+@transformation_task(name="compute_outbound_orders_and_units_issued")
+def compute_outbound_orders_and_units_issued(events: pd.DataFrame, buckets: pd.DataFrame, fingerprint: str) -> pd.DataFrame:
+    """K1 `outbound_orders` y K2 `units_issued` por restaurante y día local."""
+    return kpi.kpi_outbound_orders_and_units_issued(events, buckets)
+
+
+@transformation_task(name="compute_spoilage_rate_pct")
+def compute_spoilage_rate_pct(events: pd.DataFrame, exits: pd.DataFrame, buckets: pd.DataFrame, fingerprint: str) -> pd.DataFrame:
+    """K3 `spoilage_rate_pct`: merma ÷ unidades emitidas × 100 (la razón «Merma…» se lee de `ingredient_exits`)."""
+    return kpi.kpi_spoilage_rate_pct(events, exits, buckets)
+
+
+@transformation_task(name="compute_stock_alerts")
+def compute_stock_alerts(events: pd.DataFrame, buckets: pd.DataFrame, fingerprint: str) -> pd.DataFrame:
+    """K4 `stock_alerts_low` / `stock_alerts_critical`: cruces de umbral hacia abajo (30 → low, 10 → critical)."""
+    return kpi.kpi_stock_alerts(events, buckets)
+
+
+@transformation_task(name="compute_validation_rejection_rate_pct")
+def compute_validation_rejection_rate_pct(events: pd.DataFrame, buckets: pd.DataFrame, fingerprint: str) -> pd.DataFrame:
+    """K5 `validation_rejection_rate_pct`: rechazos ÷ (órdenes + rechazos) × 100."""
+    return kpi.kpi_validation_rejection_rate_pct(events, buckets)
+
+
+@transformation_task(name="compute_ingredients_at_risk_eod")
+def compute_ingredients_at_risk_eod(buckets: pd.DataFrame, movements: pd.DataFrame, dim: pd.DataFrame, fingerprint: str) -> pd.DataFrame:
+    """K6 `ingredients_at_risk_eod` / `ingredients_critical_eod`: insumos con stock al cierre local ≤ 30 / ≤ 10."""
+    return kpi.kpi_ingredients_at_risk_eod(buckets, movements, dim, settings.LOW_THRESHOLD, settings.CRITICAL_THRESHOLD)
+
+
+@transformation_task(name="assemble_daily_kpis")
+def assemble_daily_kpis(
+    buckets: pd.DataFrame, kpi_parts: list[pd.DataFrame], exits: pd.DataFrame, dropped: pd.DataFrame, dim: pd.DataFrame,
+    source_max_event_id: int, fingerprint: str,
+) -> pd.DataFrame:
+    """Une K1–K6 en una fila por restaurante y día, con cobertura, `capture_health` y `kpi_hash`."""
+    return kpi.assemble_daily_kpis(buckets, kpi_parts, exits, dropped, dim, source_max_event_id)
 
 
 @task(name="validate_kpis")  # sin reintentos: es determinista. Si falla, el flow NO carga (una carga mala es peor que ninguna).
@@ -263,6 +293,88 @@ def _run_stage(stage_task: Any, current_run_id: str, **parameters: Any) -> Any:
     return state.result()
 
 
+def _run_subflow(subflow: Any, **parameters: Any) -> Any:
+    """Invoca un subflow CRÍTICO con `return_state=True` y devuelve su resultado.
+
+    Si el subflow falló, su `PipelineStageError` (etapa + reintentos) se vuelve a lanzar tal cual para que el flow
+    principal lo registre en `reporting.pipeline_runs`; cualquier otro error se envuelve con el nombre del subflow.
+    """
+    state = subflow(**parameters, return_state=True)
+    if state.is_failed():
+        problem = state.result(raise_on_failure=False)
+        if isinstance(problem, PipelineStageError):
+            raise problem
+        raise PipelineStageError(subflow.name, problem if isinstance(problem, BaseException) else RuntimeError(str(problem)), 0)
+    return state.result()
+
+
+# =========================================================================== #
+# SUBFLOWS — una fase cada uno, con inputs y outputs explícitos (sin variables globales entre ellos)
+# =========================================================================== #
+@flow(name="extract_inventory_telemetry", log_prints=True)
+def extract_inventory_telemetry_flow(run_id: str, window: tuple[date, date] | None, now: datetime) -> dict[str, Any]:
+    """Fase de EXTRACCIÓN: `telemetry_events` (solo lectura) + tablas de dominio de inventario.
+
+    Entradas: `run_id` (para el latido), `window` (rango manual o `None` = incremental) y `now` (reloj de la corrida).
+    Salida: `{"snapshot": <todo lo necesario para recalcular los cubos>, "from_id", "max_event_id", "rows_extracted"}`.
+    """
+    checkpoint = _run_stage(read_checkpoint, run_id)
+    extraction = _run_stage(extract_telemetry_events, run_id, last_event_id=checkpoint, window=window)
+    snapshot = _run_stage(extract_domain_snapshot, run_id, extraction=extraction, window=window, now=now)
+    return {
+        "snapshot": snapshot, "from_id": extraction["from_id"], "max_event_id": extraction["max_event_id"],
+        "rows_extracted": int(len(extraction["events"])),
+    }
+
+
+@flow(name="compute_inventory_kpis", log_prints=True)
+def compute_inventory_kpis_flow(run_id: str, snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Fase de TRANSFORMACIÓN: eventos limpios → K1–K6 por restaurante y día local → controles de calidad.
+
+    Entradas: `run_id` y el `snapshot` de la extracción. Sin base de datos: solo cálculo.
+    Salida: `{"rows": <DataFrame con una fila por cubo>, "warnings", "rows_deduplicated", "buckets_recomputed"}`.
+    Si `validate_kpis` falla, el subflow falla y NO se carga nada.
+    """
+    fingerprint, buckets, dim = snapshot["fingerprint"], snapshot["buckets"], snapshot["dim"]
+    prepared = _run_stage(prepare_telemetry_events, run_id, snapshot=snapshot, fingerprint=fingerprint)
+    events = prepared["events"]
+    kpi_parts = [
+        _run_stage(compute_outbound_orders_and_units_issued, run_id, events=events, buckets=buckets, fingerprint=fingerprint),
+        _run_stage(compute_spoilage_rate_pct, run_id, events=events, exits=snapshot["exits"], buckets=buckets, fingerprint=fingerprint),
+        _run_stage(compute_stock_alerts, run_id, events=events, buckets=buckets, fingerprint=fingerprint),
+        _run_stage(compute_validation_rejection_rate_pct, run_id, events=events, buckets=buckets, fingerprint=fingerprint),
+        _run_stage(compute_ingredients_at_risk_eod, run_id, buckets=buckets, movements=snapshot["movements"], dim=dim, fingerprint=fingerprint),
+    ]
+    rows = _run_stage(
+        assemble_daily_kpis, run_id, buckets=buckets, kpi_parts=kpi_parts, exits=snapshot["exits"], dropped=prepared["dropped"],
+        dim=dim, source_max_event_id=snapshot["max_event_id"], fingerprint=fingerprint,
+    )
+    warnings = _run_stage(validate_kpis, run_id, rows=rows)
+    return {"rows": rows, "warnings": warnings, "rows_deduplicated": int(len(prepared["dropped"])), "buckets_recomputed": int(len(rows))}
+
+
+@flow(name="load_restaurant_inventory_daily", log_prints=True)
+def load_restaurant_inventory_daily_flow(run_id: str, rows: pd.DataFrame, computed_at: datetime, watermark_to: int | None) -> dict[str, int]:
+    """Fase de CARGA en `reporting.restaurant_inventory_daily`: upsert + revisiones + checkpoint en UNA transacción.
+
+    Entradas: filas de KPIs, instante de cálculo y checkpoint al que avanzar (`None` si fue un rango manual).
+    Salida: `{"inserted", "updated", "unchanged"}`. Idempotente: repetirlo nunca duplica ni suma dos veces.
+    """
+    return _run_stage(load_restaurant_inventory_daily, run_id, rows=rows, run_id=run_id, computed_at=computed_at, watermark_to=watermark_to)
+
+
+@flow(name="export_inventory_validation_snapshot", log_prints=True)
+def export_inventory_validation_snapshot_flow(run_id: str, rows: pd.DataFrame, summary: dict[str, Any], warnings: list[str]) -> str:
+    """Subflow OPCIONAL: escribe en `data/eval/` el resultado de la corrida para auditarla. Devuelve la ruta del fichero.
+
+    El flow principal lo invoca con `return_state=True`: si falla (disco lleno, permisos) solo se anota un aviso.
+    """
+    return export_eval_snapshot(rows, run_id, summary, warnings)
+
+
+# =========================================================================== #
+# FLOW PRINCIPAL — solo coordina los subflows y registra la corrida; no contiene la lógica de negocio
+# =========================================================================== #
 @flow(name="inventory_performance_daily", log_prints=True)
 def inventory_performance_daily_flow(
     trigger: str = "cron",
@@ -271,11 +383,11 @@ def inventory_performance_daily_flow(
     date_to: date | None = None,
     run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Flow principal: extracción → transformación → carga, con la corrida registrada en `reporting.pipeline_runs`.
+    """Flow principal: extracción → transformación → carga (subflows), con la corrida en `reporting.pipeline_runs`.
 
     `trigger`: `cron` | `manual` | `backfill`. `date_from`/`date_to` recalculan un rango (sin ellas, incremental).
-    Si una task crítica falla, la corrida se cierra como `failed` (con el error estructurado) y el flow termina
-    en Failed; si solo falla la task opcional, la corrida termina `completed` con un aviso.
+    Si un subflow crítico falla, la corrida se cierra como `failed` (con el error estructurado) y el flow termina
+    en Failed; si solo falla el subflow opcional, la corrida termina `completed` con un aviso.
     """
     logger = get_run_logger()
     run_id = run_id or str(uuid4())
@@ -292,28 +404,26 @@ def inventory_performance_daily_flow(
     loaded: dict[str, int] = {"inserted": 0, "updated": 0, "unchanged": 0}
     failure: PipelineStageError | None = None
     try:
-        checkpoint = _run_stage(read_checkpoint, run_id)
-        extraction = _run_stage(extract_telemetry_events, run_id, last_event_id=checkpoint, window=window)
-        snapshot = _run_stage(extract_domain_snapshot, run_id, extraction=extraction, window=window, now=now)
-        transformed = _run_stage(transform_daily_kpis, run_id, snapshot=snapshot, fingerprint=snapshot["fingerprint"])
-        warnings = _run_stage(validate_kpis, run_id, rows=transformed["rows"])
+        extracted = _run_subflow(extract_inventory_telemetry_flow, run_id=run_id, window=window, now=now)
+        computed = _run_subflow(compute_inventory_kpis_flow, run_id=run_id, snapshot=extracted["snapshot"])
+        warnings = computed["warnings"]
         # Con rango explícito el checkpoint NO avanza: recalcular el pasado no debe saltarse eventos nuevos.
-        watermark_to = None if window else extraction["max_event_id"]
-        loaded = _run_stage(
-            load_restaurant_inventory_daily, run_id, rows=transformed["rows"], run_id=run_id, computed_at=now, watermark_to=watermark_to
-        )
+        watermark_to = None if window else extracted["max_event_id"]
+        loaded = _run_subflow(load_restaurant_inventory_daily_flow, run_id=run_id, rows=computed["rows"], computed_at=now, watermark_to=watermark_to)
         stats = {
-            "watermark_from": extraction["from_id"], "watermark_to": extraction["max_event_id"],
-            "rows_extracted": int(len(extraction["events"])), "rows_deduplicated": transformed["rows_deduplicated"],
-            "rows_rejected": snapshot["rows_rejected"], "buckets_recomputed": transformed["buckets_recomputed"],
+            "watermark_from": extracted["from_id"], "watermark_to": extracted["max_event_id"],
+            "rows_extracted": extracted["rows_extracted"], "rows_deduplicated": computed["rows_deduplicated"],
+            "rows_rejected": extracted["snapshot"]["rows_rejected"], "buckets_recomputed": computed["buckets_recomputed"],
             "rows_inserted": loaded["inserted"], "rows_updated": loaded["updated"],
         }
-        # Paso OPCIONAL con return_state=True: el ETL principal ya terminó; si esto falla, la corrida sigue `completed`.
-        export_state = export_eval_snapshot(transformed["rows"], run_id, {**stats, "unchanged": loaded["unchanged"]}, warnings, return_state=True)
+        # Subflow OPCIONAL con return_state=True: el ETL principal ya terminó; si esto falla, la corrida sigue `completed`.
+        export_state = export_inventory_validation_snapshot_flow(
+            run_id=run_id, rows=computed["rows"], summary={**stats, "unchanged": loaded["unchanged"]}, warnings=warnings, return_state=True
+        )
         if export_state.is_failed():
             problem = export_state.result(raise_on_failure=False)
-            errors.append({"stage": "export_eval_snapshot", "type": type(problem).__name__, "message": str(problem), "severity": "warning"})
-            logger.warning("export_eval_snapshot falló (paso opcional): %s — el pipeline continúa", problem)
+            errors.append({"stage": "export_inventory_validation_snapshot", "type": type(problem).__name__, "message": str(problem), "severity": "warning"})
+            logger.warning("export_inventory_validation_snapshot falló (subflow opcional): %s — el pipeline continúa", problem)
         errors.extend({"stage": "validate_kpis", "type": "Warning", "message": message, "severity": "warning"} for message in warnings)
         status = "completed"
     except PipelineStageError as error:
@@ -331,7 +441,7 @@ def inventory_performance_daily_flow(
         raise failure
     return {
         "run_id": run_id, "status": status, **stats, "unchanged": loaded["unchanged"], "warnings": warnings,
-        "optional_failures": [entry["stage"] for entry in errors if entry["stage"] == "export_eval_snapshot"],
+        "optional_failures": [entry["stage"] for entry in errors if entry["stage"] == "export_inventory_validation_snapshot"],
     }
 
 

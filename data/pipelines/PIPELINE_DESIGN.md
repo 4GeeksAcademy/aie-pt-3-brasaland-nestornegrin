@@ -1,6 +1,6 @@
 # Pipeline de Desempeño de Negocio — Documento de diseño
 
-**Compañía:** Brasaland (14 restaurantes en Colombia y Florida) · **Fase:** diseño aprobado + implementación (Parte 2) · **Orquestador:** Prefect 3 · **Estado:** v1 implementada; ver «Cambios respecto a la versión aprobada» al final
+**Compañía:** Brasaland (14 restaurantes en Colombia y Florida) · **Fase:** diseño aprobado + implementación (Parte 2) · **Orquestador:** Prefect 3 · **Estado:** v1 implementada con subflows, tests y dashboard (Parte 3); ver «Cambios respecto a la versión aprobada» al final
 
 ---
 
@@ -337,15 +337,25 @@ Mínimo exigido: 5 campos. Se registran **20**.
 
 | Concepto Prefect | Nombre propuesto | Etapa | Notas |
 |---|---|---|---|
-| **Flow** | `inventory_performance_daily_flow(trigger, triggered_by, date_from=None, date_to=None)` | todo el pipeline | Implementado en `data/pipelines/pipeline.py` (punto de entrada del ticket) |
+| **Flow** | `inventory_performance_daily_flow(trigger, triggered_by, date_from=None, date_to=None)` | coordinación | Implementado en `data/pipelines/pipeline.py` (punto de entrada del ticket). **Solo coordina** los subflows y registra la corrida; no contiene lógica de etapa (Parte 3) |
+| **Subflow** | `extract_inventory_telemetry_flow(run_id, window, now)` | **Extracción** | Agrupa `read_checkpoint`, `extract_telemetry_events` y `extract_domain_snapshot`. Devuelve `{snapshot, from_id, max_event_id, rows_extracted}` |
+| **Subflow** | `compute_inventory_kpis_flow(run_id, snapshot)` | **Transformación** | Agrupa `prepare_telemetry_events`, las tasks de K1–K6 y `validate_kpis`. Sin base de datos. Devuelve `{rows, warnings, rows_deduplicated, buckets_recomputed}` |
+| **Subflow** | `load_restaurant_inventory_daily_flow(run_id, rows, computed_at, watermark_to)` | **Carga** | Envuelve la task de carga. Devuelve `{inserted, updated, unchanged}` |
+| **Subflow opcional** | `export_inventory_validation_snapshot_flow(run_id, rows, summary, warnings)` | salida secundaria | Invocado con `return_state=True`: si falla, la corrida sigue `completed` con un aviso |
 | Task | `acquire_run_lock_and_start_run` | control | Inserta la fila `running`; el índice único parcial `ux_pipeline_runs_one_running` actúa de candado: si ya hay una → `skipped_locked`. Antes, las filas `running` con heartbeat > 10 min pasan a `crashed` |
 | Task | `read_checkpoint` | extracción | Lee `pipeline_watermarks.last_event_id` |
 | Task | **`extract_telemetry_events`** | **Extracción** | Páginas de 5.000; `retries=3`, backoff 30 s / 2 min / 5 min (lectura segura de reintentar) |
 | Task | `extract_domain_snapshot` | extracción | Salidas (razón de merma), stock al cierre local, `dim_restaurant` |
-| Task | **`transform_daily_kpis`** | **Transformación** | Llama a `data/process/business_kpis.py` (funciones puras); sin reintentos (determinista) |
+| Task | `prepare_telemetry_events` | transformación | Aplana `tags`, aparta timestamps ilegibles o del futuro, asigna el día local y deduplica por clave de negocio |
+| Task | **`compute_outbound_orders_and_units_issued`** | **Transformación** | K1 `outbound_orders` y K2 `units_issued` |
+| Task | **`compute_spoilage_rate_pct`** | **Transformación** | K3 `spoilage_rate_pct` (razón «Merma…» leída de `ingredient_exits`) |
+| Task | **`compute_stock_alerts`** | **Transformación** | K4 `stock_alerts_low` / `stock_alerts_critical` |
+| Task | **`compute_validation_rejection_rate_pct`** | **Transformación** | K5 `validation_rejection_rate_pct` |
+| Task | **`compute_ingredients_at_risk_eod`** | **Transformación** | K6 `ingredients_at_risk_eod` / `ingredients_critical_eod` |
+| Task | `assemble_daily_kpis` | transformación | Une K1–K6 en una fila por restaurante y día, con cobertura, `capture_health` y `kpi_hash`. Todas las tasks de transformación: sin reintentos (deterministas), caché de 1 h con clave = nombre + `fingerprint`
 | Task | `validate_kpis` | transformación | Controles de calidad: sin negativos, `rate ∈ [0,100]`, cobertura razonable; falla el flow si no pasan |
 | Task | **`load_restaurant_inventory_daily`** | **Carga** | Una transacción: upsert + revisiones + checkpoint; `retries=2` (seguro por idempotencia) |
-| Task | `finish_run` | control | Cierra la fila de `pipeline_runs` (liberando el candado) incluso si una etapa falló; luego se relanza el fallo original |
+| Task | `finish_run` | control | Cierra la fila de `pipeline_runs` (liberando el candado) incluso si un subflow falló; luego se relanza el fallo original |
 | Flow opcional (v1) | `inventory_performance_backfill_flow(date_from, date_to)` | recuperación | Reprocesa un rango de días con el mismo código; en la Parte 3 las etapas pasarían a subflows |
 
 **Despliegue:** `inventory-performance-daily/production`, programación cron `0 10 * * *` (UTC) ⚑, `concurrency_limit = 1` por etiqueta `reporting-inventory-performance` (segunda defensa además del candado de BD).
@@ -489,6 +499,8 @@ services/api/migrations/
 - **Programada (cron de Prefect):** `python data/pipelines/pipeline.py --serve`
 - **Manual vía API:** `POST /reporting/inventory-performance/runs` (202, o 409 si ya hay una activa).
 - Requiere `DATABASE_URL`; el esquema `reporting` se crea solo (idempotente).
+- **Tests unitarios** (sin base de datos): `python -m pytest tests/pipelines/test_pipeline.py` desde la raíz del monorepo.
+- **Dashboard de negocio:** `/reporting` en `uis/backoffice/` (`npm run dev`), alimentado por `GET /reporting/inventory-performance/kpis`.
 
 ## 15. Trazabilidad con los criterios de evaluación (Parte 2)
 
@@ -502,3 +514,36 @@ services/api/migrations/
 | Log con ≥ 5 campos | `reporting.pipeline_runs` (§7.2) |
 | Se ejecuta con `python data/pipelines/pipeline.py` | §14 |
 | 3 endpoints en `services/reporting/` importando de `data/pipelines/` | `router.py`, §9 |
+
+## 16. Parte 3 — Subflows, tests y dashboard
+
+### 16.1 Qué cambió y por qué
+| Cambio | Detalle |
+|---|---|
+| Flow principal → subflows | `extract_inventory_telemetry`, `compute_inventory_kpis` y `load_restaurant_inventory_daily` (+ el opcional `export_inventory_validation_snapshot`). Cada fase se ejecuta y se monitorea por separado en Prefect y tiene inputs/outputs explícitos y tipados. |
+| Transformación → una task por KPI | Antes una sola task calculaba K1–K6; ahora hay una por KPI (§8.1), cada una con su función pura en `data/process/business_kpis.py`. Así cada KPI se prueba solo. **Los valores y `kpi_hash` no cambian**: una corrida sobre datos ya cargados dio 43 filas `unchanged`. |
+| Tests | `tests/pipelines/test_pipeline.py`: tasks de K1–K6 con datos en memoria, comportamiento defensivo, un KPI calculado a mano (K3 = 30 %, K5 = 25 %), estructura de subflows y un subflow ejecutado de forma independiente. |
+| Dashboard | `/reporting` en `uis/backoffice/`: un bloque por KPI con nombre de negocio, nombre del diseño y la pregunta que responde; período cubierto; filtros por período, vista (día/semana) y país. Audiencia: Operaciones y dirección (§2.2). |
+
+### 16.2 Mejoras adicionales (preguntas de diseño de la Parte 1)
+Solo las que el propio diseño señalaba y no estaban a la vista del negocio; no se añadió nada para marcar una casilla.
+
+| Mejora | Pregunta que responde | Por qué se priorizó |
+|---|---|---|
+| El dashboard muestra un aviso cuando `GET …/status` indica `is_stale` (última corrida exitosa hace más de 26 h) y la fecha de la última actualización | §10 Observabilidad, 4 («silencio vs. ausencia real»: la corrida que *no ocurrió*) | El endpoint ya lo detectaba, pero nadie de Operaciones lo habría visto: sin el aviso, un cron caído se leería como «no hubo actividad». |
+| El dashboard advierte de los restaurantes con `capture_health = suspected_capture_gap` | §10 Observabilidad, 4 y 6 (pérdida de datos frente a crecimiento real) | Una cifra baja por captura incompleta se interpretaría como un restaurante que se vacía de actividad: una decisión de negocio equivocada. |
+| Endurecimiento de la entrada: un `tags` que no es JSON o un timestamp ilegible/fuera de rango (p. ej. año 2999) ya no tumba la corrida: el evento va a `UNATTRIBUTED` o a cuarentena | §3.4 (reglas de calidad en la entrada) y §10 Resiliencia | Lo descubrió el test defensivo: antes lanzaba `JSONDecodeError` / `OutOfBoundsDatetime` y una sola fila mala detenía todo el pipeline. |
+
+No se implementó `Idempotency-Key` para los reintentos: la carga ya es idempotente por clave natural (§7.1) y el diseño no lo señaló.
+
+### 16.3 Trazabilidad con los criterios de evaluación (Parte 3)
+| Criterio | Dónde |
+|---|---|
+| Flow principal invoca ≥ 3 subflows y no contiene la lógica | `pipeline.py` (`inventory_performance_daily_flow`), test `test_main_flow_coordinates_three_subflows_and_holds_no_stage_logic` |
+| Subflows con inputs/outputs explícitos, ejecutables solo | firmas tipadas; test `test_compute_inventory_kpis_subflow_runs_on_its_own_with_in_memory_data` |
+| `test_pipeline.py` con ≥ 3 tests de transformación, en aislamiento | `tests/pipelines/test_pipeline.py` (K1–K6) |
+| Test defensivo y test de valor de KPI vs definición | `test_defensive_*`, `test_k3_spoilage_rate_pct_matches_the_design_definition_for_a_known_input` |
+| `python data/pipelines/pipeline.py` sigue funcionando | §14; dos corridas verificadas (segunda con tasks en caché y 0 filas nuevas) |
+| Nombres con vocabulario del dominio y de los KPI | §8.1 |
+| `telemetry_events` y el análisis técnico intactos | solo lectura; test de arquitectura en `services/api/tests/test_reporting_endpoints.py` |
+| Dashboard en `uis/backoffice/` desde `services/reporting/`, legible para negocio | `/reporting`; `uis/backoffice/__tests__/inventory-performance.test.tsx` |
