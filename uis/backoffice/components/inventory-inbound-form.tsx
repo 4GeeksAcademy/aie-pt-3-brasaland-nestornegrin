@@ -8,6 +8,7 @@ import {
   listProducts,
   readInventoryErrorDetails,
 } from "@/lib/inventory";
+import { useFlowTracking } from "@/lib/use-flow-tracking";
 
 const EMPTY = { ingredient_id: "", quantity: "", supplier: "" };
 
@@ -19,6 +20,7 @@ export function InventoryInboundForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const flow = useFlowTracking("inbound_order", "inventory_inbound"); // telemetría
 
   const loadProducts = useCallback(async () => {
     try {
@@ -42,6 +44,7 @@ export function InventoryInboundForm() {
   }, [loadProducts]);
 
   function update(field: keyof typeof form, value: string) {
+    flow.touch(field);
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => {
       if (!(field in current)) return current;
@@ -64,12 +67,15 @@ export function InventoryInboundForm() {
       });
       if (!response.ok) {
         const details = await readInventoryErrorDetails(response, "No se pudo registrar la entrada. Intentalo de nuevo.");
+        flow.submitAttempt(false);
         setErrors(Object.keys(details.fields).length ? details.fields : { form: details.message });
         return;
       }
+      flow.submitAttempt(true);
       setForm(EMPTY);
       setSuccess(true);
     } catch {
+      flow.submitAttempt(false);
       setErrors({ form: "No se pudo conectar con el servidor. Intentalo de nuevo en unos minutos." });
     } finally {
       setLoading(false);
