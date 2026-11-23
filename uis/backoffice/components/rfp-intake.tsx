@@ -38,7 +38,11 @@ export function RfpIntake() {
     }
   }, [selected]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  // Carga inicial (y al cambiar la selección): diferida un tick para no llamar a setState de forma síncrona en el efecto.
+  useEffect(() => {
+    const id = setTimeout(() => void refresh(), 0);
+    return () => clearTimeout(id);
+  }, [refresh]);
 
   // Polling mientras algún ticket siga analizándose; se detiene solo cuando todos terminaron.
   const anyLive = tickets.some(isLive);

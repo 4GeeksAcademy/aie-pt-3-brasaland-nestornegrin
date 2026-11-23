@@ -30,8 +30,9 @@ class TestAccessTokens:
 
     def test_decode_rejects_a_tampered_token(self):
         token = security.create_access_token(1)
-        # Cambia el último carácter de la firma para invalidarla sin tocar el formato.
-        tampered = token[:-1] + ("a" if token[-1] != "a" else "b")
+        # Cambia el PENÚLTIMO carácter de la firma: el último solo aporta 4 bits útiles en
+        # base64url, y cambiarlo a veces no altera la firma (el test sería intermitente).
+        tampered = token[:-2] + ("a" if token[-2] != "a" else "b") + token[-1]
         with pytest.raises(JWTError):
             security.decode_access_token(tampered)
 
