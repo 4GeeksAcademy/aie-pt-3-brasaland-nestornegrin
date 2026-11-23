@@ -20,7 +20,10 @@ STATUS_NO_INFORMATION = "no_information"  # ningún fragmento superó el umbral:
 STATUS_INVALID_QUESTION = "invalid_question"  # pregunta vacía o demasiado larga: no se recupera nada
 STATUS_TOOL_FALLBACK = "tool_fallback"  # la tool falló o el recurso no existe: respuesta honesta, sin inventar
 
-FINAL_STATUSES = (STATUS_ANSWERED, STATUS_NO_INFORMATION, STATUS_INVALID_QUESTION, STATUS_TOOL_FALLBACK)
+STATUS_MEMORY_DECISION = "memory_decision"  # el mensaje solo respondía a una propuesta de memoria (sí / no / edición)
+
+FINAL_STATUSES = (STATUS_ANSWERED, STATUS_NO_INFORMATION, STATUS_INVALID_QUESTION, STATUS_TOOL_FALLBACK,
+                  STATUS_MEMORY_DECISION)
 
 
 class AgentState(TypedDict, total=False):
@@ -30,3 +33,12 @@ class AgentState(TypedDict, total=False):
     status: str  # uno de los STATUS_* de arriba
     route: dict  # plan del enrutador: fuentes (tickets / inventory / rag), consultas y motivo
     tool_results: list[dict]  # una entrada por tool ejecutada: {"tool", "outcome", "result"}
+    # Memoria (Hito 8): solo se usan cuando el agente se construye con `AgentDependencies.memory`.
+    conversation_id: str  # la propuesta pendiente y la decisión del usuario se enlazan por conversación
+    actor: str  # quién habla (lo que declara el cliente); queda en el registro de auditoría
+    run_id: str
+    memory_enabled: bool
+    memories: list[dict]  # recuerdos aprobados relevantes para la pregunta (nodo recall_memory)
+    proposal_raw: dict  # `propuesta_memoria` tal como la devolvió el modelo (aún sin validar)
+    memory_resolution: dict  # qué pasó con la propuesta pendiente al llegar este mensaje
+    memory_proposal: dict  # propuesta nueva abierta en este turno (queda pendiente de confirmación)

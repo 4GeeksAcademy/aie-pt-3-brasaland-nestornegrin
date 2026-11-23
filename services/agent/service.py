@@ -7,6 +7,7 @@ estado quedó el grafo en cada transición (checkpoints).
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -33,6 +34,8 @@ class AgentRun:
     answer: str
     status: str
     trace: dict
+    conversation_id: str | None = None  # con memoria: el cliente lo reenvía para que su respuesta enlace con la propuesta
+    memory: dict | None = None  # {"resolution": ..., "proposal": ...} de este turno (None si no hubo nada de memoria)
 
     @property
     def sources(self) -> list[str]:
@@ -69,13 +72,19 @@ class AgentService:
         # Compilación explícita al crear el servicio: un error estructural aparece al arrancar, no en producción.
         self.graph = compile_graph(build_graph(self.deps, self._recorders.get), self.checkpointer)
 
-    def run(self, question: str) -> AgentRun:
+    def run(self, question: str, *, conversation_id: str | None = None, actor: str | None = None) -> AgentRun:
+        """Una corrida = un mensaje. Con memoria, `conversation_id` enlaza este mensaje con la propuesta pendiente de
+        la conversación (si no se da, se crea una nueva) y `actor` es quien lo envía, para el registro de auditoría."""
         run_id = new_run_id()
         recorder = TraceRecorder(run_id, question)
         self._recorders[run_id] = recorder
         config = {"configurable": {"thread_id": run_id}}
         try:
-            final_state = self.graph.invoke({"question": question}, config)
+            initial: dict = {"question": question}
+            if self.deps.memory is not None:
+                conversation_id = conversation_id or f"conv-{uuid.uuid4().hex[:16]}"
+                initial.update(conversation_id=conversation_id, actor=actor or "anonymous", run_id=run_id)
+            final_state = self.graph.invoke(initial, config)
         except Exception as error:  # noqa: BLE001 - se guarda el trace y se informa con un error propio
             recorder.fail(error, self._checkpoints_or_empty(config))
             self._save(recorder)
@@ -85,7 +94,10 @@ class AgentService:
         recorder.finish(final_state, describe_checkpoints(self.graph, config))
         trace = recorder.to_dict()
         self._save(recorder)
-        return AgentRun(run_id=run_id, answer=final_state["answer"], status=final_state["status"], trace=trace)
+        memory = {key: final_state[state_key] for key, state_key in
+                  (("resolution", "memory_resolution"), ("proposal", "memory_proposal")) if final_state.get(state_key)}
+        return AgentRun(run_id=run_id, answer=final_state["answer"], status=final_state["status"], trace=trace,
+                        conversation_id=conversation_id, memory=memory or None)
 
     def _checkpoints_or_empty(self, config: dict) -> list[dict]:
         try:

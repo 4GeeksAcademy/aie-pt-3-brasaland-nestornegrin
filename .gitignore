@@ -8,6 +8,7 @@ data/traces/
 
 # Log de auditoría del servidor MCP (una línea JSON por invocación de tool)
 data/logs/
+data/memory/
 
 # Salida generada en cada corrida del pipeline de desempeño de negocio (data/pipelines/pipeline.py)
 data/eval/inventory_performance_last_run.json

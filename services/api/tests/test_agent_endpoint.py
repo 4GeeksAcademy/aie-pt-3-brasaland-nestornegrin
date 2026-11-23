@@ -70,3 +70,46 @@ def test_missing_configuration_returns_503(tmp_path):
 
     response = make_client(tmp_path, retrieve=unconfigured).post("/agent/query", json={"question": "¿hola?"})
     assert response.status_code == 503 and "QDRANT_URL" not in response.text
+
+
+# --------------------------------------------------------------------------------------------------------------
+# Memoria (Hito 8): conversation_id + propuesta en la misma respuesta + confirmación en la siguiente petición
+# --------------------------------------------------------------------------------------------------------------
+def make_memory_client(tmp_path) -> TestClient:
+    from services.agent.memory import AgentMemory, Decision, Intent, SqliteMemoryStore, StructuredAnswer
+
+    message = "El proveedor de vegetales de Medellín entrega los miércoles, no los martes."
+
+    def structured(question, context, memories):
+        if question == message:
+            return StructuredAnswer("Gracias por la corrección.", {
+                "aplica": True, "ubicacion": "Medellín", "categoria": "proveedores", "tema": "vegetales",
+                "hecho": message, "motivo": "se repite cada semana", "repetible": True, "idioma": "es"})
+        return StructuredAnswer("Respuesta.")
+
+    memory = AgentMemory(SqliteMemoryStore(":memory:"),
+                         classify_fn=lambda pending, text: Decision(Intent.APPROVE, 0.95) if text.startswith("Sí")
+                         else Decision(Intent.AMBIGUOUS, 0.2))
+    deps = AgentDependencies(lambda q: [], lambda q, c: "no se usa", memory=memory, structured_fn=structured)
+    service = AgentService(deps, checkpointer=InMemorySaver(), trace_store=TraceStore(tmp_path))
+    app = FastAPI()
+    app.include_router(create_router(lambda: service))
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_memory_proposal_and_confirmation_over_http(tmp_path):
+    client = make_memory_client(tmp_path)
+    first = client.post("/agent/query", json={"question": "El proveedor de vegetales de Medellín entrega los miércoles, "
+                                                           "no los martes.", "user": "carlos.jimenez"}).json()
+    assert "¿Quieres que recuerde esto para la próxima vez?" in first["answer"]
+    assert first["memory"]["proposal"]["category"] == "proveedores" and first["conversation_id"]
+
+    second = client.post("/agent/query", json={"question": "Sí, guárdalo", "conversation_id": first["conversation_id"],
+                                               "user": "carlos.jimenez"})
+    assert second.status_code == 200
+    assert second.json()["status"] == "memory_decision" and second.json()["memory"]["resolution"]["kind"] == "approved"
+
+
+def test_conversation_id_must_have_a_safe_shape(tmp_path):
+    client = make_memory_client(tmp_path)
+    assert client.post("/agent/query", json={"question": "hola", "conversation_id": "../../etc/passwd"}).status_code == 422

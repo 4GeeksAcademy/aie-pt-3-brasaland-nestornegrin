@@ -145,3 +145,10 @@ python -m pytest tests/pipelines
 
 Además, `services/api/tests/test_agent_tools_integration.py` ejecuta las tools contra los **routers y repositorios reales**
 (incidentes sobre TinyDB, inventario sobre SQLModel/SQLite) para detectar si el contrato de la API cambia.
+
+## Memoria (Hito 8, Parte 1)
+El agente ahora aprende de la conversación con confirmación del usuario y registro auditable: propone recordar un dato
+operativo repetible en la misma respuesta, clasifica la decisión del usuario y solo guarda lo aprobado. Diseño, política de lo que
+nunca entra, consolidación y las decisiones del ticket en **[`memory.md`](./memory.md)**; dos ciclos completos en
+[`memory-evidence.md`](./memory-evidence.md). El grafo gana `resolve_pending`, `acknowledge_memory`, `recall_memory` y
+`propose_memory`; `POST /agent/query` acepta `conversation_id` y `user` y devuelve `conversation_id` y `memory`.

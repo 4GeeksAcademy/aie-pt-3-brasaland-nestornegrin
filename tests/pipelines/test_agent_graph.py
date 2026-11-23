@@ -45,7 +45,12 @@ def service(spy, tmp_path) -> AgentService:
 # --------------------------------------------------------------------------------------------------------------
 def test_state_is_minimal_and_has_no_conversation_history():
     # Parte 1: 4 campos. Parte 2 añade `route` y `tool_results` (los leen las aristas, la generación y el fallback).
-    assert set(get_type_hints(AgentState)) == {"question", "context", "answer", "status", "route", "tool_results"}
+    # Hito 8 añade los campos de memoria (los leen/escriben solo los nodos de memoria); sigue SIN haber historial
+    # de mensajes: lo que el agente recuerda vive en el almacén de memoria, no en el estado.
+    base = {"question", "context", "answer", "status", "route", "tool_results"}
+    memory = {"conversation_id", "actor", "run_id", "memory_enabled", "memories", "proposal_raw", "memory_resolution",
+              "memory_proposal"}
+    assert set(get_type_hints(AgentState)) == base | memory
 
 
 # --------------------------------------------------------------------------------------------------------------
