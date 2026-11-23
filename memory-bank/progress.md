@@ -200,6 +200,13 @@
   estático).
 
 
+
+## Plan de telemetría (diseño, sin código)
+
+- `docs/telemetry/telemetry-plan.md` y `docs/telemetry/event-schemas.json` (JSON Schema draft-07): 31 eventos (7 obligatorios + 24 oportunidades identificadas) en 7 categorías, Event Envelope común, allowlist por evento, registro de datos sensibles, estrategia stream/batch (4 stream, 27 batch), riesgos y exclusiones, y guía de implementación.
+- El `CONTEXT.es.md` del repo no define métricas de telemetría; se tomaron como obligatorias las siete preguntas del mensaje del tech lead (órdenes de salida/día, errores de validación por producto, intentos de editar stock, alertas de stock mínimo, logins fallidos, secciones más visitadas, flujos abandonados). Si el CONTEXT oficial trae otras, se añaden sin cambiar el envelope.
+- Hallazgos del código registrados en el plan: el umbral de stock (10/30) solo existe en el frontend; no hay `X-Request-ID` ni sesión de servidor (JWT sin estado); el login no limita intentos; el registro es público; el alta de insumos no comprueba el rol.
+- Verificado: el esquema valida como draft-07, cada evento tiene un ejemplo válido y casos inválidos rechazados (propiedad fuera de la allowlist, envelope incompleto, `source` incorrecto), y el plan y el JSON salen de la misma fuente.
 ## Auditoría de serialización de la API
 
 - Auditados todos los endpoints de `services/api` (33 lógicos); el detalle por endpoint, con su estado inicial y final, está en `docs/serialization-audit.md`. Ningún endpoint devolvía un objeto ORM ni `hashed_password`; los problemas eran esquemas de salida heredados del de entrada, claves de almacenamiento expuestas, el email repetido en el registro y `/api/incidents/analyze` devolviendo un `dict` sin tipar.
