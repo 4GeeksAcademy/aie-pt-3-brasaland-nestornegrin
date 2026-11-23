@@ -13,3 +13,5 @@ Course-provided dataset (never generated or modified): monthly consolidated sale
 `data/eval/sales_forecast/metrics.json`. No personal data.
 
 > _Spanish version: [README.es.md](./README.es.md)._
+
+- **Nightly telemetry backup:** `telemetry_YYYY-MM-DD.csv` is written by `scripts/nightly_export.py` (backup/audit of the previous day; the pipeline does NOT read it). It is git-ignored: it holds user data.

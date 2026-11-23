@@ -243,6 +243,34 @@ def test_assemble_daily_kpis_flags_a_capture_gap_and_is_deterministic():
     assert first["kpi_hash"] == second["kpi_hash"]  # mismos datos → mismo hash (base de la idempotencia)
 
 
+def test_assemble_daily_kpis_accepts_naive_exit_timestamps_as_utc():
+    """Regresión (DEV-53): en Supabase `ingredient_exits.created_at` es `timestamp WITHOUT time zone` y llegaba sin zona,
+    lo que tumbaba `assemble_daily_kpis` con «Cannot convert tz-naive timestamps» en cualquier día con salidas reales."""
+    aware = pd.DataFrame([{"exit_id": 1, "reason": "Uso", "created_at": NOON_OCT_5, "restaurant": POBLADO}])
+    naive = aware.assign(created_at=pd.Timestamp(NOON_OCT_5).tz_convert("UTC").tz_localize(None))  # misma hora UTC, sin zona
+    events = prepared(telemetry(order(1, 1, 4)))
+    movements = pd.DataFrame({"ingredient_id": [], "restaurant": [], "ts": [], "delta": []})
+    dropped = pd.DataFrame({"report_date": [], "restaurant": [], "event_id": []})
+
+    def build(exits):
+        parts = [
+            pipeline.compute_outbound_orders_and_units_issued.fn(events, BUCKETS, FINGERPRINT),
+            pipeline.compute_spoilage_rate_pct.fn(events, exits, BUCKETS, FINGERPRINT),
+            pipeline.compute_stock_alerts.fn(events, BUCKETS, FINGERPRINT),
+            pipeline.compute_validation_rejection_rate_pct.fn(events, BUCKETS, FINGERPRINT),
+            pipeline.compute_ingredients_at_risk_eod.fn(BUCKETS, movements, DIM, FINGERPRINT),
+        ]
+        return only_row(pipeline.assemble_daily_kpis.fn(BUCKETS, parts, exits, dropped, DIM, 7, FINGERPRINT))
+
+    assert build(naive).to_dict() == build(aware).to_dict()  # sin zona = UTC: mismo resultado y mismo hash
+
+
+def test_as_utc_treats_naive_as_utc_and_converts_aware():
+    naive = pd.Series(pd.to_datetime(["2026-10-07 17:40:00"]))
+    aware = pd.Series(pd.to_datetime(["2026-10-07 19:40:00+02:00"]))
+    assert str(kpi.as_utc(naive).iloc[0]) == str(kpi.as_utc(aware).iloc[0]) == "2026-10-07 17:40:00+00:00"
+
+
 # --------------------------------------------------------------------------- #
 # Estructura de subflows (Fase 1 del ticket)
 # --------------------------------------------------------------------------- #
