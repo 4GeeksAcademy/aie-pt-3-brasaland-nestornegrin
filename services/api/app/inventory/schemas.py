@@ -8,6 +8,7 @@ endpoint, always map it into one of these.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -74,7 +75,7 @@ class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    type: str
+    type: Literal["inbound", "outbound"]
     ingredient_id: int
     ingredient_name: str
     quantity: float

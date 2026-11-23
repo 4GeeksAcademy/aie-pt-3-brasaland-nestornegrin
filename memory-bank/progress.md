@@ -199,6 +199,90 @@
   frontend sin errores (las 2 páginas nuevas generan como contenido
   estático).
 
+## DEV-55 — Cola de tareas asíncronas (Redis + Celery)
+
+- `POST /api/incidents/analyze` (la operación que bloqueaba la API: procesaba el lote de CSV dentro de la petición)
+  ahora encola la tarea y responde `202 {"task_id"}`; `GET /tasks/{task_id}` devuelve `pending|started|success|failure`.
+- `services/celery_app.py` (Redis como broker y result backend, `REDIS_URL`) + `services/async_tasks/` (tarea, DLQ,
+  staging del CSV, estado, logs). Reintentos: `max_retries=3`, backoff 2→4→8 s. DLQ: tabla `task_dead_letters`
+  (`task_id`, intento, error, timestamp). Worker = proceso aparte; Redis, worker y Flower en `docker-compose.yml`.
+- El último resultado ya no vive en memoria de la API (`_latest_result`): lo guarda el worker en Redis.
+- Backoffice: `incident-analysis.tsx` hace polling con `lib/tasks.ts`.
+- Medido (400 mil filas, 24 MB): antes, una petición barata concurrente llegó a esperar 1758 ms (bucle de eventos
+  bloqueado); ahora, 37 ms, y el POST responde 202 en ~150 ms.
+
+
+## Auditoría de rendimiento de frontends
+
+- Se ejecutó Lighthouse 13.5.0 sobre builds de producción de `uis/website` y
+  `uis/backoffice`, en escritorio y móvil, incluyendo `/`, `/brasa-points`,
+  `/login` y el dashboard autenticado. Los informes HTML/JSON y capturas están
+  en `audit/before/` y `audit/after/` (con una captura `*-lighthouse.png` por informe).
+- `uis/website/components/our-story-section.tsx` prioriza la imagen que
+  Lighthouse identificó como LCP (`loading="eager"`, `fetchPriority="high"`).
+- `uis/backoffice/app/page.tsx` difiere `SupplierDirectory` e
+  `IncidentAnalysis` con `next/dynamic` para no incluir módulos secundarios en
+  la carga inicial.
+- Se extrajo `uis/backoffice/components/stat-card.tsx` y se integró en el
+  dashboard y el análisis CSV, eliminando markup duplicado.
+- Se corrigieron actualizaciones síncronas de estado en
+  `inventory-outbound-form.tsx`; `npm run lint` y `npm run build` pasan en ambas
+  apps (website conserva un warning preexistente de ESLint).
+- `AUDIT.md` y `REPORT.md` documentan las métricas antes/después, causas raíz,
+  impacto y limitaciones del laboratorio. La mejora principal del website fue
+  Performance móvil `92→94` en home y `99→100` en Brasa Points; Best Practices
+  del dashboard autenticado pasó `96→100` al medir con el origen local válido.
+- Seguimiento de accesibilidad (2026-10-21): los dos `<select>` del formulario
+  «Añadir proveedor» (`supplier-directory.tsx`) no tenían nombre accesible
+  (`select-name`, Accessibility 96). Se añadió un `aria-label` a cada uno y el
+  dashboard autenticado mide Accessibility `100` en escritorio y móvil
+  (build + start de producción; control sin el arreglo reproduce el 96).
+
+
+## Modelo de predicción de ventas (regresión)
+
+- `scripts/sales_forecast/` (carga y validación, split, features causales, métricas, modelo, gráfica) y el CLI
+  `scripts/train_sales_forecast.py`. Dataset provisto `data/raw/brasaland_sales.csv` (120 meses consolidados),
+  sin modificar; su huella SHA-256 queda en `data/eval/sales_forecast/metrics.json`.
+- Split temporal 8 años (2016-01 → 2023-12) / 2 años (2024-01 → 2025-12). El modelo predice la razón
+  ventas/nivel de los 12 meses previos (para poder extrapolar el crecimiento) y se convierte a USD.
+- Algoritmo elegido con validación walk-forward dentro del entrenamiento: Random Forest (XGBoost mejora el RMSE solo
+  un 2,3 %, bajo el 5 % exigido, así que gana el modelo más simple). Semilla `random_state=42`.
+- Resultados sobre la prueba (pronóstico recursivo de 24 meses): MSE 583.655.557 USD², error medio 2,72 %,
+  Gini 0,908, K2 Score (R²) 0,893; PSI de ventas en bruto 5,65 (tendencia de crecimiento), PSI sin tendencia 0,23
+  (dentro del ruido). Referencia "mismo mes del año pasado": 4,78 %. Explicación en
+  `scripts/sales_forecast/README.es.md`.
+- Descomposición en tendencia, estacionalidad y residuo (STL robusto sobre logaritmos, solo con los 96 meses de
+  entrenamiento; añadido tras el comentario del revisor del PR #23): tendencia +5,7 % anual, estacionalidad con fuerza
+  0,90 (enero −14 %, diciembre +19 %), residuo 2,4 %. Módulo `scripts/sales_forecast/decomposition.py`, salidas
+  `decomposition.csv/png` y bloque `decomposition` en `metrics.json`; dependencia nueva `statsmodels` (con `uv add`).
+  Las métricas del modelo no cambian.
+- Pruebas en `tests/pipelines/` (19): `test_sales_split.py` (14: split 8/2, sin fuga de datos, escalador y semilla) y
+  `test_sales_decomposition.py` (5: los componentes reconstruyen la serie, recuperan una estructura conocida y no usan
+  meses de prueba). Se ejecutan con `uv run pytest tests/pipelines -v`.
+- Nota: "K2 Score" no está definido en el ticket; se interpreta como R².
+
+## Evaluación técnica del modelo de regresión (ticket "Evaluación de un Modelo de Regresión")
+
+- Rama `feature/regression-model-eval` (sale de `feature/sales-forecast-model`: el PR #23 seguía abierto). Script
+  `scripts/evaluate_sales_model.py` y módulo `scripts/sales_forecast/evaluation.py`; usa solo los 96 meses de
+  entrenamiento, el conjunto de prueba no interviene.
+- Validación cruzada: `TimeSeriesSplit(n_splits=5, test_size=12)` (entrena 24 a 72 meses, valida 2019-2023), con
+  `verify_folds` (comprobación explícita de que nada se baraja ni se solapa) y features construidas con la serie
+  recortada al final de cada fold. Métricas como media ± desviación estándar (ddof=1): MAE de validación 4,12 ± 1,11 %,
+  RMSE 4,99 ± 1,71 %; entrenamiento 2,49 ± 0,65 % de MAE. Se añadió `mae` a `metrics.py`.
+- Curva de aprendizaje en `data/eval/learning_curve.png` (validación fija = último año de entrenamiento). Reporte en
+  `data/eval/evaluation_report.md` y cifras en `data/eval/evaluation_metrics.json`.
+- Diagnóstico con una regla fijada antes de ver los números (contra el ruido irreducible de la descomposición, 1,88 %):
+  **bien ajustado**, brecha de 1,5 puntos que regularizar más empeora (4,12 % → 5,14-5,58 %). Métrica principal: RMSE
+  (el briefing pide MSE y no cuantifica si sobreestimar o subestimar cuesta más). Causa del error que sobra: sesgo
+  cíclico ligado al crecimiento anual alterno (correlación −0,99 con 5 folds); una feature de crecimiento interanual no
+  mejora (4,12 % → 4,64 %), así que no se incorpora. Acción: aprobar sin cambiar el modelo, entregar rango y vigilar el
+  sesgo (umbral 2 %), reentrenar cada año.
+- Pruebas: `tests/pipelines/test_cv_chronology.py` (13 con las parametrizadas): orden cronológico de los folds (la del
+  ticket), rechazo de folds barajados o solapados, features sin fuga entre folds, resumen media ± desviación, curva de
+  aprendizaje y diagnóstico. En total 32 pruebas en `tests/pipelines/`. No hay CI configurado en el repo (sin
+  `.github/workflows`): se ejecutan con `uv run pytest tests/pipelines -v`.
 
 
 ## Plan de telemetría (diseño, sin código)
@@ -260,3 +344,21 @@
 - **Decisiones:** sigue sin existir `CONTEXT-company.md` (nombres ⚑ del diseño); `analysis.py` real en `services/api/app/telemetry/` (intacto). Mejoras adicionales anotadas en `PIPELINE_DESIGN.md` §16.2.
 - Verificado: pytest raíz 18, API 104 (+15 de integración contra Postgres), jest 66, `tsc`, eslint, `npm run build` y prueba en navegador con la API y datos reales.
 
+
+## Auditoría de serialización de la API
+
+- Auditados todos los endpoints de `services/api` (33 lógicos); el detalle por endpoint, con su estado inicial y final, está en `docs/serialization-audit.md`. Ningún endpoint devolvía un objeto ORM ni `hashed_password`; los problemas eran esquemas de salida heredados del de entrada, claves de almacenamiento expuestas, el email repetido en el registro y `/api/incidents/analyze` devolviendo un `dict` sin tipar.
+- Nuevos esquemas de salida: `ProfilePublic`, `RegisterResponse`, `UserListItem` (auth), `SupplierResponse`, `IncidentResponse`, `IncidentListItem` y `AnalysisResponse`. `OrderResponse.type` pasa a `Literal["inbound", "outbound"]`.
+- `POST /users` ya no devuelve el email (solo `id` y `message`); `is_active` en `PUT /users/{id}` pasa a requerir admin; `POST /auth/login` exige `email` o `username`.
+- `user_uuid` en las órdenes de inventario se conserva a propósito: la tabla del backoffice lo muestra.
+- `response_model=None` explícito en los dos borrados 204 y en la descarga CSV (las únicas operaciones sin cuerpo JSON), fijado con un test.
+- Verificado: 54 tests (42 existentes + 12 de contrato en `tests/test_serialization.py`; 7 de los nuevos fallan contra el código anterior) y prueba manual con `uvicorn` y `curl`. El frontend no necesitó cambios.
+
+
+## Optimización con caché, lazy loading y memoización
+
+- Informe completo con cifras antes/después en `CACHING_REPORT.md`.
+- Backend: middleware de tiempos (`X-Process-Time-Ms` + logger `api.timing`), `app/cache.py` (`TTLCache` en memoria con TTL, tamaño acotado e invalidación segura ante carreras) y caché de 30 s en `GET /api/incidents` y `GET /api/incidents/summary`, invalidada al crear incidencias y al cambiar su estado. Con 1 500 proveedores y 8 000 incidencias (`seed_load.py`): resumen 71,7 → 2,4 ms, listado 318,6 → 22,4 ms. No se cachean proveedores, inventario ni datos de sesión. Inventario medido en Supabase con 300 ingredientes y 20 000 movimientos: `/inventory/products` 36,8 ms y `/inventory/orders` 503,6 ms y 2,98 MB (se resuelve paginando, no cacheando).
+- `BRASALAND_DATA_DIR` permite apuntar los JSON de TinyDB a otro directorio; los tests usan uno temporal y ya no ensucian los datos de desarrollo.
+- Frontend (`uis/backoffice`): `SupplierDirectory` e `IncidentAnalysis` se cargan con `next/dynamic` al acercarse al viewport (`DeferUntilVisible`, conserva las anclas `#suppliers`/`#incidents`); `useMemo` + `useCallback` en las filas de proveedores (≈210 → ≈4,8 ms por pulsación con 1 500 filas).
+- Verificado: 65 tests de backend, jest (15 + 1 benchmark opcional), anclas y consola en Chromium contra el build de producción.

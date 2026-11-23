@@ -13,7 +13,7 @@ from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.telemetry.allowlists import EVENT_ALLOWLISTS
 from app.telemetry.models import TelemetryEvent, TelemetryReceipt
-from app.telemetry.report import get_report
+from app.telemetry.report import TelemetryReport, get_report
 from app.telemetry.repository import insert_events
 
 logger = logging.getLogger("telemetry")
@@ -104,7 +104,7 @@ def create_router() -> APIRouter:
             logger.info("telemetry event: %s", row["event_type"])
         return TelemetryReceipt(received=received, stored=stored, rejected=rejected)
 
-    @router.get("/report", dependencies=[Depends(get_current_user)])
+    @router.get("/report", response_model=TelemetryReport, dependencies=[Depends(get_current_user)])
     def telemetry_report(
         response: Response,
         start_date: datetime | None = Query(default=None, description="ISO 8601, inclusivo. Por defecto: end_date − 7 días (UTC)."),
