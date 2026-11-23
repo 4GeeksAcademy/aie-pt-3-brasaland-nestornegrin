@@ -34,6 +34,9 @@ class RfpTicket(SQLModel, table=True):
     attempts: int = 0
     handoff: dict | None = Field(default=None, sa_column=Column(JSON))  # contrato hacia la Parte 2
     summary: dict | None = Field(default=None, sa_column=Column(JSON))  # resumen para Ventas
+    # --- Parte 2: contrato hacia la Parte 3 y fin del ciclo generador-evaluador ---
+    part3_handoff: dict | None = Field(default=None, sa_column=Column(JSON))
+    response_completed_at: datetime | None = None
     uploaded_by: str | None = None
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
@@ -77,3 +80,10 @@ class RfpDepartmentSection(SQLModel, table=True):
     approval_status: str = "pendiente"  # pendiente | aprobado | rechazado
     approver: str | None = None
     approved_at: datetime | None = None
+    # --- Parte 2: progreso del ciclo generador-evaluador (todo opcional: se añade con ALTER a tablas ya creadas) ---
+    generation_status: str | None = "pendiente"  # pendiente | generando | en_evaluacion | paso | needs_human_review | error
+    iterations: int | None = 0
+    needs_human_review: bool | None = False
+    pending_items: list | None = Field(default_factory=list, sa_column=Column(JSON))
+    evaluation_history: list | None = Field(default_factory=list, sa_column=Column(JSON))  # una entrada por iteración: borrador + EvaluationResult
+    generation_error: str | None = None
