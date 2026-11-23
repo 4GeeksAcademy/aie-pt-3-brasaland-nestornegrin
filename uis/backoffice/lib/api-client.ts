@@ -1,3 +1,7 @@
+import { observeNetworkFailure, observeResponse } from "@/services/telemetry-http";
+import { reportSessionExpired } from "@/services/telemetry-flow";
+import { currentSection } from "@/services/telemetry-sections";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 export const ACCESS_TOKEN_KEY = "brasaland_access_token";
 export const AUTH_CHANGE_EVENT = "brasaland-auth-change";
@@ -28,8 +32,19 @@ export async function apiFetch(path: string, init: RequestInit = {}, authenticat
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers });
-  if (authenticated && response.status === 401) redirectToLogin();
+  const startedAt = performance.now();
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, { ...init, headers });
+  } catch (error) {
+    observeNetworkFailure(init, path, startedAt, error); // telemetría: network_request_failed
+    throw error;
+  }
+  observeResponse(init, path, startedAt, response); // telemetría: api_latency_recorded (muestreado)
+  if (authenticated && response.status === 401) {
+    if (window.location.pathname !== "/login") reportSessionExpired(currentSection());
+    redirectToLogin();
+  }
   return response;
 }
 
