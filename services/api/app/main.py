@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import time
 from threading import Lock
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
@@ -22,6 +23,7 @@ from app.database import (
     PROFILES_DATABASE_PATH,
     USERS_DATABASE_PATH,
 )
+from app.incidents.models import AnalysisResponse
 from app.incidents.repository import IncidentRepository
 from app.incidents.routes import create_router as create_incidents_router
 from app.profiles.routes import create_router as create_profiles_router
@@ -34,6 +36,15 @@ from sqlmodel import SQLModel
 
 app = FastAPI(title="Brasaland Operations API", version="1.0.0")
 logger = logging.getLogger(__name__)
+timing_logger = logging.getLogger("api.timing")
+if not timing_logger.handlers:
+    # uvicorn solo configura sus propios loggers: sin handler propio, las
+    # líneas de timing (nivel INFO) no llegarían a la consola.
+    _timing_handler = logging.StreamHandler()
+    _timing_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    timing_logger.addHandler(_timing_handler)
+    timing_logger.setLevel(logging.INFO)
+    timing_logger.propagate = False
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001"],
@@ -41,6 +52,21 @@ app.add_middleware(
         allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def timing_middleware(request: Request, call_next):
+    """Una línea de log por petición con su duración, para decidir con datos
+    qué endpoints merecen caché (ver CACHING_REPORT.md). También se devuelve
+    en la cabecera X-Process-Time-Ms para medirla desde el cliente."""
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start) * 1000
+    response.headers["X-Process-Time-Ms"] = f"{duration_ms:.1f}"
+    timing_logger.info("%s %s -> %s | %.1fms", request.method, request.url.path, response.status_code, duration_ms)
+    return response
+
+
 _latest_result: AnalysisResult | None = None
 _result_lock = Lock()
 supplier_repository = SupplierRepository(DATABASE_PATH)
@@ -78,11 +104,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "Ha ocurrido un error inesperado. Inténtalo de nuevo más tarde."})
 
 
-@app.post("/api/incidents/analyze")
+@app.post("/api/incidents/analyze", response_model=AnalysisResponse, tags=["incidents"])
 async def analyze_incidents(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
-) -> dict[str, object]:
+) -> AnalysisResponse:
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=415, detail="El fichero debe tener extensión .csv")
     content = await file.read()
@@ -98,18 +124,24 @@ async def analyze_incidents(
     global _latest_result
     with _result_lock:
         _latest_result = result
-    return {
-        "total_processed": result.total_processed,
-        "valid_records": result.valid_records,
-        "invalid_records": result.invalid_records,
-        "by_category": result.by_category,
-        "by_status": result.by_status,
-        "average_closed_satisfaction": result.average_closed_satisfaction,
-        "invalid_reasons": result.invalid_reasons,
-    }
+    return AnalysisResponse(
+        total_processed=result.total_processed,
+        valid_records=result.valid_records,
+        invalid_records=result.invalid_records,
+        by_category=result.by_category,
+        by_status=result.by_status,
+        average_closed_satisfaction=result.average_closed_satisfaction,
+        invalid_reasons=result.invalid_reasons,
+    )
 
 
-@app.get("/api/incidents/results/export")
+@app.get(
+    "/api/incidents/results/export",
+    tags=["incidents"],
+    response_class=StreamingResponse,
+    response_model=None,
+    responses={200: {"content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}}, "description": "CSV con columnas metric,dimension,value"}},
+)
 def export_latest_results(current_user=Depends(get_current_user)) -> StreamingResponse:
     with _result_lock:
         result = _latest_result
