@@ -1,0 +1,16 @@
+# Autenticación federada — evidencia: login con Google NO vinculado es rechazado (sin crear cuenta)
+# Llamadas directas a la API con un Google simulado (sin red). Semilla del BRIEFING: camila.points (vinculada) y guest.unlinked.
+
+Usuarios ANTES del intento: 2
+federated_login_rejected provider=google ip=testclient
+Login con Google NO vinculado (sub google-sub-unknown-999): HTTP 403  X-Federated-Error=not_linked
+  cuerpo: {"detail":"Esta cuenta de Google no está vinculada a ninguna cuenta de Brasaland. Regístrate primero con tu correo y contraseña y vincula Google desde tu perfil."}
+Usuarios DESPUÉS del intento: 2  (no se creó ninguna cuenta)
+Auditoría: [{"event": "federated_login_rejected", "timestamp": "2026-11-24 15:17:11.102307+00:00", "user_id": "None", "provider": "google", "provider_user_id": "google-sub-unknown-999", "ip": "testclient"}]
+
+Login con Google VINCULADO (camila.points, sub google-sub-camila-001): HTTP 200  token emitido=True
+federated_link_refused provider=google user_id=2 reason=identity_in_use
+
+Invitado intenta vincular el Google de Camila (ya en otra cuenta): HTTP 409  {"detail":"Esa cuenta de Google ya está vinculada a otro usuario de Brasaland."}
+
+Eventos auditados: ['federated_login_rejected', 'federated_login_success']
