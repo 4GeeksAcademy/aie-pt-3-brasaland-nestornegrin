@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import make_access_user
 from data.pipelines.inventory_performance import api as pipeline_api
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -26,8 +27,9 @@ KPI_ITEM = {
 
 
 @pytest.fixture
-def headers(auth_headers):
-    return auth_headers()
+def headers(client):
+    """El pipeline de desempeño de inventario es dato de Operaciones: un Supervisor del departamento puede leer y lanzar corridas."""
+    return make_access_user(client, "ops@example.com", "supervisor", "restaurant_operations")
 
 
 # ----------------------------------------------------------------- autenticación

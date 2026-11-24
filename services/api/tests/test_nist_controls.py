@@ -105,7 +105,7 @@ def test_el_saneado_no_borra_frases_legitimas_de_un_playbook():
 ])
 def test_las_rutas_de_rfp_que_lanzan_trabajo_con_modelo_tienen_tope(client, monkeypatch, path):
     monkeypatch.setattr(app_security, "model_per_minute", RateLimiter(max_events=1, window_seconds=60))
-    headers = make_user(client, "rfp@example.com")
+    headers = make_user(client, "rfp@example.com", "supervisor", "marketing")  # Supervisor: puede crear y actualizar RFP
     first = client.post(path, headers=headers)      # la 1.ª pasa el límite (puede fallar después por falta de ticket/fichero)
     second = client.post(path, headers=headers)
     assert first.status_code != 429

@@ -19,6 +19,7 @@ from rfp_support import PDF_FORMAL, PDF_INFORMAL, PDF_INVALID, ScriptedRfpModel 
 from rfp_response_support import BAD_SLA, ScriptedResponseModel  # noqa: E402
 
 from app.auth.dependencies import get_current_user  # noqa: E402
+from conftest import StubUser  # noqa: E402
 from app.database import get_db  # noqa: E402
 from app.rfp import models  # noqa: E402,F401
 from app.rfp import repository  # noqa: E402
@@ -55,7 +56,7 @@ def env(tmp_path, monkeypatch):
     app = FastAPI()
     app.include_router(create_router(store_factory=lambda: SqlRfpStore(lambda: Session(engine)), llm=model,
                                          checkpointer=build_checkpointer(tmp_path / 'checkpoints.sqlite')))
-    app.dependency_overrides[get_current_user] = lambda: {"email": "camila@brasaland.test"}
+    app.dependency_overrides[get_current_user] = lambda: StubUser("camila@brasaland.test")
     app.dependency_overrides[get_db] = lambda: Session(engine)
     return TestClient(app), engine, model, tmp_path
 

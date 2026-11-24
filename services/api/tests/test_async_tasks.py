@@ -19,6 +19,17 @@ from sqlalchemy.pool import StaticPool
 import app.main as main_module
 from services.async_tasks import config, dlq, results, staging, status
 from services.async_tasks.incident_tasks import analyze_incidents_csv
+from conftest import make_access_user
+
+@pytest.fixture
+def auth_headers(client):
+    """Sesión con el rol y el departamento que exige este módulo (Roles y Permisos): supervisor de restaurant_operations."""
+
+    def _headers(email: str = "ops@example.com", **_ignored):
+        return make_access_user(client, email, "supervisor", "restaurant_operations")
+
+    return _headers
+
 
 @pytest.fixture
 def upload_dir(tmp_path, monkeypatch):

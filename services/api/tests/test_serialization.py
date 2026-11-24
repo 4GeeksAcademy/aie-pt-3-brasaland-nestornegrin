@@ -4,6 +4,7 @@ campos internos. Complementa los tests por endpoint de auth."""
 from fastapi.routing import APIRoute
 
 import app.main as main_module
+from conftest import make_access_user
 from app.auth.models import UserUpdate
 
 # Nombres que nunca deben aparecer en el esquema de salida de ningún endpoint.
@@ -11,10 +12,8 @@ FORBIDDEN_OUTPUT_FIELDS = {"hashed_password", "password", "token_hash", "new_pas
 
 
 def _admin_headers(client, register_user):
-    user = register_user(email="admin@example.com")
-    main_module.user_repository._database.update({"role": "admin"}, doc_ids=[user["id"]])
-    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "ValidPass123"})
-    return {"Authorization": f"Bearer {login.json()['access_token']}"}, user
+    headers = make_access_user(client, "admin@example.com", "admin", "technology")
+    return headers, {"id": main_module.user_repository.get_by_email("admin@example.com").id}
 
 
 def test_me_profile_does_not_expose_storage_keys(client, register_user, auth_headers):
@@ -22,7 +21,7 @@ def test_me_profile_does_not_expose_storage_keys(client, register_user, auth_hea
 
     body = client.get("/auth/me", headers=headers).json()
 
-    assert set(body) == {"email", "role", "profile"}
+    assert set(body) == {"email", "role", "role_id", "role_label", "rank", "department", "department_id", "department_label", "capabilities", "profile"}
     assert set(body["profile"]) == {"name", "phone", "address"}
 
 
@@ -42,7 +41,7 @@ def test_users_list_uses_the_lightweight_item_shape(client, register_user):
 
     rows = client.get("/users", headers=headers).json()
 
-    assert rows and all(set(row) == {"id", "email", "role", "is_active"} for row in rows)
+    assert rows and all(set(row) == {"id", "email", "role_id", "role", "department_id", "department", "is_active"} for row in rows)
 
 
 def test_user_detail_keeps_the_safe_account_fields(client, register_user):
@@ -50,7 +49,7 @@ def test_user_detail_keeps_the_safe_account_fields(client, register_user):
 
     body = client.get(f"/users/{admin['id']}", headers=headers).json()
 
-    assert set(body) == {"id", "email", "is_active", "role", "created_at"}
+    assert set(body) == {"id", "email", "is_active", "role_id", "role", "department_id", "department", "created_at"}
 
 
 def test_a_regular_user_cannot_toggle_is_active(client, register_user, auth_headers):
@@ -70,7 +69,7 @@ def test_login_without_any_identifier_is_rejected(client):
 
 
 def test_supplier_responses_use_the_explicit_schema(client, auth_headers):
-    headers = auth_headers(email="suppliers@example.com")
+    headers = make_access_user(client, "suppliers@example.com", "employee", "procurement")
     expected = {"id", "name", "categories", "country", "rate", "status", "updated_at"}
 
     listing = client.get("/api/suppliers", headers=headers)
@@ -82,7 +81,7 @@ def test_supplier_responses_use_the_explicit_schema(client, auth_headers):
 
 
 def test_incident_list_is_lighter_than_incident_detail(client, auth_headers):
-    headers = auth_headers(email="incidents@example.com")
+    headers = make_access_user(client, "incidents@example.com", "supervisor", "restaurant_operations")
     created = client.post(
         "/api/incidents",
         headers=headers,
@@ -111,7 +110,7 @@ def test_analyze_returns_the_typed_task_receipt(client, auth_headers, tmp_path, 
     task_id = "00000000-0000-0000-0000-000000000001"
     monkeypatch.setattr(config, "UPLOAD_DIR", tmp_path / "uploads")
     monkeypatch.setattr(main_module.analyze_incidents_csv, "delay", lambda *args, **kwargs: SimpleNamespace(id=task_id))
-    headers = auth_headers(email="analyze@example.com")
+    headers = make_access_user(client, "analyze@example.com", "employee", "restaurant_operations")
 
     response = client.post("/api/incidents/analyze", headers=headers, files={"file": ("x.csv", b"id,category,status\n", "text/csv")})
 
