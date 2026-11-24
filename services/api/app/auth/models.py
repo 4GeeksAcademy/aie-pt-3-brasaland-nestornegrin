@@ -3,6 +3,9 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
+# A04: sin tope, una contraseña de MB provocaba un 500 y coste de CPU (docs/security/security-hardening-audit.md · V3).
+MAX_PASSWORD_LENGTH = 128
+
 
 class UserRole(str, Enum):
     ADMIN = "admin"
@@ -31,7 +34,7 @@ class UserCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     email: EmailStr
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
     name: str = ""
     phone: str = ""
     address: str = ""
@@ -43,6 +46,8 @@ class UserUpdate(BaseModel):
     email: EmailStr | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+    # Cambiar el propio email exige reautenticar: con solo un token robado se podía tomar la cuenta (V2).
+    current_password: str | None = Field(default=None, max_length=MAX_PASSWORD_LENGTH)
 
 
 class UserResponse(BaseModel):
@@ -81,7 +86,7 @@ class RegisterResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr | None = None
     username: EmailStr | None = None
-    password: str
+    password: str = Field(max_length=MAX_PASSWORD_LENGTH)
 
     @model_validator(mode="after")
     def _require_an_identifier(self) -> "LoginRequest":
@@ -146,15 +151,22 @@ class ResetPasswordRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     token: str = Field(min_length=1)
-    new_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
 
 
 class ChangePasswordRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
-    current_password: str
-    new_password: str = Field(min_length=8)
+    current_password: str = Field(max_length=MAX_PASSWORD_LENGTH)
+    new_password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
 
 
 class MessageResponse(BaseModel):
     message: str
+
+
+class PasswordChangedResponse(MessageResponse):
+    """Tras cambiar la contraseña los tokens anteriores caducan: se entrega uno nuevo para no cerrar la sesión actual."""
+
+    access_token: str
+    token_type: str = "bearer"

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from ..auth.dependencies import get_current_user
-from ..security import require_manager_or_admin
+from ..security import limit_writes, require_manager_or_admin
 from ..database import get_db
 from . import repository
 from .models import Ingredient, IngredientEntry, IngredientExit
@@ -45,7 +45,7 @@ def create_router(prefix: str = "/inventory") -> APIRouter:
             for ingredient, stock in rows
         ]
 
-    @router.post("/products", response_model=IngredientResponse, status_code=201, dependencies=[Depends(require_manager_or_admin)])
+    @router.post("/products", response_model=IngredientResponse, status_code=201, dependencies=[Depends(require_manager_or_admin), Depends(limit_writes)])
     def create_product(
         payload: IngredientCreate,
         session: Session = Depends(get_db),

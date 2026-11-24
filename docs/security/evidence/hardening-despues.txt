@@ -1,0 +1,11 @@
+V1   token robado tras el cambio de contraseña (GET /auth/me)       -> HTTP 401                           [PROTEGIDO]
+V2   PUT /users/{id} con solo el token, cambiando el email          -> HTTP 403                           [PROTEGIDO]
+V3   POST /users con contraseña de 5 MB (sin autenticar)            -> HTTP 413 en 0.02s                  [PROTEGIDO]
+V3b  POST /auth/login con contraseña de 5 MB                        -> HTTP 413                           [PROTEGIDO]
+V4   5 fallos desde 127.0.0.14; el dueño (127.0.0.15) entra bien    -> HTTP 200                           [PROTEGIDO]
+V5a  30 intentos de /auth/change-password con contraseña actual errónea -> 429 en 25/30                       [PROTEGIDO]
+V5b  40 intentos de /auth/reset-password con tokens al azar         -> 429 en 30/40                       [PROTEGIDO]
+V5c  300 POST /telemetry/events sin autenticar en pocos segundos    -> 429 en 180/300                     [PROTEGIDO]
+V6   POST /telemetry/events con cuerpo de 20 MB                     -> HTTP 413                           [PROTEGIDO]
+
+0 vulnerables / 9 sondas

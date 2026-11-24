@@ -4,7 +4,7 @@ from app import security as limits
 
 from app.auth.dependencies import get_current_user
 from app.auth.models import RegisterResponse, UserCreate, UserListItem, UserResponse, UserRole, UserUpdate
-from app.auth.security import hash_password
+from app.auth.security import hash_password, verify_password
 
 
 def create_router() -> APIRouter:
@@ -43,7 +43,7 @@ def create_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         return UserResponse.model_validate(user)
 
-    @router.put("/{user_id}", response_model=UserResponse)
+    @router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(limits.limit_writes)])
     def update_user(user_id: int, payload: UserUpdate, current_user=Depends(get_current_user)) -> UserResponse:
         from app.main import user_repository
 
@@ -53,6 +53,13 @@ def create_router() -> APIRouter:
             raise HTTPException(status_code=403, detail="Solo un admin puede cambiar roles")
         if payload.is_active is not None and current_user.role != UserRole.ADMIN:
             raise HTTPException(status_code=403, detail="Solo un admin puede activar o desactivar cuentas")
+        if payload.email is not None and current_user.id == user_id:
+            # V2: cambiar el propio email redirige la recuperación de contraseña: exige la contraseña actual (y cuenta los fallos).
+            key = f"user:{current_user.id}"
+            limits.sensitive_by_user.check(key)
+            if not payload.current_password or not verify_password(payload.current_password, current_user.hashed_password):
+                limits.sensitive_by_user.record(key)
+                raise HTTPException(status_code=403, detail="Confirma tu contraseña actual para cambiar el email")
         if payload.email is not None:
             existing = user_repository.get_by_email(str(payload.email).lower())
             if existing is not None and existing.id != user_id:
@@ -63,7 +70,7 @@ def create_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         return UserResponse.model_validate(user)
 
-    @router.delete("/{user_id}", status_code=204, response_model=None)
+    @router.delete("/{user_id}", status_code=204, response_model=None, dependencies=[Depends(limits.limit_writes)])
     def delete_user(user_id: int, current_user=Depends(get_current_user)) -> None:
         from app.main import profile_repository, user_repository
 

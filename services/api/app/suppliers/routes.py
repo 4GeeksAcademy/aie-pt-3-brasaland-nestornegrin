@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth.dependencies import get_current_user
-from ..security import require_confirmation, require_manager_or_admin
+from ..security import limit_writes, require_confirmation, require_manager_or_admin
 from .models import RateUpdate, StatusUpdate, SupplierCreate, SupplierResponse
 from .repository import SupplierRepository
 
@@ -31,18 +31,18 @@ def create_router(repository: SupplierRepository, prefix: str = "/api/suppliers"
             raise HTTPException(status_code=404, detail="Proveedor no encontrado")
         return SupplierResponse.model_validate(supplier)
 
-    @router.post("", response_model=SupplierResponse, status_code=201, dependencies=[Depends(require_manager_or_admin)])
+    @router.post("", response_model=SupplierResponse, status_code=201, dependencies=[Depends(require_manager_or_admin), Depends(limit_writes)])
     def create_supplier(supplier: SupplierCreate) -> SupplierResponse:
         return SupplierResponse.model_validate(repository.create(supplier))
 
-    @router.patch("/{supplier_id}/rate", response_model=SupplierResponse, dependencies=[Depends(require_manager_or_admin)])
+    @router.patch("/{supplier_id}/rate", response_model=SupplierResponse, dependencies=[Depends(require_manager_or_admin), Depends(limit_writes)])
     def update_supplier_rate(supplier_id: str, update: RateUpdate) -> SupplierResponse:
         supplier = repository.update_rate(supplier_id, update)
         if supplier is None:
             raise HTTPException(status_code=404, detail="Proveedor no encontrado")
         return SupplierResponse.model_validate(supplier)
 
-    @router.patch("/{supplier_id}/status", response_model=SupplierResponse, dependencies=[Depends(require_manager_or_admin)])
+    @router.patch("/{supplier_id}/status", response_model=SupplierResponse, dependencies=[Depends(require_manager_or_admin), Depends(limit_writes)])
     def update_supplier_status(supplier_id: str, update: StatusUpdate, confirm: bool = Query(default=False)) -> SupplierResponse:
         require_confirmation(confirm, "Cambiar el estado de un proveedor")  # BRIEFING §5: acción con confirmación humana
         supplier = repository.update_status(supplier_id, update)
@@ -50,7 +50,7 @@ def create_router(repository: SupplierRepository, prefix: str = "/api/suppliers"
             raise HTTPException(status_code=404, detail="Proveedor no encontrado")
         return SupplierResponse.model_validate(supplier)
 
-    @router.delete("/{supplier_id}", status_code=204, response_model=None, dependencies=[Depends(require_manager_or_admin)])
+    @router.delete("/{supplier_id}", status_code=204, response_model=None, dependencies=[Depends(require_manager_or_admin), Depends(limit_writes)])
     def delete_supplier(supplier_id: str, confirm: bool = Query(default=False)) -> None:
         require_confirmation(confirm, "Dar de baja a un proveedor")  # BRIEFING §5: acción con confirmación humana
         if not repository.delete(supplier_id):

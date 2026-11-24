@@ -58,7 +58,7 @@ from services.reporting.router import create_router as create_reporting_router
 from app.database import engine
 from sqlmodel import SQLModel
 
-from app.security import SecurityHeadersMiddleware, allowed_origins, bind_actor, consume_model_budget, docs_enabled, limit_model_calls
+from app.security import BodySizeLimitMiddleware, SecurityHeadersMiddleware, allowed_origins, bind_actor, consume_model_budget, docs_enabled, limit_model_calls
 
 app = FastAPI(title="Brasaland Operations API", version="1.0.0",
               docs_url="/docs" if docs_enabled() else None, redoc_url="/redoc" if docs_enabled() else None,
@@ -81,6 +81,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "Accept"],
 )
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(BodySizeLimitMiddleware)  # A04: 413 antes de leer cuerpos enormes (V6)
 MAX_CSV_BYTES = 5 * 1024 * 1024
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
