@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import os
 import sys
 from pathlib import Path
 import time
@@ -45,6 +46,9 @@ from app.telemetry.routes import create_router as create_telemetry_router
 from app.routes.suppliers import create_router
 from app.routes.knowledge import create_router as create_knowledge_router
 from services.agent.router import create_router as create_agent_router  # tras knowledge: añade la raíz del repo a sys.path
+from services.agent.chat.router import create_chat_router
+from services.agent.service import get_agent_service
+from app.auth.ws import authenticate_ws_token
 from app.rfp import models as _rfp_models  # noqa: F401 - registra las tablas antes de create_all
 from app.rfp.routes import create_router as create_rfp_router
 from app.rfp.schema_sync import ensure_columns as ensure_rfp_columns
@@ -102,6 +106,19 @@ app.include_router(create_agent_router())  # POST /agent/query (agente LangGraph
 app.include_router(create_tasks_router())  # GET /tasks/{task_id} (cola de tareas asíncronas, DEV-55)
 app.include_router(create_telemetry_router())
 app.include_router(create_reporting_router())  # pipeline de desempeño de negocio (services/reporting/, separado de telemetry)
+
+def chat_db_path() -> str:
+    """Historial del chat en SQLite (`CHAT_DB_PATH`; `:memory:` en pruebas). Por defecto `data/runtime/chat_sessions.sqlite3` (ignorado por git)."""
+    configured = os.environ.get("CHAT_DB_PATH")
+    if configured:
+        return configured
+    path = Path(__file__).resolve().parents[3] / "data" / "runtime" / "chat_sessions.sqlite3"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)
+
+
+# WS /agent/chat/ws (Hito 10 · Parte 2): el mismo agente, en streaming y con interrupción. Mismo JWT que el resto de la API.
+app.include_router(create_chat_router(authenticate_ws_token, get_agent_service, store_path=chat_db_path()))
 
 # Inventory (Supabase/SQLModel) - create schema, then mount routes.
 SQLModel.metadata.create_all(engine)
