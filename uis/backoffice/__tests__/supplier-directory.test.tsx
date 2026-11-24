@@ -17,6 +17,11 @@ jest.mock("@/lib/api-client", () => ({
   readApiError: jest.fn(async () => "error"),
 }));
 
+jest.mock("@/lib/access", () => ({
+  can: () => true,
+  useMe: () => ({ me: { capabilities: ["read", "create", "update", "approve"] }, loading: false }),
+}));
+
 type SupplierFixture = {
   id: number;
   name: string;
