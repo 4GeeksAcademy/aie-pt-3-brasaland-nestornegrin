@@ -26,11 +26,17 @@ from scripts.analyze import AnalysisResult
 from services.async_tasks import results as task_results
 from services.async_tasks import staging
 from services.async_tasks.incident_tasks import analyze_incidents_csv
+from app.access.catalog import AccessCatalog, InternalReportRepository
+from app.access.models import Action
+from app.access.permissions import OPS, require_access
+from app.access.routes import create_router as create_access_router
 from app.auth.dependencies import get_current_user
 from app.auth.repository import PasswordResetRepository, ProfileRepository, UserRepository
 from app.auth.routes import create_router as create_auth_router
 from app.database import (
+    ACCESS_DATABASE_PATH,
     DATABASE_PATH,
+    INTERNAL_REPORTS_DATABASE_PATH,
     INCIDENTS_DATABASE_PATH,
     PASSWORD_RESETS_DATABASE_PATH,
     PROFILES_DATABASE_PATH,
@@ -104,12 +110,21 @@ async def timing_middleware(request: Request, call_next):
     return response
 
 supplier_repository = SupplierRepository(DATABASE_PATH)
-user_repository = UserRepository(USERS_DATABASE_PATH)
+access_catalog = AccessCatalog(ACCESS_DATABASE_PATH)  # roles y departamentos: entidades propias, siempre sembradas
+user_repository = UserRepository(USERS_DATABASE_PATH, access_catalog)
+internal_report_repository = InternalReportRepository(INTERNAL_REPORTS_DATABASE_PATH)
 profile_repository = ProfileRepository(PROFILES_DATABASE_PATH)
 incident_repository = IncidentRepository(INCIDENTS_DATABASE_PATH)
+
 password_reset_repository = PasswordResetRepository(PASSWORD_RESETS_DATABASE_PATH)
+
+if os.environ.get("SEED_DEMO_DATA", "").lower() in ("1", "true", "yes"):  # usuarios y reportes de DEMO (nunca en producción)
+    from app.access.seed import seed_demo
+
+    seed_demo(user_repository, profile_repository, access_catalog, internal_report_repository)
 app.include_router(create_auth_router())
 app.include_router(create_users_router())
+app.include_router(create_access_router())  # /roles, /departments (Admin) y /internal-reports (alcance departamental)
 app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
@@ -161,7 +176,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 @app.post("/api/incidents/analyze", status_code=202, response_model=TaskAccepted, tags=["incidents"])
 async def analyze_incidents(
     file: UploadFile = File(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_access(Action.CREATE, OPS)),  # análisis de incidentes de local: datos de Operaciones
 ) -> TaskAccepted:
     """Encola el análisis del CSV y responde al instante con el `task_id` (202 Accepted).
 
@@ -197,7 +212,7 @@ async def analyze_incidents(
     response_model=None,
     responses={200: {"content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}}, "description": "CSV con columnas metric,dimension,value"}},
 )
-def export_latest_results(current_user=Depends(get_current_user)) -> StreamingResponse:
+def export_latest_results(current_user=Depends(require_access(Action.READ, OPS))) -> StreamingResponse:
     try:
         payload = task_results.load_latest()
     except RedisError as error:

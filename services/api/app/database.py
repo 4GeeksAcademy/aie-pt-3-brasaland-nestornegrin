@@ -15,6 +15,8 @@ USERS_DATABASE_PATH = DATA_DIR / "users.json"
 PROFILES_DATABASE_PATH = DATA_DIR / "profiles.json"
 INCIDENTS_DATABASE_PATH = DATA_DIR / "incidents.json"
 PASSWORD_RESETS_DATABASE_PATH = DATA_DIR / "password_resets.json"
+ACCESS_DATABASE_PATH = DATA_DIR / "access.json"  # roles y departamentos (entidades propias)
+INTERNAL_REPORTS_DATABASE_PATH = DATA_DIR / "internal_reports.json"
 
 
 def get_database() -> TinyDB:

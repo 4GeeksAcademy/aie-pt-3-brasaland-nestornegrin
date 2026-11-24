@@ -1,22 +1,28 @@
 from datetime import datetime
-from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
-
-class UserRole(str, Enum):
-    ADMIN = "admin"
-    MANAGER = "manager"
-    USER = "user"
+from app.access.models import UserRole  # noqa: F401 - se reexporta: los códigos de rol sembrados
 
 
 class UserRecord(BaseModel):
+    """Usuario. `role_id` y `department_id` son claves foráneas SEPARADAS: ninguna se deriva de la otra.
+
+    `role`, `department`, `rank` y `capabilities` no se guardan: el repositorio los resuelve desde el catálogo al leer,
+    así un cambio de rol surte efecto en la siguiente petición (el JWT solo identifica a la persona).
+    """
+
     id: int = Field(gt=0)
     email: EmailStr
     hashed_password: str
     is_active: bool = True
-    role: UserRole = UserRole.USER
+    role_id: int = Field(gt=0)
+    department_id: int | None = Field(default=None, gt=0)
     created_at: datetime
+    role: str = ""
+    rank: int = 0
+    capabilities: list[str] = Field(default_factory=list)
+    department: str | None = None
 
 
 class ProfileRecord(BaseModel):
@@ -28,6 +34,8 @@ class ProfileRecord(BaseModel):
 
 
 class UserCreate(BaseModel):
+    """Registro público (POST /auth/register): siempre rol Empleado y sin departamento hasta que un Admin lo asigne."""
+
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     email: EmailStr
@@ -37,11 +45,19 @@ class UserCreate(BaseModel):
     address: str = ""
 
 
+class AdminUserCreate(UserCreate):
+    """Alta de usuarios por un Admin (POST /users): rol y departamento se eligen aquí, de forma independiente."""
+
+    role_id: int | None = Field(default=None, gt=0, description="Por defecto, el rol de menor rango (Empleado).")
+    department_id: int | None = Field(default=None, gt=0)
+
+
 class UserUpdate(BaseModel):
+    """PUT /users/{id}. El rol y el departamento NO se cambian aquí sino en PATCH /users/{id}/assignment (solo Admin)."""
+
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     email: EmailStr | None = None
-    role: UserRole | None = None
     is_active: bool | None = None
 
 
@@ -54,7 +70,10 @@ class UserResponse(BaseModel):
     id: int
     email: EmailStr
     is_active: bool
-    role: UserRole
+    role_id: int
+    role: str
+    department_id: int | None
+    department: str | None
     created_at: datetime
 
 
@@ -66,7 +85,10 @@ class UserListItem(BaseModel):
 
     id: int
     email: EmailStr
-    role: UserRole
+    role_id: int
+    role: str
+    department_id: int | None
+    department: str | None
     is_active: bool
 
 
@@ -122,8 +144,18 @@ class ProfilePublic(BaseModel):
 
 
 class MeResponse(BaseModel):
+    """Identidad autenticada: rol Y departamento (ejes independientes) y las capacidades efectivas del rol,
+    para que el backoffice oculte lo que no se puede hacer (el backend lo vuelve a comprobar siempre)."""
+
     email: EmailStr
-    role: UserRole
+    role_id: int
+    role: str
+    role_label: str
+    rank: int
+    department_id: int | None
+    department: str | None
+    department_label: str | None
+    capabilities: list[str]
     profile: ProfilePublic | None
 
 

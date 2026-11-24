@@ -6,7 +6,7 @@ Cada handler solo valida la petición y llama a una función de `data/pipelines/
     POST /reporting/inventory-performance/runs     → dispara una corrida manual del flow
     GET  /reporting/inventory-performance/kpis     → filas de KPIs de `reporting.restaurant_inventory_daily`
 
-Mismas convenciones que el resto de la API: JWT (`get_current_user`), errores como `{"detail": ...}` y los
+Mismas convenciones que el resto de la API: JWT + permisos centralizados (`require_access`: rol y departamento), errores como `{"detail": ...}` y los
 parámetros inválidos responden 400. Este módulo es independiente de `app/telemetry/`: no comparte router,
 tabla ni código con `GET /telemetry/report`.
 """
@@ -18,7 +18,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from app.auth.dependencies import get_current_user
+from app.access.models import Action
+from app.access.permissions import OPS, require_access
 from app.database import engine
 from data.pipelines.inventory_performance import api as pipeline_api
 from services.reporting.schemas import KpisResponse, PipelineStatusResponse, RunQueuedResponse, RunRequest
@@ -28,16 +29,17 @@ def create_router() -> APIRouter:
     router = APIRouter(
         prefix="/reporting/inventory-performance",
         tags=["reporting"],
-        dependencies=[Depends(get_current_user)],  # todo el módulo exige sesión, igual que el resto de la API
     )
+    # Desempeño de inventario por restaurante: datos del departamento de Operaciones (rol primero, departamento después).
+    read, update = (Depends(require_access(a, OPS)) for a in (Action.READ, Action.UPDATE))
 
-    @router.get("/status", response_model=PipelineStatusResponse)
+    @router.get("/status", response_model=PipelineStatusResponse, dependencies=[read])
     def pipeline_status() -> dict:
         """(1) Estado y metadata de la última corrida del pipeline."""
         return pipeline_api.get_pipeline_status(engine)
 
     @router.post("/runs", status_code=202, response_model=RunQueuedResponse, responses={409: {"description": "Ya hay una corrida activa"}})
-    def trigger_run(payload: RunRequest | None = None, current_user=Depends(get_current_user)):
+    def trigger_run(payload: RunRequest | None = None, current_user=Depends(require_access(Action.UPDATE, OPS))):
         """(2) Dispara una corrida manual del flow (opcionalmente de un rango). Responde sin esperar al ETL."""
         body = payload or RunRequest()
         try:
@@ -47,7 +49,7 @@ def create_router() -> APIRouter:
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
-    @router.get("/kpis", response_model=KpisResponse)
+    @router.get("/kpis", response_model=KpisResponse, dependencies=[read])
     def inventory_kpis(
         date_from: date | None = Query(default=None, alias="from", description="Primer día (YYYY-MM-DD). Por defecto, hace 14 días."),
         date_to: date | None = Query(default=None, alias="to", description="Último día (YYYY-MM-DD). Por defecto, hoy (UTC)."),
