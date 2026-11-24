@@ -16,7 +16,7 @@ import logging
 from typing import Annotated, Callable
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from data.process.rag_config import RagConfigError
 
@@ -48,6 +48,14 @@ class AgentAnswer(BaseModel):
     conversation_id: str | None = None
     guardrails: list[dict] = []  # intervenciones de los guardrails en este turno (tipo de fallo incluido)
     memory: dict | None = None  # {"resolution": {...}, "proposal": {...}}: qué pasó con la propuesta y si hay una nueva
+
+
+class GuardrailsSummary(BaseModel):
+    """Contadores de los guardrails: `enabled` y, si están activos, los que expone `monitor.summary()`."""
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool
 
 
 def create_router(
@@ -83,13 +91,13 @@ def create_router(
                            conversation_id=run.conversation_id, memory=run.memory,
                            guardrails=run.guardrails or [])
 
-    @router.get("/guardrails/summary")
-    def guardrails_summary() -> dict:
+    @router.get("/guardrails/summary", response_model=GuardrailsSummary)
+    def guardrails_summary() -> GuardrailsSummary:
         """Cuántas veces disparó cada guardrail en esta sesión (contadores en memoria del proceso)."""
         guardrails = service.deps.guardrails
         if guardrails is None:
-            return {"enabled": False}
-        return {"enabled": True, **guardrails.monitor.summary()}
+            return GuardrailsSummary(enabled=False)
+        return GuardrailsSummary(enabled=True, **guardrails.monitor.summary())
 
     return router
 

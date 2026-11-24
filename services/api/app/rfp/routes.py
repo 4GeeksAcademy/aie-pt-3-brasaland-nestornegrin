@@ -189,7 +189,8 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_pipeline, ticket.ticket_id, False)
         return UploadAccepted(ticket_id=ticket.ticket_id, status=ticket.status)
 
-    @router.get("/events")
+    @router.get("/events", response_class=StreamingResponse, responses={
+        200: {"description": "Flujo Server-Sent Events (rfp_ticket_created).", "content": {"text/event-stream": {"schema": {"type": "string"}}}}})
     async def stream_events(request: Request) -> StreamingResponse:
         """Canal SSE de tickets nuevos. Exige el mismo JWT que el resto del router (dependencia del router: sin token → 401)."""
         last_event_id = parse_last_event_id(request.headers.get("last-event-id"))

@@ -8,6 +8,10 @@
 // IngredientExit.
 
 import { getAccessToken, readApiErrorDetails } from "./api-client";
+import { track } from "@/services/telemetry";
+import { reportSessionExpired } from "@/services/telemetry-flow";
+import { currentSection } from "@/services/telemetry-sections";
+import { observeNetworkFailure, observeResponse, routeTemplate } from "@/services/telemetry-http";
 
 const INVENTORY_API_URL =
   process.env.NEXT_PUBLIC_INVENTORY_API_URL ?? "http://localhost:8000";
@@ -21,9 +25,57 @@ async function inventoryFetch(path: string, init: RequestInit = {}): Promise<Res
   const headers = new Headers(init.headers);
   const token = getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(`${INVENTORY_API_URL}${path}`, { ...init, headers });
-  if (response.status === 401) redirectToLogin();
+  const startedAt = performance.now();
+  let response: Response;
+  try {
+    response = await fetch(`${INVENTORY_API_URL}${path}`, { ...init, headers });
+  } catch (error) {
+    observeNetworkFailure(init, path, startedAt, error);
+    throw error;
+  }
+  observeResponse(init, path, startedAt, response);
+  observeDirectStockEdit(init, path, response.status);
+  if (response.status === 401) {
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") reportSessionExpired(currentSection());
+    redirectToLogin();
+  }
   return response;
+}
+
+// Telemetría `direct_stock_edit_rejected`: el stock solo cambia con órdenes de
+// entrada/salida. Si algo intenta editarlo directamente y la API lo rechaza
+// (405 por método, 400 por campo de stock en el alta), se registra el intento.
+// Hoy ninguna pantalla lo hace; el evento detecta regresiones y clientes externos.
+const STOCK_FIELDS = ["current_stock", "stock", "quantity"];
+function observeDirectStockEdit(init: RequestInit, path: string, status: number): void {
+  const method = (init.method ?? "GET").toUpperCase();
+  const template = routeTemplate(path);
+  if (template !== "/inventory/products" && template !== "/inventory/products/{id}") return;
+  if (status === 405 && ["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    track("direct_stock_edit_rejected", {
+      attemptKind: "unsupported_method",
+      httpMethod: method,
+      routeTemplate: template === "/inventory/products" ? "/inventory/products" : "/inventory/products/{ingredient_id}",
+      httpStatus: 405,
+    });
+    return;
+  }
+  if (status === 400 && method === "POST" && template === "/inventory/products" && typeof init.body === "string") {
+    try {
+      const offending = Object.keys(JSON.parse(init.body) as object).filter((key) => STOCK_FIELDS.includes(key));
+      if (offending.length > 0) {
+        track("direct_stock_edit_rejected", {
+          attemptKind: "extra_field_on_create",
+          httpMethod: "POST",
+          routeTemplate: "/inventory/products",
+          httpStatus: 400,
+          offendingFields: offending,
+        });
+      }
+    } catch {
+      // cuerpo no JSON: no es un intento de edición de stock
+    }
+  }
 }
 
 export { readApiErrorDetails as readInventoryErrorDetails };
