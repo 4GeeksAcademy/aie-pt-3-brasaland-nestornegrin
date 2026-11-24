@@ -4,6 +4,8 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, readApiError, readApiErrorDetails, saveAccessToken } from "@/lib/api-client";
+import { useFlowTracking } from "@/lib/use-flow-tracking";
+import { startTelemetrySession, track } from "@/services/telemetry";
 
 type Registration = { email: string; password: string; name: string; phone: string; address: string };
 
@@ -12,8 +14,10 @@ export function RegisterForm() {
   const [form, setForm] = useState<Registration>({ email: "", password: "", name: "", phone: "", address: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const flow = useFlowTracking("registration", "register"); // telemetría
 
   function update(field: keyof Registration, value: string) {
+    flow.touch(field);
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: "" }));
   }
@@ -24,15 +28,22 @@ export function RegisterForm() {
     setErrors({});
     try {
       const registration = await apiFetch("/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, false);
+      const hasPhone = form.phone.trim() !== "";
+      const hasAddress = form.address.trim() !== "";
       if (!registration.ok) {
+        flow.submitAttempt(false);
+        if (registration.status === 409) track("user_registered", { registrationOutcome: "email_already_registered", hasPhone, hasAddress });
         const details = await readApiErrorDetails(registration, "No se pudo crear la cuenta.");
         setErrors(details.fields);
         throw new Error(details.message);
       }
       const login = await apiFetch("/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: form.email, password: form.password }) }, false);
+      track("user_registered", { registrationOutcome: "created", hasPhone, hasAddress });
+      flow.submitAttempt(true);
       if (!login.ok) throw new Error(await readApiError(login, "La cuenta se creó, pero no se pudo iniciar sesión."));
       const payload = (await login.json()) as { access_token: string };
       saveAccessToken(payload.access_token);
+      startTelemetrySession();
       router.replace("/");
     } catch (requestError) {
       setErrors({ form: requestError instanceof Error ? requestError.message : "No se pudo crear la cuenta." });

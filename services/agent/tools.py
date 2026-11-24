@@ -49,13 +49,13 @@ class TicketInfo(BaseModel):
 
     id: int
     title: str
-    description: str
+    description: str | None = None  # el listado ligero de la API no lo incluye; el detalle por id sí
     category: str
     origin: str
     branch: str
     status: str
-    created_at: str
-    updated_at: str
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class TicketsResult(BaseModel):
