@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { SessionActions } from "@/components/session-actions";
+import { TelemetryProvider } from "@/components/telemetry-provider";
 
 export const metadata: Metadata = {
   title: "Backoffice | Brasaland",
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="min-h-screen bg-zinc-50 text-zinc-900 antialiased">
+        <TelemetryProvider />
         <header className="border-b border-zinc-200 bg-white">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
             <span className="text-xl font-black tracking-tight text-red-800">
@@ -30,6 +32,8 @@ export default function RootLayout({
               <Link href="/knowledge" className="hover:text-red-800">Asistente</Link>
               <Link href="/chat" className="hover:text-red-800">Chat en vivo</Link>
               <Link href="/rfp" className="hover:text-red-800">RFPs</Link>
+              <Link href="/reporting" className="hover:text-red-800">Desempeño de inventario</Link>
+              <Link href="/telemetry" className="hover:text-red-800">Telemetría</Link>
               <SessionActions />
             </nav>
           </div>

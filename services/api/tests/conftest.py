@@ -13,11 +13,22 @@ en memoria de TinyDB antes de cada test.
 
 from __future__ import annotations
 
+import atexit
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
+
+# Los tests escriben usuarios, incidencias y proveedores: se redirigen a una
+# carpeta temporal (BRASALAND_DATA_DIR, ver app/database.py) para no tocar ni
+# ensuciar los ficheros TinyDB de desarrollo. Se fuerza (no setdefault) para
+# que ningún valor heredado del entorno rompa el aislamiento.
+_TEST_DATA_DIR = tempfile.mkdtemp(prefix="brasaland-tests-")
+os.environ["BRASALAND_DATA_DIR"] = _TEST_DATA_DIR
+atexit.register(shutil.rmtree, _TEST_DATA_DIR, ignore_errors=True)
 
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-for-pytest-do-not-use-in-prod")
 os.environ.setdefault("JWT_ALGORITHM", "HS256")

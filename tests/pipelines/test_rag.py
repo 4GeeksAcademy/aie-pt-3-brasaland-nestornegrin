@@ -83,7 +83,8 @@ def no_dotenv(monkeypatch):
     """Que ningún `.env` real (el del Codespace) interfiera con las pruebas de configuración."""
     monkeypatch.setattr(rag_config, "_load_dotenv", lambda: None)
     for name in ("EMBEDDING_MODEL", "GENERATION_MODEL", "LLM_API_KEY", "LLM_BASE_URL", "QDRANT_URL",
-                 "QDRANT_API_KEY", "RAG_MIN_SCORE", "EMBEDDING_BASE_URL", "EMBEDDING_API_KEY"):
+                 "QDRANT_API_KEY", "RAG_MIN_SCORE", "EMBEDDING_BASE_URL", "EMBEDDING_API_KEY",
+                 "LLM_API_URL", "LLM_MODEL"):
         monkeypatch.delenv(name, raising=False)
     return monkeypatch
 
