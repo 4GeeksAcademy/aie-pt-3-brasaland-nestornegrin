@@ -1,0 +1,3 @@
+warning: The `UV_NATIVE_TLS` environment variable is deprecated and will be removed in a future release. Use `UV_SYSTEM_CERTS` instead.
+CASO 1 (chat) action = block | kind = seguridad | reason = override_instructions
+CASO 2 (RAG) texto entregado al modelo = Salsa de la casa: 2 tazas de tomate. [contenido externo no confiable omitido] | familias = ['override_instructions']

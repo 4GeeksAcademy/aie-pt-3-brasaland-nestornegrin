@@ -1,0 +1,1 @@
+5 vulnerabilities (4 high, 1 critical) — next 16.2.12 (crítica), nanoid, postcss, sharp, source-map-js

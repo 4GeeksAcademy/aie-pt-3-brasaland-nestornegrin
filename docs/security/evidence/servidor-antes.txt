@@ -1,0 +1,33 @@
+=== ANTES (Ubuntu real sin endurecer) — 2026-11-22T17:25:24Z ===
+PRETTY_NAME="Ubuntu 24.04.5 LTS"
+Linux 6.8.0-1070-azure
+--- SSH efectivo ---
+permitrootlogin yes
+passwordauthentication yes
+--- Login por SSH como root con clave ---
+ENTRA: root
+--- Alcanzabilidad desde fuera del servidor (172.17.0.2) ---
+puerto 22: ABIERTO
+puerto 443: ABIERTO
+puerto 5432: ABIERTO
+puerto 6379: ABIERTO
+puerto 8001: ABIERTO
+--- verify-hardening.sh ---
+FAIL  SSH no permite login como root
+FAIL  SSH no admite contraseñas (solo clave)
+FAIL  Existe el usuario no-root brasaland
+stat: cannot statx '/opt/brasaland/config': No such file or directory
+FAIL  /opt/brasaland/config no es legible por 'otros'
+stat: cannot statx '/opt/brasaland/data': No such file or directory
+FAIL  /opt/brasaland/data solo accesible por la app
+FAIL  /opt/brasaland/app no es escribible por la app
+FAIL  ufw activo con entrada denegada por defecto
+FAIL  ufw solo abre SSH, 80 y 443
+--- Puertos en escucha (nada de BD/Redis/MCP en 0.0.0.0) ---
+0.0.0.0:6379
+0.0.0.0:8001
+0.0.0.0:22
+0.0.0.0:443
+0.0.0.0:5432
+[::]:22
+exit=1

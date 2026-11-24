@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+from app import security as limits
 
 from app.auth.dependencies import get_current_user
 from app.auth.models import RegisterResponse, UserCreate, UserListItem, UserResponse, UserRole, UserUpdate
@@ -9,8 +11,11 @@ def create_router() -> APIRouter:
     router = APIRouter(prefix="/users", tags=["users"])
 
     @router.post("", response_model=RegisterResponse, status_code=201)
-    def create_user(payload: UserCreate) -> RegisterResponse:
+    def create_user(payload: UserCreate, request: Request) -> RegisterResponse:
         from app.main import profile_repository, user_repository
+
+        limits.register_by_ip.check(limits.client_ip(request))  # A04: registro abierto con tope por IP
+        limits.register_by_ip.record(limits.client_ip(request))
 
         email = str(payload.email).lower()
         if user_repository.get_by_email(email):

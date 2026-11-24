@@ -127,13 +127,14 @@ describe("SupplierDirectory", () => {
     const toggle = () => container.querySelectorAll("tbody tr")[0].querySelector<HTMLButtonElement>("td:nth-child(4) button")!;
     expect(toggle().textContent).toBe("Activo");
 
+    jest.spyOn(window, "confirm").mockReturnValue(true); // cambiar el estado pide confirmación humana (BRIEFING §5)
     mockedApiFetch.mockImplementation(async () => jsonResponse({ ...makeSuppliers(2)[0], status: "Suspendido" }));
     await act(async () => toggle().click());
     await flush();
 
     expect(toggle().textContent).toBe("Suspendido");
     const [url, init] = mockedApiFetch.mock.calls.at(-1)!;
-    expect(url).toBe("/api/suppliers/1/status");
+    expect(url).toBe("/api/suppliers/1/status?confirm=true");
     expect(JSON.parse(String(init?.body))).toEqual({ status: "Suspendido" });
   });
 

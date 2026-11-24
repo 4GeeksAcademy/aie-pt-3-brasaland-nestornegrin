@@ -23,11 +23,10 @@ export async function askKnowledge(question: string): Promise<string> {
 
   let response: Response;
   try {
-    // authenticated = false: el endpoint del RAG no usa el token de sesión.
+    // El endpoint exige sesión (auditoría OWASP A01): apiFetch envía el token y lleva al login si caduca (401).
     response = await apiFetch(
       "/knowledge/query",
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: trimmed }) },
-      false,
     );
   } catch {
     throw new KnowledgeQueryError("No se pudo conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.");

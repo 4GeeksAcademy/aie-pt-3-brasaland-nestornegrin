@@ -1,0 +1,5 @@
+Found 5 known
+ecdsa 0.19.2 PYSEC-2026-1325
+pytest 8.4.2 PYSEC-2026-1845
+python-jose 3.5.0 PYSEC-2026-4298
+warning: The `UV_NATIVE_TLS`

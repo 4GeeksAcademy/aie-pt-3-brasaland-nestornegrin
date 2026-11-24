@@ -56,6 +56,8 @@ def _clean_database():
     main_module.user_repository._database.truncate()
     main_module.profile_repository._database.truncate()
     main_module.password_reset_repository._database.truncate()
+    from app import security as app_security
+    app_security.reset_rate_limits()
     yield
 
 

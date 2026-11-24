@@ -1,0 +1,9 @@
+# Baseline del Codespace (2026-11-20) — salida real pegada por Nestor
+$ whoami; id
+codespace
+uid=1000(codespace) gid=1000(codespace) groups=1000(codespace),985(pipx),986(python),987(oryx),988(golang),989(docker),990(sdkman),991(rvm),992(php),993(conda),994(nvs),995(nvm),996(hugo),1001(ssh)
+
+$ ss -tlnp   (solo columna dirección local)
+127.0.0.1: 12563 16635 16634 16636 13005 46305 42611 53(lo) 34965 15401 44259
+[::1]:     16636 16635 16634
+0.0.0.0:   2000, 2222   ([::]: 2000, 2222)

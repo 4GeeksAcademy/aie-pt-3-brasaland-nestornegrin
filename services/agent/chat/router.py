@@ -1,6 +1,7 @@
 """WebSocket del chat del Manager support agent: `ws://<api>/agent/chat/ws?session_id=chat_0044&token=<JWT>`.
 
 Handshake
+- Si el navegador envía `Origin`, debe estar en la lista de orígenes del frontend (cierre `4403` si no); clientes sin `Origin` (scripts) se admiten.
 - `session_id` es obligatorio (patrón `[A-Za-z0-9_-]{8,64}`) y es también el `conversation_id` que recibe el agente. Opcional: `location_id`.
 - Autenticación con el MISMO JWT que el resto de la API: `?token=<JWT>` o, si no viene en la URL, un primer frame
   `{"event":"auth","data":{"token":"<JWT>"}}` (5 s). Sin token válido la conexión se cierra (4401) ANTES de enviar ningún evento de chat;
@@ -42,7 +43,8 @@ Authenticator = Callable[[str], "ChatUser | None"]
 
 
 def create_chat_router(authenticate: Authenticator, service_factory: Callable[[], object], *, manager: ChatSessionManager | None = None,
-                       store_path: str = ":memory:", prefix: str = "/agent") -> APIRouter:
+                       store_path: str = ":memory:", prefix: str = "/agent",
+                       allowed_origins: Callable[[], list[str]] | None = None) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=["agent-chat"])
     chat = manager or ChatSessionManager(ChatStore(store_path), ChatBroker(), service_factory)
     router.chat_manager = chat  # type: ignore[attr-defined]  # para las pruebas y para cerrar generaciones al apagar
@@ -57,6 +59,10 @@ def create_chat_router(authenticate: Authenticator, service_factory: Callable[[]
         async def reject(code: int) -> None:
             await websocket.close(code=code)
 
+        # A05/A01: un navegador siempre envía `Origin`; si no es del frontend, se rechaza (secuestro de WebSocket entre sitios).
+        origin = websocket.headers.get("origin")
+        if allowed_origins is not None and origin is not None and origin.rstrip("/") not in allowed_origins():
+            return await reject(CLOSE_FORBIDDEN)
         user = authenticate(token) if token else None
         if token and user is None:
             return await reject(CLOSE_UNAUTHORIZED)  # antes de aceptar: el handshake responde 403, no se envía nada

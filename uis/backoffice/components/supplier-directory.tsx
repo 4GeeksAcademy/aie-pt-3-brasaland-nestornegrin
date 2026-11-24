@@ -75,10 +75,12 @@ export function SupplierDirectory() {
 
   const updateStatus = useCallback(async (supplier: Supplier) => {
     const status = supplier.status === "Activo" ? "Suspendido" : "Activo";
+    // Cambiar el estado de un proveedor es una acción con confirmación humana (BRIEFING §5): la API exige `confirm=true`.
+    if (typeof window !== "undefined" && !window.confirm(`¿Confirmas pasar a «${supplier.name}» a ${status}?`)) return;
     setSaving(`status-${supplier.id}`);
     setError(null);
     try {
-      const response = await apiFetch(`/api/suppliers/${supplier.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      const response = await apiFetch(`/api/suppliers/${supplier.id}/status?confirm=true`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
       if (!response.ok) { setError(await readApiError(response, "No se pudo actualizar el estado.")); return; }
       const updated = (await response.json()) as Supplier;
       setSuppliers((current) => current.map((item) => item.id === supplier.id ? updated : item));

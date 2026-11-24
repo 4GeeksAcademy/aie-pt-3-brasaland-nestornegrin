@@ -7,15 +7,15 @@ valida la forma de la petición, invoca el grafo a través de `AgentService` y t
 Los errores nunca exponen detalles internos: el detalle va al log del servidor y el cliente recibe un mensaje
 genérico (con la referencia `run_id`, para poder encontrar el trace).
 
-Igual que `POST /knowledge/query`, el endpoint es público (el ticket no define autenticación); si se expone fuera
-de la red interna conviene protegerlo con `get_current_user`.
+La API lo monta con `dependencies=[Depends(bind_actor)]` (auditoría OWASP A01): exige sesión y el actor sale del token.
+Este router, por sí solo (tests), no impone autenticación.
 """
 from __future__ import annotations
 
 import logging
 from typing import Annotated, Callable
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from data.process.rag_config import RagConfigError
@@ -68,9 +68,11 @@ def create_router(
 
     # Función síncrona a propósito: FastAPI la ejecuta en un hilo mientras se espera a Qdrant y al modelo.
     @router.post("/query", response_model=AgentAnswer)
-    def query_agent(request: AgentQuery) -> AgentAnswer:
+    def query_agent(request: AgentQuery, http_request: Request) -> AgentAnswer:
+        # Si la API autenticó la petición (`bind_actor`), el actor es esa identidad y no el `user` que declare el cliente.
+        actor = getattr(http_request.state, "actor", None) or request.user
         try:
-            run = service.run(request.question, conversation_id=request.conversation_id, actor=request.user)
+            run = service.run(request.question, conversation_id=request.conversation_id, actor=actor)
         except AgentExecutionError as error:
             logger.exception("Falló la corrida %s del agente", error.run_id)
             if isinstance(error.__cause__, RagConfigError):
