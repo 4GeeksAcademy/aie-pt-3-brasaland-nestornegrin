@@ -17,6 +17,8 @@ INCIDENTS_DATABASE_PATH = DATA_DIR / "incidents.json"
 PASSWORD_RESETS_DATABASE_PATH = DATA_DIR / "password_resets.json"
 ACCESS_DATABASE_PATH = DATA_DIR / "access.json"  # roles y departamentos (entidades propias)
 INTERNAL_REPORTS_DATABASE_PATH = DATA_DIR / "internal_reports.json"
+FEDERATED_DATABASE_PATH = DATA_DIR / "federated.json"  # vínculos con proveedores externos y estados OAuth
+AUDIT_DATABASE_PATH = DATA_DIR / "audit_events.json"  # auditoría federada (solo se añade)
 
 
 def get_database() -> TinyDB:

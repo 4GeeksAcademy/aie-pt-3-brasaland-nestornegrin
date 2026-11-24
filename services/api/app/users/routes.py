@@ -92,7 +92,7 @@ def create_router() -> APIRouter:
 
     @router.delete("/{user_id}", status_code=204, response_model=None, dependencies=[Depends(require_access(Action.DELETE))])
     def delete_user(user_id: int) -> None:
-        from app.main import access_catalog, profile_repository, user_repository
+        from app.main import access_catalog, federated_repository, profile_repository, user_repository
 
         target = user_repository.get(user_id)
         admin_role = access_catalog.get_role_by_code("admin")
@@ -102,5 +102,6 @@ def create_router() -> APIRouter:
         if not user_repository.delete(user_id):
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         profile_repository.delete_by_user_id(user_id)
+        federated_repository.delete_for_user(user_id)  # un vínculo huérfano permitiría reutilizar esa identidad de Google
 
     return router

@@ -58,8 +58,9 @@ def create_router() -> APIRouter:
         limits.login_by_ip.check(ip_key)
         user = user_repository.get_by_email(credentials.login_email)
         # Se verifica un hash también cuando el usuario no existe: mismo coste, no se delata qué emails están registrados.
-        hashed = user.hashed_password if user is not None else _dummy_hash()
-        if not verify_password(credentials.password, hashed) or user is None:
+        # (una cuenta sin contraseña —solo acceso federado— tampoco puede entrar por aquí.)
+        hashed = user.hashed_password if user is not None and user.hashed_password else _dummy_hash()
+        if not verify_password(credentials.password, hashed) or user is None or not user.hashed_password:
             limits.login_by_account.record(account_key)
             limits.login_by_ip.record(ip_key)
             # A09: los fallos de login quedan en el log (cuenta como huella, nunca la contraseña) para detectar fuerza bruta.
@@ -148,6 +149,8 @@ def create_router() -> APIRouter:
     def change_password(payload: ChangePasswordRequest, current_user=Depends(get_current_user)) -> MessageResponse:
         from app.main import user_repository
 
+        if not current_user.hashed_password:
+            raise HTTPException(status_code=400, detail="Tu cuenta no tiene contraseña. Usa «¿Olvidaste tu contraseña?» para crear una.")
         if not verify_password(payload.current_password, current_user.hashed_password):
             raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
         user_repository.update_password(current_user.id, hash_password(payload.new_password))

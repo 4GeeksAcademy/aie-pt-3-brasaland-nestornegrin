@@ -36,6 +36,8 @@ from app.auth.routes import create_router as create_auth_router
 from app.database import (
     ACCESS_DATABASE_PATH,
     DATABASE_PATH,
+    AUDIT_DATABASE_PATH,
+    FEDERATED_DATABASE_PATH,
     INTERNAL_REPORTS_DATABASE_PATH,
     INCIDENTS_DATABASE_PATH,
     PASSWORD_RESETS_DATABASE_PATH,
@@ -58,6 +60,8 @@ from app.auth.ws import authenticate_ws_token
 from app.rfp import models as _rfp_models  # noqa: F401 - registra las tablas antes de create_all
 from app.rfp.routes import create_router as create_rfp_router
 from app.rfp.schema_sync import ensure_columns as ensure_rfp_columns
+from app.federated.repository import AuditRepository, FederatedRepository
+from app.federated.routes import create_audit_router, create_federated_router
 from app.users.routes import create_router as create_users_router
 from app.inventory.routes import create_router as create_inventory_router
 from services.reporting.router import create_router as create_reporting_router
@@ -113,6 +117,8 @@ supplier_repository = SupplierRepository(DATABASE_PATH)
 access_catalog = AccessCatalog(ACCESS_DATABASE_PATH)  # roles y departamentos: entidades propias, siempre sembradas
 user_repository = UserRepository(USERS_DATABASE_PATH, access_catalog)
 internal_report_repository = InternalReportRepository(INTERNAL_REPORTS_DATABASE_PATH)
+federated_repository = FederatedRepository(FEDERATED_DATABASE_PATH)  # vínculos usuario ↔ proveedor (sin tokens) y `state` de OAuth
+audit_repository = AuditRepository(AUDIT_DATABASE_PATH)  # auditoría: federated_link/unlink/login_success/login_rejected
 profile_repository = ProfileRepository(PROFILES_DATABASE_PATH)
 incident_repository = IncidentRepository(INCIDENTS_DATABASE_PATH)
 
@@ -122,7 +128,12 @@ if os.environ.get("SEED_DEMO_DATA", "").lower() in ("1", "true", "yes"):  # usua
     from app.access.seed import seed_demo
 
     seed_demo(user_repository, profile_repository, access_catalog, internal_report_repository)
+    from app.federated.seed import seed_federated_demo
+
+    seed_federated_demo(user_repository, profile_repository, federated_repository)
 app.include_router(create_auth_router())
+app.include_router(create_federated_router())  # /auth/federated/*: vincular (con sesión) y login con proveedor (solo cuentas vinculadas)
+app.include_router(create_audit_router())  # GET /audit/events (Admin)
 app.include_router(create_users_router())
 app.include_router(create_access_router())  # /roles, /departments (Admin) y /internal-reports (alcance departamental)
 app.include_router(create_profiles_router())
