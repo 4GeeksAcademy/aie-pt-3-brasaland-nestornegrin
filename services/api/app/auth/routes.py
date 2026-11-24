@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 
 from app import security as limits
 from .dependencies import get_current_user
-from .email import send_password_reset_email
+from services.async_tasks import config, dlq
+from services.async_tasks.enqueue import enqueue_password_reset_email
 from .models import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -93,16 +94,18 @@ def create_router() -> APIRouter:
         if user is not None:
             raw_token = generate_password_reset_token()
             expires_at = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
-            password_reset_repository.create(user.id, hash_password_reset_token(raw_token), expires_at)
+            # El envío (servicio externo: Resend) ya NO ocurre dentro de la petición: se encola y lo procesa un worker con
+            # reintentos y backoff. La clave de idempotencia hace que encolar dos veces la misma solicitud no envíe dos emails.
+            record = password_reset_repository.create(user.id, hash_password_reset_token(raw_token), expires_at)
+            idempotency_key = f"password-reset:{record.id}"
             try:
-                send_password_reset_email(user.email, raw_token)
-            except Exception:
-                # Llamada a un servicio externo (Resend): un fallo aquí (red,
-                # clave inválida, límite de envíos) nunca debe filtrar si el
-                # email existe ni convertirse en un 500 -- se registra en el
-                # log del servidor para que el equipo lo pueda diagnosticar,
-                # y la respuesta al cliente sigue siendo la misma de siempre.
-                logger.exception("No se pudo enviar el email de restablecimiento de contraseña")
+                enqueue_password_reset_email(user.email, raw_token, idempotency_key)
+            except Exception as error:  # noqa: BLE001
+                # La COLA está caída: el email no se ha perdido en silencio, queda en la dead-letter queue y en el log (error).
+                # La respuesta sigue siendo idéntica exista o no el usuario (no se filtra nada).
+                logger.error("No se pudo encolar el email de restablecimiento (%s)", idempotency_key, exc_info=True)
+                dlq.record_dead_letter(task_id=idempotency_key, task_name=config.SEND_PASSWORD_RESET_TASK, attempt=0,
+                                       error_message=f"No se pudo encolar: {type(error).__name__}")
         # Misma respuesta exista o no el usuario: ver FORGOT_PASSWORD_MESSAGE.
         return MessageResponse(message=FORGOT_PASSWORD_MESSAGE)
 

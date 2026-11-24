@@ -1,0 +1,23 @@
+tests/test_async_email.py::test_la_peticion_solo_encola_y_responde_sin_llamar_al_proveedor PASSED
+tests/test_async_email.py::test_el_mensaje_de_la_cola_no_lleva_el_token_ni_el_correo_en_claro PASSED
+tests/test_async_email.py::test_un_mensaje_manipulado_o_caducado_no_se_puede_leer PASSED
+tests/test_async_email.py::test_el_worker_envia_el_email_a_la_primera PASSED
+tests/test_async_email.py::test_un_fallo_del_proveedor_dispara_reintentos_con_backoff_exponencial PASSED
+tests/test_async_email.py::test_el_log_de_cada_intento_queda_registrado PASSED
+tests/test_async_email.py::test_agotados_los_reintentos_la_tarea_cae_en_la_dlq_y_no_desaparece PASSED
+tests/test_async_email.py::test_un_mensaje_caducado_va_directo_a_la_dlq_sin_gastar_reintentos PASSED
+tests/test_async_email.py::test_tras_fallar_definitivamente_se_libera_el_cerrojo PASSED
+tests/test_async_email.py::test_encolar_dos_veces_con_la_misma_clave_publica_una_sola_vez PASSED
+tests/test_async_email.py::test_ejecutar_dos_veces_la_misma_clave_no_envia_el_email_dos_veces PASSED
+tests/test_async_email.py::test_una_clave_distinta_si_envia PASSED
+tests/test_async_email.py::test_si_la_misma_operacion_esta_en_curso_en_otro_worker_se_reintenta_sin_enviar PASSED
+tests/test_async_email.py::test_un_fallo_encolando_libera_la_clave_para_poder_reintentar PASSED
+tests/test_async_email.py::test_resend_recibe_la_clave_de_idempotencia PASSED
+tests/test_async_email.py::test_el_estado_incluye_los_intentos PASSED
+tests/test_async_email.py::test_el_resultado_de_una_tarea_enviada_dice_cuantos_intentos_necesito PASSED
+tests/test_async_email.py::test_la_dlq_la_ve_un_admin_y_nadie_mas PASSED
+tests/test_async_tasks_redis.py::test_task_runs_in_a_worker_through_real_redis PASSED
+tests/test_async_tasks_redis.py::test_failing_task_is_retried_with_backoff_and_dead_lettered_through_real_redis PASSED
+tests/test_async_tasks_redis.py::test_email_con_proveedor_caido_reintenta_con_backoff_y_acaba_en_la_dlq_con_redis_real PASSED
+tests/test_async_tasks_redis.py::test_encolar_dos_veces_la_misma_operacion_envia_un_solo_email_con_redis_real PASSED
+============================= 22 passed in 18.03s ==============================

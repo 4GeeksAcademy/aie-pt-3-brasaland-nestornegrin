@@ -28,8 +28,13 @@ VISIBILITY_TIMEOUT_SECONDS = int(os.environ.get("TASK_VISIBILITY_TIMEOUT_SECONDS
 # compartido por `api` y `worker`: el mensaje de la cola nunca lleva el contenido del fichero, solo su nombre.
 UPLOAD_DIR = Path(os.environ.get("TASK_UPLOAD_DIR") or Path(tempfile.gettempdir()) / "brasaland-task-uploads")
 
-# Nombre de la tarea (estable: es lo que se ve en Flower y en los logs).
+# Idempotencia: cuánto tiempo se recuerda que una operación ya se encoló / terminó (más que cualquier reintento razonable).
+IDEMPOTENCY_TTL_SECONDS = int(os.environ.get("TASK_IDEMPOTENCY_TTL_SECONDS", str(7 * 24 * 3600)))
+RESULT_TTL_SECONDS = 24 * 3600  # mismo plazo que `result_expires` del result backend
+
+# Nombres de las tareas (estables: es lo que se ve en Flower y en los logs).
 ANALYZE_INCIDENTS_TASK = "incidents.analyze_csv"
+SEND_PASSWORD_RESET_TASK = "email.send_password_reset"
 
 
 def backoff_seconds(retries_done: int) -> int:
