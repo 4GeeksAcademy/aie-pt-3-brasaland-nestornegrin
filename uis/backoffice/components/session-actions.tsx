@@ -25,6 +25,7 @@ export function SessionActions() {
 
   return (
     <div className="flex items-center gap-3">
+      <Can capability="approve"><Link href="/admin/audit" className="font-bold text-zinc-700 hover:text-red-800">Auditoría</Link></Can>
       <Can capability="administer"><Link href="/admin/access" className="font-bold text-zinc-700 hover:text-red-800">Roles y accesos</Link></Can>
       <Link href="/account/profile" className="font-bold text-zinc-700 hover:text-red-800">Mi perfil</Link>
       <Link href="/account/change-password" className="font-bold text-zinc-700 hover:text-red-800">Cambiar contraseña</Link>

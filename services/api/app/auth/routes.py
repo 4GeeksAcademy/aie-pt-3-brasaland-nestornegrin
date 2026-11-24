@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 
 from app import security as limits
+from app.audit.recorder import note
 from .dependencies import get_current_user
 from .email import send_password_reset_email
 from .models import (
@@ -56,6 +57,7 @@ def create_router() -> APIRouter:
         account_key, ip_key = credentials.login_email, limits.client_ip(request)
         limits.login_by_account.check(account_key)
         limits.login_by_ip.check(ip_key)
+        note(request, label=credentials.login_email)
         user = user_repository.get_by_email(credentials.login_email)
         # Se verifica un hash también cuando el usuario no existe: mismo coste, no se delata qué emails están registrados.
         # (una cuenta sin contraseña —solo acceso federado— tampoco puede entrar por aquí.)
@@ -71,6 +73,7 @@ def create_router() -> APIRouter:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         limits.login_by_account.clear(account_key)
+        note(request, user=user, resource_id=user.id, details={"method": "password"})
         return TokenResponse(access_token=create_access_token(user.id))
 
     @router.post("/register", response_model=RegisterResponse, status_code=201)
@@ -86,6 +89,7 @@ def create_router() -> APIRouter:
         if user_repository.get_by_email(email):
             raise HTTPException(status_code=409, detail="El email ya está registrado")
         user = user_repository.create(email, hash_password(payload.password))
+        note(request, label=email, resource_id=user.id)
         profile_repository.create(user.id, payload.name, payload.phone, payload.address)
         return RegisterResponse(id=user.id)
 
@@ -117,6 +121,7 @@ def create_router() -> APIRouter:
         limits.forgot_by_ip.check(limits.client_ip(request))
         limits.forgot_by_ip.record(limits.client_ip(request))
 
+        note(request, label=str(payload.email).lower())  # solo el correo indicado: la respuesta no revela si existe
         user = user_repository.get_by_email(str(payload.email).lower())
         if user is not None:
             raw_token = generate_password_reset_token()
@@ -135,7 +140,7 @@ def create_router() -> APIRouter:
         return MessageResponse(message=FORGOT_PASSWORD_MESSAGE)
 
     @router.post("/reset-password", response_model=MessageResponse)
-    def reset_password(payload: ResetPasswordRequest) -> MessageResponse:
+    def reset_password(payload: ResetPasswordRequest, request: Request) -> MessageResponse:
         from app.main import password_reset_repository, user_repository
 
         record = password_reset_repository.get_by_token_hash(hash_password_reset_token(payload.token))
@@ -143,10 +148,11 @@ def create_router() -> APIRouter:
             raise HTTPException(status_code=400, detail="El enlace de restablecimiento es inválido o ha expirado")
         user_repository.update_password(record.user_id, hash_password(payload.new_password))
         password_reset_repository.mark_used(record.id)
+        note(request, user=user_repository.get(record.user_id), resource_id=record.user_id)
         return MessageResponse(message="Tu contraseña se actualizó correctamente")
 
     @router.post("/change-password", response_model=MessageResponse)
-    def change_password(payload: ChangePasswordRequest, current_user=Depends(get_current_user)) -> MessageResponse:
+    def change_password(payload: ChangePasswordRequest, request: Request, current_user=Depends(get_current_user)) -> MessageResponse:
         from app.main import user_repository
 
         if not current_user.hashed_password:
@@ -154,6 +160,7 @@ def create_router() -> APIRouter:
         if not verify_password(payload.current_password, current_user.hashed_password):
             raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
         user_repository.update_password(current_user.id, hash_password(payload.new_password))
+        note(request, resource_id=current_user.id)
         return MessageResponse(message="Tu contraseña se actualizó correctamente")
 
     return router

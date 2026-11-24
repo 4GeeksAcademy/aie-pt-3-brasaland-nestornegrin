@@ -55,7 +55,8 @@ DEFAULT_PASSWORD = "ValidPass123"
 def _clean_database():
     main_module.internal_report_repository.truncate()
     main_module.federated_repository.truncate()
-    main_module.audit_repository.truncate()
+    for path in (main_module.audit_log._path, main_module.audit_log._head_path):  # el audit log no tiene truncate(): solo los tests borran sus ficheros
+        path.unlink(missing_ok=True)
     main_module.user_repository._database.truncate()
     main_module.profile_repository._database.truncate()
     main_module.password_reset_repository._database.truncate()
@@ -126,14 +127,14 @@ def make_headers(client: TestClient):
 
 @pytest.fixture
 def seeded(client: TestClient):
-    """Siembra los usuarios y reportes del BRIEFING y devuelve `headers(name)` por persona: felipe, lucia, camila, jake, nicolas."""
+    """Siembra los usuarios y reportes del BRIEFING y devuelve `headers(name)` por persona: felipe, lucia, camila, jake, nicolas, agente."""
     from app.access.seed import seed_demo
 
     seed_demo(main_module.user_repository, main_module.profile_repository, main_module.access_catalog,
               main_module.internal_report_repository, password=DEFAULT_PASSWORD)
     emails = {"felipe": "felipe.ops@brasaland.example", "lucia": "lucia.procurement@brasaland.example",
               "camila": "camila.marketing@brasaland.example", "jake": "jake.training@brasaland.example",
-              "nicolas": "nicolas.admin@brasaland.example"}
+              "nicolas": "nicolas.admin@brasaland.example", "agente": "agente.operaciones@brasaland.example"}
 
     def headers(name: str) -> dict:
         response = client.post("/auth/login", json={"email": emails[name], "password": DEFAULT_PASSWORD})

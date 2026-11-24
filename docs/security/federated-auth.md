@@ -26,7 +26,7 @@ sequenceDiagram
         A-->>F: 409 (no se vincula, no se audita vínculo)
     else libre
         A->>A: guarda user_id + provider + sub + email_at_link_time + linked_at
-        A->>A: auditoría: federated_link
+        A->>A: audit log: federated.link
         A-->>F: 200 «tu cuenta de Google (email) quedó vinculada»
     end
 ```
@@ -49,11 +49,11 @@ sequenceDiagram
     A->>G: canjea code → identidad (sub)
     A->>A: busca (provider, sub) en los vínculos
     alt NO vinculado
-        A->>A: auditoría: federated_login_rejected (user_id nulo)
+        A->>A: audit log: federated.login denied (actor sin identificar)
         A-->>F: 403 «Regístrate primero…» — SIN crear usuario ni perfil
         F-->>U: mensaje + botón «Crear mi cuenta»
     else vinculado y activo
-        A->>A: auditoría: federated_login_success
+        A->>A: audit log: federated.login success
         A-->>F: 200 JWT (mismo create_access_token que el login tradicional)
     end
 ```
@@ -83,16 +83,16 @@ el token del canje se usa una vez para leer `sub` y email, y se descarta.
 
 ## Auditoría
 
-Tabla solo de altas (`audit_events.json`) y log `brasaland.audit`. Cada evento: `timestamp`, `user_id` (nulo en rechazo), `provider`, `provider_user_id`, `ip`.
+Los eventos federados van al **audit log central** (ver [audit-log.md](audit-log.md)): append-only, con cadena de hash y visor propio. Cada entrada lleva actor, acción, recurso, fecha y origen.
 
-| `event` | Cuándo |
-| --- | --- |
-| `federated_link` | proveedor vinculado desde un perfil autenticado |
-| `federated_unlink` | proveedor desvinculado |
-| `federated_login_success` | login con un proveedor ya vinculado |
-| `federated_login_rejected` | login con un proveedor no vinculado (o cuenta desactivada) |
+| `action` | `outcome` | Cuándo |
+| --- | --- | --- |
+| `federated.link` | success | proveedor vinculado desde un perfil autenticado |
+| `federated.unlink` | success | proveedor desvinculado |
+| `federated.login` | success | login con un proveedor ya vinculado |
+| `federated.login` | denied | login con un proveedor no vinculado (o cuenta desactivada): `details.reason` = `not_linked` / `inactive` |
 
-Consulta (solo Admin): `GET /audit/events?event=…&user_id=…`.
+Consulta: `GET /audit-log?action=federated.login` (Admin de Tecnología; los eventos de seguridad no los ven otros departamentos).
 
 ## Endpoints
 
@@ -103,7 +103,7 @@ Consulta (solo Admin): `GET /audit/events?event=…&user_id=…`.
 | `POST /auth/federated/{provider}/link/start` · `/link/complete` | **sí** | vincular |
 | `DELETE /auth/federated/{provider}` | **sí** | desvincular |
 | `POST /auth/federated/{provider}/login/start` · `/login/complete` | no | entrar (solo cuentas vinculadas) |
-| `GET /audit/events` | Admin | consultar la auditoría |
+| `GET /audit-log` | Supervisor+ (alcance por departamento) | consultar la auditoría |
 
 ## Configuración
 

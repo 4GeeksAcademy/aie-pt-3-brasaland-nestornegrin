@@ -10,9 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 Provider = Literal["google"]  # `apple` es opcional en el BRIEFING y no se ofrece
 SUPPORTED_PROVIDERS: tuple[str, ...] = ("google",)
 
-AuditEvent = Literal["federated_link", "federated_unlink", "federated_login_success", "federated_login_rejected"]
-
-
 class FederatedIdentity(BaseModel):
     """Qué se guarda: SOLO el vínculo. Nunca access/refresh tokens ni credenciales de Google."""
 
@@ -22,16 +19,6 @@ class FederatedIdentity(BaseModel):
     provider_user_id: str  # `sub` de Google: único junto con `provider`
     email_at_link_time: str  # instantánea informativa, NO es la clave de identidad
     linked_at: datetime
-
-
-class AuditRecord(BaseModel):
-    id: int
-    event: AuditEvent
-    timestamp: datetime
-    user_id: int | None = None  # nulo en un rechazo: no hay cuenta
-    provider: str
-    provider_user_id: str
-    ip: str | None = None
 
 
 class StartRequest(BaseModel):
@@ -83,6 +70,3 @@ class UnlinkResponse(BaseModel):
     message: str
     accounts: LinkedAccountsResponse
 
-
-class AuditRecordOut(AuditRecord):
-    pass

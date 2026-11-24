@@ -5,7 +5,7 @@ import dataclasses
 from typing import Any
 
 from scripts.analyze import analyze_csv_text
-from services.async_tasks import config, results, staging
+from services.async_tasks import audit, config, results, staging
 from services.async_tasks.base import DeadLetterTask
 from services.celery_app import celery_app
 
@@ -36,6 +36,9 @@ def analyze_incidents_csv(self, upload_id: str) -> dict[str, Any]:
         payload = dataclasses.asdict(result)
         results.store_latest(payload)
     except Exception as error:
+        audit.record_task("process.task", task_id=self.request.id, outcome="failure",
+                          details={"task": config.ANALYZE_INCIDENTS_TASK, "retry": self.request.retries, "error": type(error).__name__})
         raise self.retry(exc=error, countdown=config.backoff_seconds(self.request.retries))
     staging.delete_upload(upload_id)
+    audit.record_task("process.task", task_id=self.request.id, outcome="success", details={"task": config.ANALYZE_INCIDENTS_TASK})
     return payload

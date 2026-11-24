@@ -9,7 +9,7 @@ from threading import Lock
 
 from tinydb import Query, TinyDB
 
-from .models import AuditRecord, FederatedIdentity
+from .models import FederatedIdentity
 
 STATE_TTL_MINUTES = 10
 
@@ -94,32 +94,3 @@ class FederatedRepository:
         with self._lock:
             self._identities.truncate()
             self._states.truncate()
-
-
-class AuditRepository:
-    """Registro de auditoría de eventos federados. Solo se AÑADE: no hay actualización ni borrado por la API."""
-
-    def __init__(self, path: Path) -> None:
-        self._db = TinyDB(path, indent=2)
-        self._lock = Lock()
-
-    def record(self, event: str, provider: str, provider_user_id: str, user_id: int | None = None, ip: str | None = None) -> AuditRecord:
-        row = {"event": event, "timestamp": datetime.now(timezone.utc).isoformat(), "user_id": user_id,
-               "provider": provider, "provider_user_id": provider_user_id, "ip": ip}
-        with self._lock:
-            doc_id = self._db.insert(row)
-        return AuditRecord.model_validate({**row, "id": doc_id})
-
-    def list(self, event: str | None = None, user_id: int | None = None) -> list[AuditRecord]:
-        with self._lock:
-            rows = self._db.all()
-        records = [AuditRecord.model_validate({**r, "id": r.doc_id}) for r in rows]
-        if event:
-            records = [r for r in records if r.event == event]
-        if user_id is not None:
-            records = [r for r in records if r.user_id == user_id]
-        return records
-
-    def truncate(self) -> None:
-        with self._lock:
-            self._db.truncate()

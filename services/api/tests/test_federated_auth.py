@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
+import json
 import pytest
 from jose import jwt
 
@@ -96,8 +97,17 @@ def link_with(client, headers, code: str, redirect_uri: str = REDIRECT):
     return client.post("/auth/federated/google/link/complete", headers=headers, json={"code": code, "state": state, "redirect_uri": redirect_uri})
 
 
+_EVENTS = {"federated_link": ("federated.link", "success"), "federated_unlink": ("federated.unlink", "success"),
+           "federated_login_success": ("federated.login", "success"), "federated_login_rejected": ("federated.login", "denied")}
+
+
 def audit(event: str | None = None):
-    return main_module.audit_repository.list(event=event)
+    """Entradas del audit log central (app/audit) para el evento federado pedido."""
+    entries = list(main_module.audit_log.iter_entries())
+    if event is None:
+        return entries
+    action, outcome = _EVENTS[event]
+    return [e for e in entries if e.action == action and e.outcome == outcome]
 
 
 def user_count() -> int:
@@ -120,7 +130,8 @@ def test_login_con_google_no_vinculado_se_rechaza_y_no_crea_cuenta(client, seede
 def test_el_rechazo_queda_auditado_sin_usuario(client, seeded_clients):
     login_with(client, "code-unknown")
     (record,) = audit("federated_login_rejected")
-    assert (record.user_id, record.provider, record.provider_user_id) == (None, "google", UNKNOWN_IDENTITY["provider_user_id"])
+    assert (record.actor_type, record.details["provider"], record.details["provider_user_id"]) == ("anonymous", "google", UNKNOWN_IDENTITY["provider_user_id"])
+    assert record.details["reason"] == "not_linked"
     assert record.timestamp <= datetime.now(timezone.utc)
 
 
@@ -130,7 +141,7 @@ def test_login_federado_con_cuenta_vinculada_entra_y_se_audita(client, seeded_cl
     headers = {"Authorization": f"Bearer {response.json()['access_token']}"}
     assert client.get("/auth/me", headers=headers).json()["email"] == CAMILA
     (record,) = audit("federated_login_success")
-    assert (record.user_id, record.provider_user_id) == (main_module.user_repository.get_by_email(CAMILA).id, "google-sub-camila-001")
+    assert (record.actor_id, record.details["provider_user_id"]) == (str(main_module.user_repository.get_by_email(CAMILA).id), "google-sub-camila-001")
 
 
 def test_la_sesion_federada_tiene_la_misma_caducidad_que_la_tradicional(client, seeded_clients):
@@ -150,7 +161,7 @@ def test_la_sesion_federada_se_revoca_igual_que_la_tradicional(client, seeded_cl
     assert client.get("/auth/me", headers=token).status_code == 401  # cuenta desactivada: la sesión federada deja de valer
     rejected = login_with(client, "code-camila")
     assert rejected.status_code == 403 and rejected.headers["X-Federated-Error"] == "inactive"
-    assert audit("federated_login_rejected")[-1].user_id == camila_id
+    assert audit("federated_login_rejected")[-1].actor_id == str(camila_id)
 
 
 # ===================================================================== 2 · vincular SOLO desde una sesión autenticada
@@ -184,7 +195,7 @@ def test_vincular_desde_el_perfil_confirma_el_proveedor_y_se_audita(client, seed
     assert GUEST in body["message"]  # confirma qué cuenta quedó asociada
     assert body["accounts"]["access_methods"] == 2  # contraseña + Google
     (record,) = audit("federated_link")
-    assert (record.user_id, record.provider_user_id) == (main_module.user_repository.get_by_email(GUEST).id, "google-sub-guest-777")
+    assert (record.actor_id, record.details["provider_user_id"]) == (str(main_module.user_repository.get_by_email(GUEST).id), "google-sub-guest-777")
     assert login_with(client, "code-guest").status_code == 200  # y a partir de ahí Google sirve para entrar
 
 
@@ -192,7 +203,7 @@ def test_se_guarda_solo_el_vinculo_sin_tokens(client, seeded_clients):
     link_with(client, password_login(client, GUEST), "code-guest")
     row = main_module.federated_repository._identities.all()[-1]
     assert set(row) == {"user_id", "provider", "provider_user_id", "email_at_link_time", "linked_at"}
-    assert set(audit()[0].model_dump()) == {"id", "event", "timestamp", "user_id", "provider", "provider_user_id", "ip"}
+    assert "code-guest" not in json.dumps([e.model_dump(mode="json") for e in audit()])  # el audit log no guarda el `code` de OAuth
 
 
 # ===================================================================== 3 · una identidad NO puede estar en dos cuentas
@@ -227,7 +238,7 @@ def test_desvincular_funciona_se_audita_y_deja_de_servir_para_entrar(client, see
     assert response.status_code == 200
     assert response.json()["accounts"]["providers"][0]["linked"] is False
     (record,) = audit("federated_unlink")
-    assert (record.user_id, record.provider_user_id) == (main_module.user_repository.get_by_email(CAMILA).id, "google-sub-camila-001")
+    assert (record.actor_id, record.details["provider_user_id"]) == (str(main_module.user_repository.get_by_email(CAMILA).id), "google-sub-camila-001")
     assert login_with(client, "code-camila").status_code == 403  # ya no está vinculada → rechazado
 
 
@@ -375,17 +386,16 @@ def test_la_url_real_de_google_lleva_state_y_redirect_uri(monkeypatch):
     assert query["client_id"] == ["cid.apps.googleusercontent.com"] and "client_secret" not in query
 
 
-# ===================================================================== 8 · auditoría consultable solo por Admin
-def test_la_auditoria_solo_la_consulta_un_admin(client, seeded_clients):
+# ===================================================================== 8 · auditoría consultable solo por Admin de Tecnología
+def test_la_auditoria_federada_solo_la_consulta_un_admin_de_tecnologia(client, seeded_clients):
     login_with(client, "code-unknown")
     login_with(client, "code-camila")
     admin = make_access_user(client, "admin@example.com", "admin", "technology")
-    events = client.get("/audit/events", headers=admin).json()
-    assert {e["event"] for e in events} == {"federated_login_rejected", "federated_login_success"}
-    assert client.get("/audit/events?event=federated_login_rejected", headers=admin).json()[0]["user_id"] is None
+    page = client.get("/audit-log?action=federated.login", headers=admin).json()
+    assert {(e["action"], e["outcome"]) for e in page["items"]} == {("federated.login", "denied"), ("federated.login", "success")}
     employee = make_access_user(client, "emp@example.com", "employee", "marketing")
-    assert client.get("/audit/events", headers=employee).status_code == 403
-    assert client.get("/audit/events").status_code == 401
+    assert client.get("/audit-log", headers=employee).status_code == 403
+    assert client.get("/audit-log").status_code == 401
 
 
 # ===================================================================== 9 · datos semilla

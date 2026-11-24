@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -16,6 +17,7 @@ class UserRecord(BaseModel):
     email: EmailStr
     hashed_password: str
     is_active: bool = True
+    account_type: Literal["human", "agent"] = "human"  # «agent»: cuenta de un agente automatizado (el audit log lo distingue de una persona)
     role_id: int = Field(gt=0)
     department_id: int | None = Field(default=None, gt=0)
     created_at: datetime
@@ -49,6 +51,7 @@ class AdminUserCreate(UserCreate):
     """Alta de usuarios por un Admin (POST /users): rol y departamento se eligen aquí, de forma independiente."""
 
     role_id: int | None = Field(default=None, gt=0, description="Por defecto, el rol de menor rango (Empleado).")
+    account_type: Literal["human", "agent"] = "human"
     department_id: int | None = Field(default=None, gt=0)
 
 
