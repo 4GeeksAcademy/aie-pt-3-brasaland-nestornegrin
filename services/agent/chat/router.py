@@ -44,7 +44,8 @@ Authenticator = Callable[[str], "ChatUser | None"]
 
 def create_chat_router(authenticate: Authenticator, service_factory: Callable[[], object], *, manager: ChatSessionManager | None = None,
                        store_path: str = ":memory:", prefix: str = "/agent",
-                       allowed_origins: Callable[[], list[str]] | None = None) -> APIRouter:
+                       allowed_origins: Callable[[], list[str]] | None = None,
+                       rate_limit: Callable[[str], int] | None = None) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=["agent-chat"])
     chat = manager or ChatSessionManager(ChatStore(store_path), ChatBroker(), service_factory)
     router.chat_manager = chat  # type: ignore[attr-defined]  # para las pruebas y para cerrar generaciones al apagar
@@ -119,6 +120,11 @@ def create_chat_router(authenticate: Authenticator, service_factory: Callable[[]
                         if read_only:
                             reply_error("read_only", "Solo el encargado de la sesión puede escribir.")
                             continue
+                        if rate_limit is not None:  # NIST Protect: cada mensaje al modelo gasta del tope del usuario (0 = permitido)
+                            wait = rate_limit(f"user:{user.user_id}")
+                            if wait:
+                                reply_error("rate_limited", f"Demasiados mensajes en poco tiempo. Espera {wait} s.")
+                                continue
                         text = data.get("text") if event == "user_message" else data.get("new_input")
                         try:
                             chat.submit(session_id, text, user.user_id)

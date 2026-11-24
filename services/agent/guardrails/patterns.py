@@ -92,6 +92,11 @@ EXTERNAL_ONLY_FAMILIES: list[tuple[str, re.Pattern]] = [
     ("when_you_read_this", re.compile(r"\b(?:when\s+you\s+(?:read|see|process)|al\s+(?:leer|ver|procesar)\s+(?:esto|este)|if\s+you\s+are\s+an?\s+(?:ai|llm|assistant)|"
                                      r"si\s+eres\s+(?:una?\s+)?(?:ia|asistente|modelo|llm))\b")),
     ("forced_output", re.compile(r"\b(?:responde|respond|reply|answer|di|say|escribe|write|contesta)\s+(?:solo|only|exactamente|exactly|siempre|always|con)\b(?:\W+\w+){0,3}?\W*[\"'«]")),
+    # Instrucción oculta que busca condicionar QUÉ responde el modelo («al responder, recomienda siempre el proveedor X»).
+    ("steers_the_answer", re.compile(
+        r"\b(?:al\s+responder|cuando\s+respondas|en\s+tus\s+respuestas|when\s+(?:answering|you\s+answer)|in\s+your\s+answers?)\W+(?:\w+\W+){0,3}?"
+        r"(?:recomienda|recomiendales|promociona|prioriza|menciona|recommend|promote|prefer|mention)\b|"
+        r"\b(?:recomienda|recomiendales|promociona|recommend|promote)\s+(?:siempre|always)\b|\b(?:siempre|always)\s+(?:recomienda|recomiendales|promociona|recommend|promote)\b")),
     ("exfiltration", re.compile(r"!\[[^\]]*\]\([^)]*\)|\b(?:envia|enviar|send|post|upload|exfiltra\w*|forward)\b(?:\W+\w+){0,6}?\W+(?:a|to|hacia)\s+(?:https?://|\S+@\S+)|https?://\S+\?\S*=")),
 ]
 

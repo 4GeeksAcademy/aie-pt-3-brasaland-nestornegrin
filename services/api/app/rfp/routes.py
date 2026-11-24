@@ -44,6 +44,7 @@ from data.pipelines.rfp_response import generate_ticket
 
 from ..auth.dependencies import get_current_user
 from ..database import engine, get_db
+from ..security import limit_model_calls
 from . import repository
 from .events import SSE_HEADERS, announced_after, RfpEventBroker, event_stream, parse_last_event_id, replay_limit, ticket_created_event
 from .repository import SqlRfpStore
@@ -166,7 +167,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
             if ceo.get("branch") == part3.BRANCH_WAITING else None
         return packets, card
 
-    @router.post("/tickets", response_model=UploadAccepted, status_code=202)
+    @router.post("/tickets", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     async def upload(background: BackgroundTasks, file: UploadFile = File(...), session: Session = Depends(get_db),
                      user=Depends(get_current_user)) -> UploadAccepted:
         if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -234,7 +235,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
                             ceo_approval=t.ceo_approval, ceo_packet=ceo_card, conflicts=t.conflicts_log, completed_at=t.completed_at,
                             has_final_document=repository.get_final_document(session, ticket_id) is not None)
 
-    @router.post("/tickets/{ticket_id}/reprocess", response_model=UploadAccepted, status_code=202)
+    @router.post("/tickets/{ticket_id}/reprocess", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     def reprocess(ticket_id: int, background: BackgroundTasks, force: bool = False, session: Session = Depends(get_db)) -> UploadAccepted:
         t = repository.get_ticket(session, ticket_id)
         if t is None:
@@ -249,7 +250,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_pipeline, ticket_id, force)
         return UploadAccepted(ticket_id=ticket_id, status=STATUS_ANALYZING)
 
-    @router.post("/tickets/{ticket_id}/generate", response_model=UploadAccepted, status_code=202)
+    @router.post("/tickets/{ticket_id}/generate", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     def generate(ticket_id: int, background: BackgroundTasks, regenerate: bool = False, session: Session = Depends(get_db)) -> UploadAccepted:
         t = repository.get_ticket(session, ticket_id)
         if t is None:
@@ -270,7 +271,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_generation, ticket_id, mode)
         return UploadAccepted(ticket_id=ticket_id, status=t.status)
 
-    @router.post("/tickets/{ticket_id}/approval/start", response_model=UploadAccepted, status_code=202)
+    @router.post("/tickets/{ticket_id}/approval/start", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     def start_approval(ticket_id: int, background: BackgroundTasks, session: Session = Depends(get_db)) -> UploadAccepted:
         t = repository.get_ticket(session, ticket_id)
         if t is None:
@@ -297,7 +298,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_resume, ticket_id, raw)
         return UploadAccepted(ticket_id=ticket_id, status=part3.STATUS_AWAITING)
 
-    @router.post("/tickets/{ticket_id}/approval/retry", response_model=UploadAccepted, status_code=202)
+    @router.post("/tickets/{ticket_id}/approval/retry", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     def retry_approval(ticket_id: int, background: BackgroundTasks, session: Session = Depends(get_db)) -> UploadAccepted:
         t = repository.get_ticket(session, ticket_id)
         if t is None:

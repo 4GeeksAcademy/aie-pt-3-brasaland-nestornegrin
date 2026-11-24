@@ -1,0 +1,8 @@
+# Logging verificable de acciones de agentes — 2026-11-22
+tests/mcps/test_mcp_server.py::test_every_invocation_leaves_one_audit_record_with_tool_client_and_result PASSED [ 16%]
+tests/mcps/test_mcp_server.py::test_the_audit_log_never_contains_tokens_or_free_text PASSED [ 33%]
+tests/pipelines/test_agent_graph.py::test_every_run_saves_a_trace_that_can_be_read_afterwards PASSED [ 50%]
+tests/pipelines/test_agent_memory.py::test_audit_events_are_append_only PASSED [ 66%]
+tests/pipelines/test_agent_memory.py::test_audit_log_redacts_emails_and_phone_numbers PASSED [ 83%]
+tests/pipelines/test_rfp_approval.py::test_every_node_run_is_traced_with_agent_input_output_and_timestamp_in_order PASSED [100%]
+============================== 6 passed in 4.36s ===============================
