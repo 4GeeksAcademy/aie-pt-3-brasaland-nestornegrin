@@ -1,0 +1,24 @@
+0) Cadena recién escrita (5 entradas)
+  valid=True entries=5 broken_at_seq=None reason=None
+  head_hash=4053f85ccdc959eac7eae3eb…
+
+1) Alguien edita a mano la entrada #3 (cambia el actor del cambio de permisos)
+  valid=False entries=2 broken_at_seq=3 reason=el contenido de la entrada fue alterado (el hash no coincide)
+  head_hash=3ae037a4bc63e47473ac66dd…
+
+2) Alguien borra la entrada #2 (el cambio de tarifa)
+  valid=False entries=1 broken_at_seq=3 reason=la secuencia salta de 1 a 3 (entradas borradas o reordenadas)
+  head_hash=58216550092814538804a76c…
+
+3) Alguien reordena las entradas #4 y #5
+  valid=False entries=3 broken_at_seq=5 reason=la secuencia salta de 3 a 5 (entradas borradas o reordenadas)
+  head_hash=bd9e1effebf5721dd9914d40…
+
+4) Alguien recorta las dos últimas entradas (la cadena restante es coherente)
+  valid=False entries=3 broken_at_seq=4 reason=la cabeza firmada no coincide con el final del registro (entradas finales borradas)
+  head_hash=bd9e1effebf5721dd9914d40…
+
+5) Se restaura el fichero original → vuelve a ser válido
+  valid=True entries=5 broken_at_seq=None reason=None
+  head_hash=4053f85ccdc959eac7eae3eb…
+

@@ -10,6 +10,8 @@ from pydantic import ValidationError
 from sqlmodel import Session
 
 from app import security as limits
+from app.access.models import Action
+from app.access.permissions import TECHNOLOGY, require_access
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.telemetry.allowlists import EVENT_ALLOWLISTS
@@ -109,7 +111,7 @@ def create_router() -> APIRouter:
             logger.info("telemetry event: %s", row["event_type"])
         return TelemetryReceipt(received=received, stored=stored, rejected=rejected)
 
-    @router.get("/report", response_model=TelemetryReport, dependencies=[Depends(get_current_user)])
+    @router.get("/report", response_model=TelemetryReport, dependencies=[Depends(require_access(Action.READ, TECHNOLOGY))])  # reporte técnico: departamento de Tecnología
     def telemetry_report(
         response: Response,
         start_date: datetime | None = Query(default=None, description="ISO 8601, inclusivo. Por defecto: end_date − 7 días (UTC)."),

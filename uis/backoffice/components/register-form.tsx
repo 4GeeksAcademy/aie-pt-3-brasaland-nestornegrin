@@ -27,7 +27,7 @@ export function RegisterForm() {
     setLoading(true);
     setErrors({});
     try {
-      const registration = await apiFetch("/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, false);
+      const registration = await apiFetch("/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, false);
       const hasPhone = form.phone.trim() !== "";
       const hasAddress = form.address.trim() !== "";
       if (!registration.ok) {

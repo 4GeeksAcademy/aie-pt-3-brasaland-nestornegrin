@@ -80,6 +80,8 @@ PYTHONPATH=.:services/api celery -A services.celery_app worker --loglevel=info  
 - `POST /api/incidents/analyze` → `202 {"task_id": "..."}` immediately. It still returns `415` (extension) and `400` (empty file) in the request itself; any other CSV error (bad header, encoding…) shows up as the task's `failure`.
 - `GET /tasks/{task_id}` → `{"task_id", "status", "result"}`, `status` = `pending | started | success | failure`. `result` is the analysis summary on `success` and `{"error": "..."}` on `failure`. An unknown id is reported as `pending` (that is how Celery reports it).
 - `GET /api/incidents/results/export` downloads the latest result as CSV (it no longer lives in API memory: the worker stores it in Redis).
+- `GET /tasks/{task_id}` also returns `attempts` (executions the task had; `1` = first try). `GET /tasks/dead-letters` (Admin) lists tasks that exhausted their retries.
+- The password-reset email (Resend) is sent by the `email.send_password_reset` task with retries, idempotency key and DLQ: see [docs/async-processing.md](docs/async-processing.md).
 
 **Retries and Dead Letter Queue.** Any exception in the task is retried 3 times with exponential backoff
 (2 s → 4 s → 8 s; `TASK_RETRY_BASE_SECONDS`). After the last failure (4 executions in total) the task is recorded in the
@@ -262,7 +264,7 @@ Read the linked `README.md` inside each folder before you start coding there.
 
 **Put here:**
 
-- System architecture diagrams, ADRs, security/observability guides
+- System architecture diagrams, ADRs, security/observability guides (federated auth: [`docs/security/federated-auth.md`](./docs/security/federated-auth.md); roles and permissions: [`docs/security/roles-permissions.md`](./docs/security/roles-permissions.md))
 - Conventions not tied to one app or agent
 
 → See [`docs/README.md`](./docs/README.md)

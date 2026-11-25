@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from jose import jwt
 
 import app.main as main_module
+from conftest import make_access_user
 from app import security as limits
 from app.auth import security as auth_security
 
@@ -29,7 +30,7 @@ def from_ip(client: TestClient, ip: str) -> TestClient:
 
 
 def register(client, email: str, password: str = PASSWORD):
-    return client.post("/users", json={"email": email, "password": password, "name": "T"})
+    return client.post("/auth/register", json={"email": email, "password": password, "name": "T"})
 
 
 def login_token(client, email: str, password: str = PASSWORD) -> str:
@@ -116,10 +117,8 @@ def test_v2_adivinar_la_contraseña_via_cambio_de_email_tambien_se_limita(client
 
 def test_v2_un_admin_puede_corregir_el_email_de_otro_usuario_sin_su_contraseña(client):
     created = register(client, "v2d@example.com").json()
-    register(client, "boss@example.com")
-    main_module.user_repository._database.update({"role": "admin"}, doc_ids=[register(client, "boss2@example.com").json()["id"]])
-    admin = login_token(client, "boss2@example.com")
-    assert client.put(f"/users/{created['id']}", json={"email": "corregido@example.com"}, headers=bearer(admin)).status_code == 200
+    admin = make_access_user(client, "boss2@example.com", "admin", "technology")  # el Admin se crea por el catálogo de roles (Roles y permisos)
+    assert client.put(f"/users/{created['id']}", json={"email": "corregido@example.com"}, headers=admin).status_code == 200
 
 
 # ---------------------------------------------------------------- V3 · contraseña sin tope de longitud
@@ -177,10 +176,7 @@ def test_v5c_la_ingesta_anonima_de_telemetria_tiene_tope_por_ip(client):
 
 
 def test_v5d_las_escrituras_criticas_tienen_tope_por_usuario(client):
-    register(client, "writer@example.com")
-    uid = main_module.user_repository.get_by_email("writer@example.com").id
-    main_module.user_repository._database.update({"role": "manager"}, doc_ids=[uid])
-    token = login_token(client, "writer@example.com")
+    token = make_access_user(client, "writer@example.com", "admin", "procurement")["Authorization"].split()[1]
     body = {"name": "Proveedor", "categories": ["Carnes"], "country": "Colombia", "rate": 1.5, "status": "Activo"}
     responses = [client.post("/api/suppliers", json=body, headers=bearer(token)) for _ in range(34)]
     codes = [r.status_code for r in responses]
@@ -215,8 +211,7 @@ def test_v6_un_cuerpo_chunked_sin_content_length_tambien_se_corta(client):
 
 
 def test_v6_el_csv_de_analisis_conserva_su_propio_tope_y_los_cuerpos_normales_pasan(client):
-    register(client, "csvuser@example.com")
-    token = login_token(client, "csvuser@example.com")
+    token = make_access_user(client, "csvuser@example.com", "admin", "technology")["Authorization"].split()[1]
     big = b"a,b\n" + b"x" * (main_module.MAX_CSV_BYTES + 10)
     assert client.post("/api/incidents/analyze", headers=bearer(token), files={"file": ("big.csv", big, "text/csv")}).status_code == 413
     assert client.post("/telemetry/events", json={"events": []}).status_code == 200

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { GoogleLoginButton } from "@/components/google-login-button";
 import { apiFetch, readApiError, saveAccessToken } from "@/lib/api-client";
 import { startTelemetrySession, tokenTtlMinutes, track } from "@/services/telemetry";
 
@@ -49,6 +50,7 @@ export function LoginForm() {
       </div>
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p> : null}
       <button disabled={loading} className="w-full rounded-lg bg-red-800 px-4 py-2 font-bold text-white hover:bg-red-900 disabled:opacity-60">{loading ? "Ingresando..." : "Iniciar sesión"}</button>
+      <GoogleLoginButton />
       <p className="text-center text-sm text-zinc-600">¿Aún no tienes cuenta? <Link href="/register" className="font-bold text-red-800">Registrarte</Link></p>
     </form>
   );

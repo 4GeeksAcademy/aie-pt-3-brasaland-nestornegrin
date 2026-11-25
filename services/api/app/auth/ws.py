@@ -4,7 +4,6 @@ from jose import JWTError
 
 from services.agent.chat.router import ChatUser
 
-from .models import UserRole
 from .security import decode_access_token, token_matches_password
 
 
@@ -20,8 +19,8 @@ def authenticate_ws_token(token: str) -> ChatUser | None:
     if user is None or not user.is_active:
         return None
     try:
-        if not token_matches_password(token, user.hashed_password):  # V1: mismo criterio que get_current_user
+        if not token_matches_password(token, user.hashed_password or ""):  # V1: mismo criterio que get_current_user
             return None
     except JWTError:
         return None
-    return ChatUser(user_id=str(user.id), is_admin=user.role == UserRole.ADMIN)
+    return ChatUser(user_id=str(user.id), is_admin="administer" in user.capabilities)  # capacidad, no nombre de rol

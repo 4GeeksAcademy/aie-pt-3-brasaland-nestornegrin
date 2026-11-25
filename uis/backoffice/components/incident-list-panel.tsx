@@ -1,5 +1,6 @@
 "use client";
 
+import { can, useMe } from "@/lib/access";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
 import { track } from "@/services/telemetry";
@@ -15,6 +16,8 @@ function incidentAgeHours(createdAt: string): number {
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS);
 
 export function IncidentListPanel() {
+  const { me } = useMe();
+  const canUpdate = can(me, "update"); // cambiar el estado es de Supervisor+
   const [incidents, setIncidents] = useState<Incident[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -148,8 +151,10 @@ export function IncidentListPanel() {
                   <td className="px-4 py-3">
                     <select
                       value={incident.status}
+                      disabled={!canUpdate}
+                      title={canUpdate ? undefined : "Requiere rol Supervisor"}
                       onChange={(event) => void changeStatus(incident, event.target.value)}
-                      className="rounded-lg border border-zinc-300 px-2 py-1 text-sm"
+                      className="rounded-lg border border-zinc-300 px-2 py-1 text-sm disabled:opacity-50"
                     >
                       <option value={incident.status}>{STATUS_LABELS[incident.status] ?? incident.status}</option>
                       {(ALLOWED_TRANSITIONS[incident.status] ?? []).map((next) => (

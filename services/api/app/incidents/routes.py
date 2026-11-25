@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from ..auth.dependencies import get_current_user
+from ..access.models import Action
+from ..access.permissions import OPS, require_access
 from ..cache import TTLCache
 from .models import ALLOWED_TRANSITIONS, IncidentCreate, IncidentListItem, IncidentResponse, IncidentSummary, StatusUpdate
 from .repository import IncidentRepository
@@ -12,13 +13,14 @@ from .repository import IncidentRepository
 # el TTL solo acota la antigüedad de cambios hechos fuera de este proceso
 # (otro worker, un script de seed). Los datos son los mismos para cualquier
 # usuario autenticado (no hay filtrado por usuario), así que la clave no lleva
-# usuario; la autenticación se exige ANTES de llegar al handler (dependencia
+# usuario: todas las incidencias son del departamento de Operaciones y solo llega aquí quien ya pasó la dependencia de permisos (rol y departamento); la autorización se exige ANTES de llegar al handler (dependencia
 # del router), por lo que una petición sin sesión nunca se sirve desde caché.
 INCIDENT_CACHE_TTL_SECONDS = 30
 
 
 def create_router(repository: IncidentRepository, prefix: str = "/api/incidents") -> APIRouter:
-    router = APIRouter(prefix=prefix, tags=["incidents"], dependencies=[Depends(get_current_user)])
+    router = APIRouter(prefix=prefix, tags=["incidents"])
+    read, create, update = (Depends(require_access(a, OPS)) for a in (Action.READ, Action.CREATE, Action.UPDATE))  # incidentes de local: datos de Operaciones
     # Se cachea la proyección ya construida (IncidentListItem), no la lectura
     # cruda: construir miles de modelos Pydantic es la mayor parte del coste.
     list_cache: TTLCache[tuple[IncidentListItem, ...]] = TTLCache(INCIDENT_CACHE_TTL_SECONDS, max_entries=64)
@@ -28,13 +30,13 @@ def create_router(repository: IncidentRepository, prefix: str = "/api/incidents"
         list_cache.invalidate()
         summary_cache.invalidate()
 
-    @router.post("", response_model=IncidentResponse, status_code=201)
+    @router.post("", response_model=IncidentResponse, status_code=201, dependencies=[create])
     def create_incident(incident: IncidentCreate) -> IncidentResponse:
         created = IncidentResponse.model_validate(repository.create(incident))
         invalidate_caches()  # una incidencia nueva cambia listados y resumen
         return created
 
-    @router.get("", response_model=list[IncidentListItem])
+    @router.get("", response_model=list[IncidentListItem], dependencies=[read])
     def list_incidents(
         response: Response,
         status: str | None = Query(default=None),
@@ -52,20 +54,20 @@ def create_router(repository: IncidentRepository, prefix: str = "/api/incidents"
         response.headers["X-Cache"] = "HIT" if hit else "MISS"
         return list(items)
 
-    @router.get("/summary", response_model=IncidentSummary)
+    @router.get("/summary", response_model=IncidentSummary, dependencies=[read])
     def incidents_summary(response: Response) -> IncidentSummary:
         summary, hit = summary_cache.get_or_compute("summary", lambda: IncidentSummary.model_validate(repository.summary()))
         response.headers["X-Cache"] = "HIT" if hit else "MISS"
         return summary
 
-    @router.get("/{incident_id}", response_model=IncidentResponse)
+    @router.get("/{incident_id}", response_model=IncidentResponse, dependencies=[read])
     def get_incident(incident_id: str) -> IncidentResponse:
         incident = repository.get(incident_id)
         if incident is None:
             raise HTTPException(status_code=404, detail="Incidencia no encontrada")
         return IncidentResponse.model_validate(incident)
 
-    @router.patch("/{incident_id}/status", response_model=IncidentResponse)
+    @router.patch("/{incident_id}/status", response_model=IncidentResponse, dependencies=[update])
     def update_incident_status(incident_id: str, update: StatusUpdate) -> IncidentResponse:
         current = repository.get(incident_id)
         if current is None:

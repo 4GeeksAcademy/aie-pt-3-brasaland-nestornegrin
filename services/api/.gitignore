@@ -7,3 +7,8 @@ incidents.json
 .env
 .coverage
 .pytest_cache/
+access.json
+internal_reports.json
+federated.json
+audit_log.jsonl
+audit_head.json
