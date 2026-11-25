@@ -7,3 +7,5 @@ incidents.json
 .env
 .coverage
 .pytest_cache/
+access.json
+internal_reports.json

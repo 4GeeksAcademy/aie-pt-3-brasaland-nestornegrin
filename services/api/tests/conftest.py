@@ -53,6 +53,7 @@ DEFAULT_PASSWORD = "ValidPass123"
 
 @pytest.fixture(autouse=True)
 def _clean_database():
+    main_module.internal_report_repository.truncate()
     main_module.user_repository._database.truncate()
     main_module.profile_repository._database.truncate()
     main_module.password_reset_repository._database.truncate()
@@ -71,7 +72,7 @@ def register_user(client: TestClient):
     """Registra un usuario y devuelve el UserResponse (dict) de la API."""
 
     def _register(email: str = "user@example.com", password: str = DEFAULT_PASSWORD, name: str = "Test User"):
-        response = client.post("/users", json={"email": email, "password": password, "name": name})
+        response = client.post("/auth/register", json={"email": email, "password": password, "name": name})
         assert response.status_code == 201, response.text
         return response.json()
 
@@ -91,3 +92,59 @@ def auth_headers(client: TestClient, register_user):
         return {"Authorization": f"Bearer {token}"}
 
     return _headers
+
+
+def make_access_user(client: TestClient, email: str, role: str = "employee", department: str | None = None,
+                     password: str = DEFAULT_PASSWORD) -> dict:
+    """Crea un usuario con el rol y el departamento indicados (por CÓDIGO, como en el BRIEFING) y devuelve sus
+    cabeceras Authorization. Se crea por el repositorio (no por la API) para fijar los dos ejes de forma independiente."""
+    from app.auth.security import hash_password
+
+    catalog = main_module.access_catalog
+    user = main_module.user_repository.get_by_email(email)
+    if user is None:
+        user = main_module.user_repository.create(
+            email, hash_password(password), catalog.get_role_by_code(role)["id"],
+            catalog.get_department_by_code(department)["id"] if department else None)
+        main_module.profile_repository.create(user.id, email.split("@")[0])
+    response = client.post("/auth/login", json={"email": email, "password": password})
+    assert response.status_code == 200, response.text
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+@pytest.fixture
+def make_headers(client: TestClient):
+    """`make_headers("felipe@x.test", "supervisor", "restaurant_operations")` → {"Authorization": "Bearer …"}."""
+
+    def _make(email: str, role: str = "employee", department: str | None = None):
+        return make_access_user(client, email, role, department)
+
+    return _make
+
+
+@pytest.fixture
+def seeded(client: TestClient):
+    """Siembra los usuarios y reportes del BRIEFING y devuelve `headers(name)` por persona: felipe, lucia, camila, jake, nicolas."""
+    from app.access.seed import seed_demo
+
+    seed_demo(main_module.user_repository, main_module.profile_repository, main_module.access_catalog,
+              main_module.internal_report_repository, password=DEFAULT_PASSWORD)
+    emails = {"felipe": "felipe.ops@brasaland.example", "lucia": "lucia.procurement@brasaland.example",
+              "camila": "camila.marketing@brasaland.example", "jake": "jake.training@brasaland.example",
+              "nicolas": "nicolas.admin@brasaland.example"}
+
+    def headers(name: str) -> dict:
+        response = client.post("/auth/login", json={"email": emails[name], "password": DEFAULT_PASSWORD})
+        assert response.status_code == 200, response.text
+        return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+    return headers
+
+
+class StubUser:
+    """Usuario falso para tests que sustituyen `get_current_user`: con todas las capacidades (Admin de Tecnología)."""
+
+    def __init__(self, email: str = "stub@brasaland.test", role: str = "admin", department: str | None = "technology") -> None:
+        caps = {"employee": ["read", "create"], "supervisor": ["read", "create", "update", "approve"],
+                "admin": ["read", "create", "update", "approve", "delete", "administer", "cross_department"]}[role]
+        self.id, self.email, self.role, self.department, self.capabilities, self.is_active = 999, email, role, department, caps, True

@@ -18,25 +18,11 @@ from typing import Callable
 from fastapi import Depends, HTTPException, Request, status
 
 from app.auth.dependencies import get_current_user
-from app.auth.models import UserRole
 
 logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------------------------------------- A01 · roles
-def require_roles(*roles: UserRole):
-    """Dependencia: exige sesión válida Y uno de los roles indicados (403 si no)."""
-    allowed = set(roles)
-
-    def dependency(current_user=Depends(get_current_user)):
-        if current_user.role not in allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tu rol no permite realizar esta acción")
-        return current_user
-
-    return dependency
-
-
-MANAGE_ROLES = (UserRole.MANAGER, UserRole.ADMIN)
-require_manager_or_admin = require_roles(*MANAGE_ROLES)
+# La autorización por rol y departamento vive en app/access/permissions.py (`require_access`): único punto de decisión.
 
 
 def bind_actor(request: Request, current_user=Depends(get_current_user)):

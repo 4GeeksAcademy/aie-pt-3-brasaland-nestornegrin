@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Can } from "@/components/can";
 import { AuthGuard } from "@/components/auth-guard";
 import { IncidentListPanel } from "@/components/incident-list-panel";
 import { IncidentSummaryPanel } from "@/components/incident-summary-panel";
@@ -12,9 +13,9 @@ export default function IncidentsPage() {
             <p className="text-xs font-bold uppercase tracking-wide text-red-800">Gestor de incidencias</p>
             <h1 className="mt-1 text-2xl font-black text-zinc-900 sm:text-3xl">Panel de incidencias</h1>
           </div>
-          <Link href="/incidents/new" className="rounded-lg bg-red-800 px-4 py-2 font-bold text-white hover:bg-red-900">
+          <Can capability="create"><Link href="/incidents/new" className="rounded-lg bg-red-800 px-4 py-2 font-bold text-white hover:bg-red-900">
             Registrar incidencia
-          </Link>
+          </Link></Can>
         </div>
 
         <section className="mt-8">

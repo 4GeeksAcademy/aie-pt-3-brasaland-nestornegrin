@@ -7,7 +7,7 @@ from jose import jwt
 from app.auth import security
 
 
-def test_me_happy_path_returns_email_and_role(client, register_user, auth_headers):
+def test_me_happy_path_returns_email_role_department_and_capabilities(client, register_user, auth_headers):
     register_user(email="me@example.com", password="ValidPass123", name="Me User")
     headers = auth_headers(email="me@example.com", password="ValidPass123", register=False)
 
@@ -16,7 +16,9 @@ def test_me_happy_path_returns_email_and_role(client, register_user, auth_header
     assert response.status_code == 200
     body = response.json()
     assert body["email"] == "me@example.com"
-    assert body["role"] == "user"
+    assert body["role"] == "employee"  # el registro público nace con el rol de menor rango
+    assert body["department"] is None  # …y sin departamento hasta que un Admin lo asigne
+    assert body["capabilities"] == ["read", "create"]
 
 
 def test_me_includes_the_profile_created_at_registration(client, register_user, auth_headers):

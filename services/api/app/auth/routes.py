@@ -14,8 +14,10 @@ from .models import (
     MeResponse,
     MessageResponse,
     ProfilePublic,
+    RegisterResponse,
     ResetPasswordRequest,
     TokenResponse,
+    UserCreate,
 )
 from .security import (
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
@@ -70,14 +72,39 @@ def create_router() -> APIRouter:
         limits.login_by_account.clear(account_key)
         return TokenResponse(access_token=create_access_token(user.id))
 
+    @router.post("/register", response_model=RegisterResponse, status_code=201)
+    def register(payload: UserCreate, request: Request) -> RegisterResponse:
+        """Registro público de autoservicio (A04: tope por IP). La cuenta nace con el rol de menor rango (Empleado) y SIN
+        departamento: no puede ver datos departamentales hasta que un Admin se lo asigne (PATCH /users/{id}/assignment)."""
+        from app.main import profile_repository, user_repository
+
+        limits.register_by_ip.check(limits.client_ip(request))
+        limits.register_by_ip.record(limits.client_ip(request))
+
+        email = str(payload.email).lower()
+        if user_repository.get_by_email(email):
+            raise HTTPException(status_code=409, detail="El email ya está registrado")
+        user = user_repository.create(email, hash_password(payload.password))
+        profile_repository.create(user.id, payload.name, payload.phone, payload.address)
+        return RegisterResponse(id=user.id)
+
     @router.get("/me", response_model=MeResponse)
     def current_user(user=Depends(get_current_user)) -> MeResponse:
-        from app.main import profile_repository
+        from app.main import access_catalog, profile_repository
 
         profile = profile_repository.get_by_user_id(user.id)
+        role = access_catalog.get_role(user.role_id)
+        department = access_catalog.get_department(user.department_id) if user.department_id else None
         return MeResponse(
             email=user.email,
+            role_id=user.role_id,
             role=user.role,
+            role_label=role["label"] if role else user.role,
+            rank=user.rank,
+            department_id=user.department_id,
+            department=user.department,
+            department_label=department["label"] if department else None,
+            capabilities=user.capabilities,
             profile=ProfilePublic.model_validate(profile) if profile else None,
         )
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Can } from "@/components/can";
 import { useCallback, useEffect, useState } from "react";
 import {
   type Ingredient,
@@ -91,13 +92,14 @@ export function InventoryProductList() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-3 text-xs font-bold uppercase tracking-wide">
+                  <div className="flex flex-wrap gap-3 text-xs font-bold uppercase tracking-wide"><Can capability="create"><>
                     <Link href={`/inventory/orders/inbound?ingredient_id=${product.id}`} className="text-red-800 hover:text-red-900">
                       Registrar entrada
                     </Link>
                     <Link href={`/inventory/orders/outbound?ingredient_id=${product.id}`} className="text-red-800 hover:text-red-900">
                       Registrar salida
                     </Link>
+                    </></Can>
                   </div>
                 </td>
               </tr>

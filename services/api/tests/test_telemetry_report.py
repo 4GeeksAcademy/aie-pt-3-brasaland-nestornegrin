@@ -12,6 +12,17 @@ from sqlmodel import Session
 from app.database import engine
 from app.telemetry import analysis, report
 from app.telemetry.orm import TelemetryEventRecord
+from conftest import make_access_user
+
+@pytest.fixture
+def auth_headers(client):
+    """Sesión con el rol y el departamento que exige este módulo (Roles y Permisos): employee de technology."""
+
+    def _headers(email: str = "tech@example.com", **_ignored):
+        return make_access_user(client, email, "employee", "technology")
+
+    return _headers
+
 
 UTC = timezone.utc
 DAY1 = datetime(2026, 10, 5, tzinfo=UTC)

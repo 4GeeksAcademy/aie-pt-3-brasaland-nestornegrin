@@ -1,6 +1,19 @@
 """Caché de lectura de incidencias: aciertos, invalidación en escrituras y
 que nunca se sirve a quien no tiene sesión."""
 
+import pytest
+from conftest import make_access_user
+
+@pytest.fixture
+def auth_headers(client):
+    """Sesión con el rol y el departamento que exige este módulo (Roles y Permisos): supervisor de restaurant_operations."""
+
+    def _headers(email: str = "ops@example.com", **_ignored):
+        return make_access_user(client, email, "supervisor", "restaurant_operations")
+
+    return _headers
+
+
 INCIDENT = {
     "title": "Caché: nevera averiada",
     "description": "Texto de prueba",

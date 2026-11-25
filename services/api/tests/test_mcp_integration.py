@@ -22,6 +22,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.auth.dependencies import get_current_user
+from conftest import StubUser
 from app.database import get_db
 from app.incidents import models
 from app.incidents.repository import IncidentRepository
@@ -71,9 +72,10 @@ def real_api(tmp_path):
     def login() -> dict:
         return {"access_token": TOKEN, "token_type": "bearer"}
 
-    def require_bearer(authorization: str | None = Header(default=None)) -> None:
+    def require_bearer(authorization: str | None = Header(default=None)):
         if authorization != f"Bearer {TOKEN}":
             raise HTTPException(status_code=401, detail="Credenciales inválidas")
+        return StubUser("agente@brasaland.test", "supervisor", "restaurant_operations")  # el agente actúa con un rol y un departamento
 
     app.dependency_overrides[get_current_user] = require_bearer
     app.dependency_overrides[get_db] = lambda: Session(engine)
