@@ -12,7 +12,7 @@ SECTIONS = ("Resumen ejecutivo", "Resultado consolidado en USD", "Resultado por 
 
 
 def _d(x): return None if x is None else Decimal(x)
-def _f(x, p=2): return "—" if x is None else fmt(Decimal(x), p)
+def _f(x, p=2, nd="—"): return nd if x is None else fmt(Decimal(x), p)
 
 
 def response_to_comments(report: dict, comments: list[str], by_line_records: dict[tuple, list[dict]]) -> list[dict]:
@@ -64,7 +64,8 @@ def render(report: dict, version: int = 1, status: str = "pending_review") -> st
     L += ["## 2. Resultado consolidado en USD", "", f"Cada país se convierte a USD con **{report['fx']}** antes de sumar; nunca se suman monedas distintas sin convertir.", "",
           "| Concepto | Real (USD) | Presupuesto (USD) | Presupuesto comparable (USD) | Desviación vs comparable (USD) |", "|---|---:|---:|---:|---:|"]
     for r in c["rows"]:
-        L.append(f"| {r['label']} | {_f(r['act'])} | {_f(r['bud'])} | {_f(r['cmp_bud'])} | {_f(Decimal(r['act']) - Decimal(r['cmp_bud']))} |")
+        diff = None if r["act"] is None or r["cmp_bud"] is None else Decimal(r["act"]) - Decimal(r["cmp_bud"])
+        L.append(f"| {r['label']} | {_f(r['act'], nd='sin dato')} | {_f(r['bud'], nd='sin dato')} | {_f(r['cmp_bud'], nd='sin dato')} | {_f(diff, nd='sin dato')} |")
     if c.get("note"):
         L += ["", f"**Atención:** {c['note']}"]
     L.append("")
@@ -74,13 +75,13 @@ def render(report: dict, version: int = 1, status: str = "pending_review") -> st
         L += [f"### {ctry['name']} ({cur})", "", f"| Partida | Presupuesto ({cur}) | Real ({cur}) | Desviación ({cur}) | Desviación % | Relevante |", "|---|---:|---:|---:|---:|:---:|"]
         for l in ctry["lines"]:
             if l["actual"] is None:
-                L.append(f"| {l['label']} | {_f(l['budget'])} | **SIN REGISTROS** | — | — | dato faltante |")
+                L.append(f"| {l['label']} | {_f(l['budget'], nd='**SIN PRESUPUESTO**')} | **SIN REGISTROS** | — | — | dato faltante |")
             else:
                 L.append(f"| {l['label']}{' ⚠ parcial' if l['status'] == 'partial' else ''} | {_f(l['budget'])} | {_f(l['actual'])} | {_f(l['var_abs'])} | {fmt_pct(_d(l['pct'])) if l['pct'] else '—'} | {'**SÍ**' if l['relevant'] else 'no'} |")
         t = ctry["totals"]
-        if t.get("income_act") is not None and t.get("result_act") is not None:
-            L += ["", f"Ingresos {_f(t['income_act'])} {cur} · gastos reales {_f(t['expenses_act'])} {cur}{'' if t['complete'] else ' (PARCIALES)'} · resultado {_f(t['result_act'])} {cur}"
-                  f" (presupuesto comparable {_f(t['result_cmp_bud'])} {cur})."]
+        sd = "sin dato"
+        L += ["", f"Ingresos {_f(t['income_act'], nd=sd)} {cur} · gastos reales {_f(t['expenses_act'], nd=sd)} {cur}{'' if t['complete'] else ' (PARCIALES)'} · "
+              f"resultado {_f(t['result_act'], nd='NO CALCULABLE')} {cur} (presupuesto comparable {_f(t['result_cmp_bud'], nd=sd)} {cur})."]
         if t.get("note"):
             L.append(f"_{t['note']}_")
         L.append("")

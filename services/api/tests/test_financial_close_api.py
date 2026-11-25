@@ -119,3 +119,32 @@ def test_sensitive_values_never_appear_in_any_response(client, engine, as_):
     blob = json.dumps([client.get(u, headers=as_(FELIPE)).json() for u in urls], ensure_ascii=False)
     for v in generate.SENSITIVE_VALUES:
         assert v not in blob, v
+
+
+def test_doubtful_reasons_with_a_bank_account_do_not_leak_through_the_api(client, tmp_path, as_):
+    import csv
+    secret = generate.SENSITIVE_VALUES[0]
+    src = tmp_path / "leak-csv"
+    generate.generate(src, date(2026, 11, 25))
+    rows = list(csv.DictReader((src / "ledger.csv").open(encoding="utf-8")))
+    rows[0]["amount"] = f"12,5x cuenta {secret}"
+    with (src / "ledger.csv").open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
+    e = CloseEngine(DataStore(tmp_path / "ld.db"), CloseStore(tmp_path / "lc.db"))
+    e.load_period(src, PERIOD)
+    rep = e.run_close(PERIOD)
+    routes.set_engine(e)
+    try:
+        blob = json.dumps([client.get(u, headers=as_(FELIPE)).json() for u in (f"/financial-close/reports/{rep['id']}", "/financial-close/reports", "/financial-close/audit/events")], ensure_ascii=False)
+        assert secret not in blob and "importe no numérico" in blob
+    finally:
+        routes.set_engine(None)
+
+
+def test_figure_endpoint_only_returns_records_of_the_reports_period(client, engine, as_, tmp_path):
+    other = tmp_path / "sep"
+    generate.generate(other, date(2026, 10, 15))
+    engine.load_period(other, "2026-09")
+    i = rid(engine)
+    f = client.get(f"/financial-close/reports/{i}/figures/CONS.INC.ACT", headers=as_(FELIPE)).json()
+    assert len(f["records"]) == len(f["sources"]) == 8 and all("2026-10" in r["entry_id"] for r in f["records"])

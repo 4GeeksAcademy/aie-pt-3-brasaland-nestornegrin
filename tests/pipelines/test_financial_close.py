@@ -357,3 +357,79 @@ def test_tick_runs_once_per_period_and_only_when_due(tmp_path):
 def test_holidays_are_configurable(monkeypatch):
     monkeypatch.setattr(config, "HOLIDAYS", frozenset({"2026-11-03"}))
     assert schedule.third_business_day(2026, 11) == date(2026, 11, 5)
+
+
+# ------------------------------------------------------------------ regresiones del feedback del profesor
+EXPECTED_LINES = {(l.country, l.category) for l in config.LINES}
+
+
+def test_every_figure_always_has_a_source(eng, tmp_path):
+    for rep in (eng.run_close(PERIOD)["content"], build(tmp_path, "inc", lambda s: rewrite(s / "ledger.csv", lambda r: r[:5]))[0].run_close(PERIOD)["content"]):
+        assert all(f["sources"] and f["value"] is not None for f in rep["figures"].values())
+
+
+def test_line_missing_from_budget_and_ledger_is_declared(tmp_path):
+    def mutate(src):
+        rewrite(src / "ledger.csv", lambda rows: [r for r in rows if not (r["country"] == "Florida" and r["category"] == "Pollo")])
+        rewrite(src / "budget.csv", lambda rows: [r for r in rows if not (r["country"] == "Florida" and r["category"] == "Pollo")])
+    eng, _ = build(tmp_path, mutate=mutate)
+    rep = eng.run_close(PERIOD)["content"]
+    line = {l["category"]: l for l in rep["countries"]["FL"]["lines"]}["Pollo"]          # la partida NO se omite
+    assert line["status"] == "missing" and line["actual"] is None and line["budget"] is None
+    assert any(m["kind"] == "missing_line_and_budget" and "Florida · Pollo" in m["text"] and "presupuesto" in m["text"] for m in rep["missing"])
+    assert not any(k.startswith("FL.CHICKEN") for k in rep["figures"])
+    assert "Florida · Pollo" in " ".join(rep["summary"]) and "ninguno" not in rep["summary"][3]
+    md = eng.run_close(PERIOD)["markdown"]
+    assert "SIN PRESUPUESTO" in md and "SIN REGISTROS" in md
+
+
+def test_empty_period_declares_every_expected_line_and_emits_no_figures(tmp_path):
+    def mutate(src):
+        for name in ("ledger.csv", "budget.csv", "operations.csv"):
+            header = (src / name).read_text(encoding="utf-8").splitlines()[0]
+            (src / name).write_text(header + "\n", encoding="utf-8")
+    eng, _ = build(tmp_path, mutate=mutate)
+    rep = eng.run_close(PERIOD)["content"]
+    assert rep["figures"] == {}                                                        # ni ceros ni cifras sin origen
+    declared = {(cc, l["category"]) for cc, c in rep["countries"].items() for l in c["lines"]}
+    assert declared == EXPECTED_LINES
+    assert len([m for m in rep["missing"] if m["kind"] == "missing_line_and_budget"]) == len(EXPECTED_LINES)
+    assert all(l["actual"] is None and l["budget"] is None for c in rep["countries"].values() for l in c["lines"])
+    assert rep["consolidated"]["values"]["RES.ACT"] is None and rep["deviations"] == []
+    text = " ".join(rep["summary"])
+    assert "NO se puede calcular" in text and "ninguno" not in rep["summary"][3] and len(rep["summary"]) <= 5
+    md = eng.run_close(PERIOD)["markdown"]
+    assert "sin dato" in md and "NO CALCULABLE" in md and " 0,00 " not in md.split("## 4.")[0].split("## 2.")[1]
+
+
+def test_figure_origin_never_mixes_periods(tmp_path):
+    eng, _ = build(tmp_path)
+    other = tmp_path / "sep-csv"
+    generate.generate(other, date(2026, 10, 15))                                       # mes de cierre 2026-09: mismos archivos y filas
+    eng.load_period(other, "2026-09")
+    rep = eng.run_close(PERIOD)
+    for fid in ("FL.MKT.ACT", "CONS.INC.ACT", "FL.BEEF.ACT", "FL.REV.PCT"):
+        f = eng.figure(rep["id"], fid)
+        assert f["records"] and all(r["date"] is None or r["date"].startswith("2026-10") for r in f["records"])
+        assert len(f["records"]) == len(f["sources"])
+        assert all((r["entry_id"] or "").find("2026-09") < 0 for r in f["records"])
+    sep = eng.run_close("2026-09")
+    assert all((r["entry_id"] or "").find("2026-10") < 0 for r in eng.figure(sep["id"], "FL.MKT.ACT")["records"])
+
+
+def test_malformed_amount_with_bank_account_never_leaks(tmp_path):
+    secret = generate.SENSITIVE_VALUES[0]
+    def mutate(src):
+        def fn(rows):
+            rows[0]["amount"] = f"12,5x cuenta {secret}"
+            rows[1]["description"] = f"Ventas; cuenta {secret}"
+            return rows
+        rewrite(src / "ledger.csv", fn)
+    eng, _ = build(tmp_path, mutate=mutate)
+    rep = eng.run_close(PERIOD)
+    eng.review(rep["id"], eng.close.staff("s-felipe"), "approve")
+    tables = {t: eng.close.q(f"SELECT * FROM {t}") for t in ("reports", "events", "messages", "reviews")} | {"records": eng.data.q("SELECT * FROM records")}
+    for name, rows in tables.items():
+        assert secret not in json.dumps(rows, ensure_ascii=False), name
+    assert any("importe no numérico" in m["text"] for m in rep["content"]["missing"] if m["kind"] == "doubtful_record")
+    assert secret not in json.dumps(eng.get(rep["id"]), ensure_ascii=False)

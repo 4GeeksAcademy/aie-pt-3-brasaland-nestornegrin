@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 
 from . import config, ingest as ingest_mod, report as report_mod
-from .agent import FinancialCloseAgent
-from .sensitive import clean
+from .agent import FinancialCloseAgent, content_hash
+from .sensitive import clean, clean_any
 from .store import CloseStore, DataStore, now
 
 
@@ -34,7 +34,8 @@ class CloseEngine:
         return out
 
     def _prepare(self, period: str, version: int, comments: list[str] | None = None, based_on: int | None = None) -> dict:
-        rep = FinancialCloseAgent(self.data, self.close).close_period(period)
+        rep = clean_any(FinancialCloseAgent(self.data, self.close).close_period(period))   # defensa en profundidad: nada sensible llega a reports.content
+        rep["content_hash"] = content_hash(rep)
         if comments:
             rep["revision"] = report_mod.response_to_comments(rep, comments, self._records(period))
         md = report_mod.render(rep, version, "pending_review")
@@ -85,12 +86,15 @@ class CloseEngine:
         return staff["id"] in config.RECIPIENT_IDS
 
     def figure(self, report_id: int, figure_id: str) -> dict:
-        f = self.get(report_id)["content"]["figures"].get(figure_id)
+        rep = self.get(report_id)
+        f = rep["content"]["figures"].get(figure_id)
         if not f:
             raise WorkflowError("cifra no encontrada", 404)
         recs = []
         for s in f["sources"]:
-            row = self.data.readonly_query("SELECT file,row,entry_id,date,country,category,currency,amount,description,source_ref,metric,status FROM records WHERE file=? AND row=?", (s["file"], s["row"]))
+            # SIEMPRE del periodo del informe: archivo+fila se repite entre meses
+            row = self.data.readonly_query("SELECT file,row,entry_id,date,country,category,currency,amount,description,source_ref,metric,status FROM records WHERE period=? AND file=? AND row=?",
+                                           (rep["period"], s["file"], s["row"]))
             recs += row
         f = dict(f)
         f["records"] = recs

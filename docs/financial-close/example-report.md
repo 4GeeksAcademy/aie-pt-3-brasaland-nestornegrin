@@ -7,7 +7,7 @@ _Versión 1 · estado: pending_review · idioma: es · tipo de cambio de consoli
 - Cierre 2026-10: resultado consolidado 144.606,96 USD frente a 188.351,25 USD presupuestados (-43.744,29 USD) — cifra PARCIAL: faltan datos.
 - Ingresos consolidados 477.500,00 USD frente a 510.000,00 USD presupuestados (tipo de cambio 1 USD = 4.000 COP).
 - 5 desviación(es) relevante(s) (≥ 5 %): Colombia · Pollo (Avícola Antioquia) +9,0%; Florida · Ingresos por ventas -10,9%; Florida · Carne de res (Sunshine Prime Meats) +12,0%; Florida · Bebidas (Brava Beverages FL) +6,0%; Florida · Marketing +72,2%.
-- Datos faltantes: Florida · Servicios (energía, agua, gas).
+- Datos faltantes o dudosos: Florida · Servicios.
 - Estado: pendiente de revisión por Felipe Guerrero; no se distribuye hasta su aprobación.
 
 ## 2. Resultado consolidado en USD
@@ -18,9 +18,9 @@ Cada país se convierte a USD con **1 USD = 4.000 COP** antes de sumar; nunca se
 |---|---:|---:|---:|---:|
 | Ingresos | 477.500,00 | 510.000,00 | 510.000,00 | -32.500,00 |
 | Gastos (parciales) | 332.893,04 | 328.148,75 | 321.648,75 | 11.244,29 |
-| Resultado (parcial) | 144.606,96 | 181.851,25 | 188.351,25 | -43.744,29 |
+| Resultado (parciales) | 144.606,96 | 181.851,25 | 188.351,25 | -43.744,29 |
 
-**Atención:** Gastos y resultado reales PARCIALES: faltan partidas sin registros. La desviación se calcula frente al presupuesto comparable (solo las partidas que tienen dato real); el resultado real no es comparable con el presupuesto completo.
+**Atención:** Datos PARCIALES: faltan partidas sin registros o sin presupuesto. La desviación del consolidado se calcula frente al presupuesto comparable (solo lo que tiene dato real); un valor «sin dato» no se ha podido calcular y NO es cero.
 
 ## 3. Resultado por país (moneda local)
 
@@ -53,7 +53,7 @@ Ingresos 1.090.000.000,00 COP · gastos reales 658.429.750,00 COP · resultado 4
 | Servicios (energía, agua, gas) | 6.500,00 | **SIN REGISTROS** | — | — | dato faltante |
 
 Ingresos 205.000,00 USD · gastos reales 168.285,60 USD (PARCIALES) · resultado 36.714,40 USD (presupuesto comparable 70.220,00 USD).
-_Gastos reales PARCIALES (partidas sin registros o sin presupuesto); la comparación usa solo las partidas con ambos datos._
+_Datos PARCIALES (partidas sin registros o sin presupuesto): los totales usan solo lo que tiene dato; lo que falta no se estima._
 
 ## 4. Desviaciones relevantes
 
@@ -155,11 +155,11 @@ Para cada cifra: su fórmula y los `entry_id` (o fila de `budget.csv`/`operation
 | `CONS.EXP.ACT` | 332.893,04 | USD | partial | cada país convertido a USD (1 USD = 4.000 COP) y sumado | L-CO-2026-10-0005, L-CO-2026-10-0006, L-CO-2026-10-0007, L-CO-2026-10-0008, L-CO-2026-10-0009, L-CO-2026-10-0010, L-CO-2026-10-0011, L-CO-2026-10-0012, L-CO-2026-10-0013, L-CO-2026-10-0014, L-CO-2026-10-0015, L-CO-2026-10-0016, L-CO-2026-10-0017, L-CO-2026-10-0018, L-CO-2026-10-0019, L-CO-2026-10-0020, L-CO-2026-10-0021, L-CO-2026-10-0022, L-CO-2026-10-0023, L-CO-2026-10-0024, L-CO-2026-10-0025, L-CO-2026-10-0026, L-CO-2026-10-0027, L-CO-2026-10-0028, L-FL-2026-10-0005, L-FL-2026-10-0006, L-FL-2026-10-0007, L-FL-2026-10-0008, L-FL-2026-10-0009, L-FL-2026-10-0010, L-FL-2026-10-0011, L-FL-2026-10-0012, L-FL-2026-10-0013, L-FL-2026-10-0014, L-FL-2026-10-0015, L-FL-2026-10-0016, L-FL-2026-10-0017, L-FL-2026-10-0018, L-FL-2026-10-0019, L-FL-2026-10-0020, L-FL-2026-10-0021, L-FL-2026-10-0022, L-FL-2026-10-0023, L-FL-2026-10-0024 |
 | `CONS.EXP.BUD` | 328.148,75 | USD | partial | cada país convertido a USD (1 USD = 4.000 COP) y sumado | budget.csv:3, budget.csv:4, budget.csv:5, budget.csv:6, budget.csv:7, budget.csv:8, budget.csv:9, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16, budget.csv:17 |
 | `CONS.EXP.CMPBUD` | 321.648,75 | USD | partial | cada país convertido a USD (1 USD = 4.000 COP) y sumado | budget.csv:3, budget.csv:4, budget.csv:5, budget.csv:6, budget.csv:7, budget.csv:8, budget.csv:9, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16 |
-| `CONS.INC.ACT` | 477.500,00 | USD | ok | cada país convertido a USD (1 USD = 4.000 COP) y sumado | L-CO-2026-10-0001, L-CO-2026-10-0002, L-CO-2026-10-0003, L-CO-2026-10-0004, L-FL-2026-10-0001, L-FL-2026-10-0002, L-FL-2026-10-0003, L-FL-2026-10-0004 |
-| `CONS.INC.BUD` | 510.000,00 | USD | ok | cada país convertido a USD (1 USD = 4.000 COP) y sumado | budget.csv:2, budget.csv:10 |
-| `CONS.RES.ACT` | 144.606,96 | USD | partial | ingresos − gastos | L-CO-2026-10-0001, L-CO-2026-10-0002, L-CO-2026-10-0003, L-CO-2026-10-0004, L-CO-2026-10-0005, L-CO-2026-10-0006, L-CO-2026-10-0007, L-CO-2026-10-0008, L-CO-2026-10-0009, L-CO-2026-10-0010, L-CO-2026-10-0011, L-CO-2026-10-0012, L-CO-2026-10-0013, L-CO-2026-10-0014, L-CO-2026-10-0015, L-CO-2026-10-0016, L-CO-2026-10-0017, L-CO-2026-10-0018, L-CO-2026-10-0019, L-CO-2026-10-0020, L-CO-2026-10-0021, L-CO-2026-10-0022, L-CO-2026-10-0023, L-CO-2026-10-0024, L-CO-2026-10-0025, L-CO-2026-10-0026, L-CO-2026-10-0027, L-CO-2026-10-0028, L-FL-2026-10-0001, L-FL-2026-10-0002, L-FL-2026-10-0003, L-FL-2026-10-0004, L-FL-2026-10-0005, L-FL-2026-10-0006, L-FL-2026-10-0007, L-FL-2026-10-0008, L-FL-2026-10-0009, L-FL-2026-10-0010, L-FL-2026-10-0011, L-FL-2026-10-0012, L-FL-2026-10-0013, L-FL-2026-10-0014, L-FL-2026-10-0015, L-FL-2026-10-0016, L-FL-2026-10-0017, L-FL-2026-10-0018, L-FL-2026-10-0019, L-FL-2026-10-0020, L-FL-2026-10-0021, L-FL-2026-10-0022, L-FL-2026-10-0023, L-FL-2026-10-0024 |
-| `CONS.RES.BUD` | 181.851,25 | USD | ok | ingresos − gastos presupuestados | budget.csv:2, budget.csv:3, budget.csv:4, budget.csv:5, budget.csv:6, budget.csv:7, budget.csv:8, budget.csv:9, budget.csv:10, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16, budget.csv:17 |
-| `CONS.RES.CMPBUD` | 188.351,25 | USD | ok | ingresos − gastos presupuestados comparables | budget.csv:2, budget.csv:3, budget.csv:4, budget.csv:5, budget.csv:6, budget.csv:7, budget.csv:8, budget.csv:9, budget.csv:10, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16 |
+| `CONS.INC.ACT` | 477.500,00 | USD | partial | cada país convertido a USD (1 USD = 4.000 COP) y sumado | L-CO-2026-10-0001, L-CO-2026-10-0002, L-CO-2026-10-0003, L-CO-2026-10-0004, L-FL-2026-10-0001, L-FL-2026-10-0002, L-FL-2026-10-0003, L-FL-2026-10-0004 |
+| `CONS.INC.BUD` | 510.000,00 | USD | partial | cada país convertido a USD (1 USD = 4.000 COP) y sumado | budget.csv:2, budget.csv:10 |
+| `CONS.RES.ACT` | 144.606,96 | USD | partial | INC.ACT − EXP.ACT | L-CO-2026-10-0001, L-CO-2026-10-0002, L-CO-2026-10-0003, L-CO-2026-10-0004, L-CO-2026-10-0005, L-CO-2026-10-0006, L-CO-2026-10-0007, L-CO-2026-10-0008, L-CO-2026-10-0009, L-CO-2026-10-0010, L-CO-2026-10-0011, L-CO-2026-10-0012, L-CO-2026-10-0013, L-CO-2026-10-0014, L-CO-2026-10-0015, L-CO-2026-10-0016, L-CO-2026-10-0017, L-CO-2026-10-0018, L-CO-2026-10-0019, L-CO-2026-10-0020, L-CO-2026-10-0021, L-CO-2026-10-0022, L-CO-2026-10-0023, L-CO-2026-10-0024, L-CO-2026-10-0025, L-CO-2026-10-0026, L-CO-2026-10-0027, L-CO-2026-10-0028, L-FL-2026-10-0001, L-FL-2026-10-0002, L-FL-2026-10-0003, L-FL-2026-10-0004, L-FL-2026-10-0005, L-FL-2026-10-0006, L-FL-2026-10-0007, L-FL-2026-10-0008, L-FL-2026-10-0009, L-FL-2026-10-0010, L-FL-2026-10-0011, L-FL-2026-10-0012, L-FL-2026-10-0013, L-FL-2026-10-0014, L-FL-2026-10-0015, L-FL-2026-10-0016, L-FL-2026-10-0017, L-FL-2026-10-0018, L-FL-2026-10-0019, L-FL-2026-10-0020, L-FL-2026-10-0021, L-FL-2026-10-0022, L-FL-2026-10-0023, L-FL-2026-10-0024 |
+| `CONS.RES.BUD` | 181.851,25 | USD | partial | INC.BUD − EXP.BUD | budget.csv:2, budget.csv:3, budget.csv:4, budget.csv:5, budget.csv:6, budget.csv:7, budget.csv:8, budget.csv:9, budget.csv:10, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16, budget.csv:17 |
+| `CONS.RES.CMPBUD` | 188.351,25 | USD | partial | INC.BUD − EXP.CMPBUD | budget.csv:2, budget.csv:3, budget.csv:4, budget.csv:5, budget.csv:6, budget.csv:7, budget.csv:8, budget.csv:9, budget.csv:10, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16 |
 | `FL.BEEF.ACT` | 19.353,60 | USD | ok | suma de los registros del libro | L-FL-2026-10-0005, L-FL-2026-10-0006, L-FL-2026-10-0007, L-FL-2026-10-0008 |
 | `FL.BEEF.BUD` | 17.280,00 | USD | ok | dato de origen | budget.csv:11 |
 | `FL.BEEF.EFF.PRICE` | 2.073,60 | USD | ok | (precio real − precio presupuestado) × cantidad real | L-FL-2026-10-0005, L-FL-2026-10-0006, L-FL-2026-10-0007, L-FL-2026-10-0008, operations.csv:16 |
@@ -211,9 +211,9 @@ Para cada cifra: su fórmula y los `entry_id` (o fila de `budget.csv`/`operation
 | `FL.RENT.BUD` | 42.000,00 | USD | ok | dato de origen | budget.csv:15 |
 | `FL.RENT.PCT` | 0,00 | % | ok | (real − presupuesto) / presupuesto × 100 | L-FL-2026-10-0019, L-FL-2026-10-0020, L-FL-2026-10-0021, budget.csv:15 |
 | `FL.RENT.VAR` | 0,00 | USD | ok | real − presupuesto | L-FL-2026-10-0019, L-FL-2026-10-0020, L-FL-2026-10-0021, budget.csv:15 |
-| `FL.RES.ACT` | 36.714,40 | USD | ok | ingresos − gastos | L-FL-2026-10-0001, L-FL-2026-10-0002, L-FL-2026-10-0003, L-FL-2026-10-0004, L-FL-2026-10-0005, L-FL-2026-10-0006, L-FL-2026-10-0007, L-FL-2026-10-0008, L-FL-2026-10-0009, L-FL-2026-10-0010, L-FL-2026-10-0011, L-FL-2026-10-0012, L-FL-2026-10-0013, L-FL-2026-10-0014, L-FL-2026-10-0015, L-FL-2026-10-0016, L-FL-2026-10-0017, L-FL-2026-10-0018, L-FL-2026-10-0019, L-FL-2026-10-0020, L-FL-2026-10-0021, L-FL-2026-10-0022, L-FL-2026-10-0023, L-FL-2026-10-0024 |
-| `FL.RES.BUD` | 63.720,00 | USD | ok | ingresos − gastos presupuestados | budget.csv:10, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16, budget.csv:17 |
-| `FL.RES.CMPBUD` | 70.220,00 | USD | ok | ingresos − gastos presupuestados comparables | budget.csv:10, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16 |
+| `FL.RES.ACT` | 36.714,40 | USD | partial | ingresos − gastos | L-FL-2026-10-0001, L-FL-2026-10-0002, L-FL-2026-10-0003, L-FL-2026-10-0004, L-FL-2026-10-0005, L-FL-2026-10-0006, L-FL-2026-10-0007, L-FL-2026-10-0008, L-FL-2026-10-0009, L-FL-2026-10-0010, L-FL-2026-10-0011, L-FL-2026-10-0012, L-FL-2026-10-0013, L-FL-2026-10-0014, L-FL-2026-10-0015, L-FL-2026-10-0016, L-FL-2026-10-0017, L-FL-2026-10-0018, L-FL-2026-10-0019, L-FL-2026-10-0020, L-FL-2026-10-0021, L-FL-2026-10-0022, L-FL-2026-10-0023, L-FL-2026-10-0024 |
+| `FL.RES.BUD` | 63.720,00 | USD | partial | ingresos − gastos presupuestados | budget.csv:10, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16, budget.csv:17 |
+| `FL.RES.CMPBUD` | 70.220,00 | USD | partial | ingresos − gastos presupuestados comparables | budget.csv:10, budget.csv:11, budget.csv:12, budget.csv:13, budget.csv:14, budget.csv:15, budget.csv:16 |
 | `FL.REV.ACT` | 205.000,00 | USD | ok | suma de los registros del libro | L-FL-2026-10-0001, L-FL-2026-10-0002, L-FL-2026-10-0003, L-FL-2026-10-0004 |
 | `FL.REV.BUD` | 230.000,00 | USD | ok | dato de origen | budget.csv:10 |
 | `FL.REV.PCT` | -10,90 | % | ok | (real − presupuesto) / presupuesto × 100 | L-FL-2026-10-0001, L-FL-2026-10-0002, L-FL-2026-10-0003, L-FL-2026-10-0004, budget.csv:10 |

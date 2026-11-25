@@ -65,3 +65,4 @@ python -m data.pipelines.financial_close demo                                   
 - [`example-report.md`](./example-report.md): cierre completo de 2026-10 con su anexo de trazabilidad.
 - [`example-report-incomplete.md`](./example-report-incomplete.md): mismo periodo con Marketing de Florida sin registros, indicadores de cubiertos ausentes y un registro con importe no numérico.
 - [`design.md`](./design.md): diseño previo (estructura, herramientas, flujo).
+- [`example-report-empty-period.md`](./example-report-empty-period.md): periodo sin ningún dato: se declaran las 16 partidas esperadas, no se emite ninguna cifra sin origen y el resultado figura como «no calculable».

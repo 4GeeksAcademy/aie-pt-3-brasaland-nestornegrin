@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from . import config, tools
-from .sensitive import MARK, is_individual_payroll, redact
+from .sensitive import MARK, clean, clean_any, is_individual_payroll, redact
 from .store import DataStore, now
 
 _COUNTRY_CODE = {name: code for code, (name, _) in config.COUNTRIES.items()}
@@ -74,7 +74,8 @@ def ingest(data: DataStore, files_dir: Path, period: str) -> dict:
     stats = {"ledger": [0, 0], "budget": [0, 0], "operations": [0, 0], "redacted": 0}
 
     def put(kind, fname, rowno, **f):
-        reasons = f.pop("reasons")
+        reasons = clean_any(f.pop("reasons"))                 # los motivos citan el valor crudo (p. ej. un importe con una cuenta): se redactan ANTES de guardar
+        f = {k: (clean(v) if isinstance(v, str) else v) for k, v in f.items()}
         status = "doubtful" if reasons else "valid"
         stats[kind][1 if reasons else 0] += 1
         data.run("INSERT INTO records(period,kind,file,row,entry_id,date,country,category,currency,amount,description,source_ref,metric,status,reasons) "

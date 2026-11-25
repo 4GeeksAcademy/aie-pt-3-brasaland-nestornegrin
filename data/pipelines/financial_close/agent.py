@@ -16,6 +16,7 @@ from .store import CloseStore, DataStore
 KEY = config.CATEGORY_KEY
 _REASON_WORDS = re.compile(r"(?i)campa[ñn]a|evento|lanzamiento|promoci[oó]n|patrocinio|inauguraci[oó]n|publicidad digital|temporada|festival|motivo")
 ACTOR_TYPE = "automated_process"
+EXPECTED = frozenset((l.country, l.category) for l in config.LINES)      # partidas que el briefing espera, por país: si faltan, se DECLARAN
 
 
 class AgentPermissionError(Exception):
@@ -45,13 +46,17 @@ class FinancialCloseAgent:
 
     # ------------------------------------------------------------ cifras con origen
     def _fig(self, fid: str, label: str, value: Decimal | None, unit: str, *, sources: list[dict] | None = None, components: list[str] | None = None,
-             formula: str = "", status: str = "ok") -> str:
+             formula: str = "", status: str = "ok") -> str | None:
+        """Registra una cifra SOLO si tiene origen (registros, o cifras componentes que ya lo tienen). Sin origen no hay cifra: devuelve None."""
         refs = list(sources or [])
-        for c in components or []:
+        comps = [c for c in (components or []) if c in self.figures]
+        for c in comps:
             refs += self.figures[c]["sources"]
-        uniq = {(s["file"], s["row"]): s for s in refs}
-        self.figures[fid] = {"id": fid, "label": label, "value": None if value is None else str(value), "unit": unit, "formula": formula,
-                             "components": components or [], "sources": [uniq[k] for k in sorted(uniq, key=lambda k: (k[0], k[1]))], "status": status}
+        uniq = {(x["file"], x["row"]): x for x in refs}
+        if value is None or not uniq:
+            return None
+        self.figures[fid] = {"id": fid, "label": label, "value": str(value), "unit": unit, "formula": formula,
+                             "components": comps, "sources": [uniq[k] for k in sorted(uniq, key=lambda k: (k[0], k[1]))], "status": status}
         return fid
 
     @staticmethod
@@ -80,13 +85,15 @@ class FinancialCloseAgent:
             lines = []
             for cat in config.CATEGORIES:
                 b, recs = budget.get((cc, cat)), by_line.get((cc, cat), [])
-                if b is None and not recs:
-                    continue
+                if b is None and not recs and (cc, cat) not in EXPECTED:
+                    continue                      # partida que el briefing no espera para este país
                 label = next((l.label for l in config.LINES if l.country == cc and l.category == cat), cat)
                 k = f"{cc}.{KEY[cat]}"
-                if b is None:
+                if b is None and recs:
                     missing.append({"kind": "no_budget", "text": f"{cname} · {cat}: hay registros pero no hay presupuesto válido; no se calcula desviación.", "refs": [r["entry_id"] for r in recs]})
                     bud = None
+                elif b is None:
+                    bud = None                    # ni presupuesto ni registros: lo declara la rama «sin registros» (una sola entrada)
                 else:
                     bud = Decimal(b["amount"])
                     self._fig(f"{k}.BUD", f"{cname} · {label} · presupuesto", bud, cur, sources=[self._src(b)])
@@ -99,8 +106,10 @@ class FinancialCloseAgent:
                 else:
                     status = "missing"
                     n = doubt_lines.get((cc, cat), 0)
-                    missing.append({"kind": "missing_line", "text": f"{cname} · {label}: SIN REGISTROS en el libro" + (f" ({n} registro(s) dudoso(s) excluido(s))" if n else "") +
-                                    f"; presupuesto {tools.fmt(bud)} {cur}. No se trata como 0 ni como una desviación del −100 %.", "refs": []})
+                    kind = "missing_line" if bud is not None else "missing_line_and_budget"
+                    detail = f"presupuesto {tools.fmt(bud)} {cur}" if bud is not None else "tampoco hay presupuesto válido en budget.csv"
+                    missing.append({"kind": kind, "text": f"{cname} · {label}: SIN REGISTROS en el libro" + (f" ({n} registro(s) dudoso(s) excluido(s))" if n else "") +
+                                    f"; {detail}. No se trata como 0 ni como una desviación del −100 %.", "refs": []})
                 line = {"category": cat, "label": label, "currency": cur, "budget": None if bud is None else str(bud), "actual": None if act is None else str(act),
                         "status": status, "records": len(recs), "figs": {"bud": f"{k}.BUD" if bud is not None else None, "act": f"{k}.ACT" if act is not None else None},
                         "var_abs": None, "pct": None, "pct_exact": None, "relevant": False, "favorable": None}
@@ -150,71 +159,81 @@ class FinancialCloseAgent:
         inc = next((l for l in lines if l["category"] == config.INCOME), None)
         exp = [l for l in lines if l["category"] != config.INCOME]
         exp_act = [l for l in exp if l["actual"] is not None]
+        exp_bud = [l for l in exp if l["budget"] is not None]
         comparable = [l for l in exp_act if l["budget"] is not None]
-        totals: dict = {"currency": cur, "complete": all(l["actual"] is not None for l in exp) and all(l["budget"] is not None for l in lines)}
+        totals: dict = {"currency": cur, "complete": all(l["actual"] is not None and l["budget"] is not None for l in lines),
+                        "income_act": None, "income_bud": None, "expenses_act": None, "expenses_bud": None, "expenses_cmp_bud": None,
+                        "result_act": None, "result_bud": None, "result_cmp_bud": None, "figs": {}}
         if not totals["complete"]:
-            totals["note"] = "Gastos reales PARCIALES (partidas sin registros o sin presupuesto); la comparación usa solo las partidas con ambos datos."
-        if inc and inc["actual"] is not None:
-            totals["income_act"], totals["income_bud"] = inc["actual"], inc["budget"]
-        exp_a_comps = [l["figs"]["act"] for l in exp_act]
-        exp_b_comps = [l["figs"]["bud"] for l in exp if l["budget"] is not None]
-        cmp_b_comps = [l["figs"]["bud"] for l in comparable]
-        cmp_a_comps = [l["figs"]["act"] for l in comparable]
+            totals["note"] = "Datos PARCIALES (partidas sin registros o sin presupuesto): los totales usan solo lo que tiene dato; lo que falta no se estima."
+
         def total(items): return sum((Decimal(x) for x in items), Decimal(0))
-        e_act = total(l["actual"] for l in exp_act)
-        e_bud = total(l["budget"] for l in exp if l["budget"] is not None)
-        e_cmp_a = total(l["actual"] for l in comparable)
-        e_cmp_b = total(l["budget"] for l in comparable)
-        self._fig(f"{cc}.EXP.ACT", f"{name} · gastos · real", e_act, cur, components=exp_a_comps, formula="suma de las partidas de gasto con registros", status="ok" if totals["complete"] else "partial")
-        self._fig(f"{cc}.EXP.BUD", f"{name} · gastos · presupuesto", e_bud, cur, components=exp_b_comps, formula="suma de las partidas de gasto presupuestadas")
-        self._fig(f"{cc}.EXP.CMPBUD", f"{name} · gastos · presupuesto comparable", e_cmp_b, cur, components=cmp_b_comps, formula="presupuesto solo de las partidas que tienen real")
-        totals.update(expenses_act=str(e_act), expenses_bud=str(e_bud), expenses_cmp_bud=str(e_cmp_b),
-                      figs={"exp_act": f"{cc}.EXP.ACT", "exp_bud": f"{cc}.EXP.BUD", "exp_cmpbud": f"{cc}.EXP.CMPBUD"})
-        if inc and inc["actual"] is not None and inc["budget"] is not None:
-            ia, ib = Decimal(inc["actual"]), Decimal(inc["budget"])
-            self._fig(f"{cc}.RES.ACT", f"{name} · resultado · real", ia - e_act, cur, components=[inc["figs"]["act"], f"{cc}.EXP.ACT"], formula="ingresos − gastos")
-            self._fig(f"{cc}.RES.BUD", f"{name} · resultado · presupuesto", ib - e_bud, cur, components=[inc["figs"]["bud"], f"{cc}.EXP.BUD"], formula="ingresos − gastos presupuestados")
-            self._fig(f"{cc}.RES.CMPBUD", f"{name} · resultado · presupuesto comparable", ib - e_cmp_b, cur, components=[inc["figs"]["bud"], f"{cc}.EXP.CMPBUD"], formula="ingresos − gastos presupuestados comparables")
-            res_act = ia - e_act
-            res_cmp = ib - e_cmp_b
-            totals.update(result_act=str(res_act), result_bud=str(ib - e_bud), result_cmp_bud=str(res_cmp), result_var_abs=str(res_act - res_cmp))
-            totals["figs"].update(res_act=f"{cc}.RES.ACT", res_bud=f"{cc}.RES.BUD", res_cmpbud=f"{cc}.RES.CMPBUD")
-            totals["expenses_var_abs"] = str(e_act - e_cmp_a) if not totals["complete"] else str(e_act - e_bud)
+        if inc and inc["actual"] is not None:
+            totals["income_act"] = inc["actual"]
+        if inc and inc["budget"] is not None:
+            totals["income_bud"] = inc["budget"]
+        status = "ok" if totals["complete"] else "partial"
+        if exp_act:
+            e_act = total(l["actual"] for l in exp_act)
+            if self._fig(f"{cc}.EXP.ACT", f"{name} · gastos · real", e_act, cur, components=[l["figs"]["act"] for l in exp_act], formula="suma de las partidas de gasto con registros", status=status):
+                totals["expenses_act"] = str(e_act); totals["figs"]["exp_act"] = f"{cc}.EXP.ACT"
+        if exp_bud:
+            e_bud = total(l["budget"] for l in exp_bud)
+            if self._fig(f"{cc}.EXP.BUD", f"{name} · gastos · presupuesto", e_bud, cur, components=[l["figs"]["bud"] for l in exp_bud], formula="suma de las partidas de gasto presupuestadas"):
+                totals["expenses_bud"] = str(e_bud); totals["figs"]["exp_bud"] = f"{cc}.EXP.BUD"
+        if comparable:
+            e_cmp = total(l["budget"] for l in comparable)
+            if self._fig(f"{cc}.EXP.CMPBUD", f"{name} · gastos · presupuesto comparable", e_cmp, cur, components=[l["figs"]["bud"] for l in comparable], formula="presupuesto solo de las partidas que tienen real"):
+                totals["expenses_cmp_bud"] = str(e_cmp); totals["figs"]["exp_cmpbud"] = f"{cc}.EXP.CMPBUD"
+        ia, ib = (Decimal(totals["income_act"]) if totals["income_act"] is not None else None), (Decimal(totals["income_bud"]) if totals["income_bud"] is not None else None)
+        for key, fid, label, inc_v, inc_fig, exp_key, exp_fig, formula in (
+                ("result_act", "RES.ACT", "real", ia, inc and inc["figs"]["act"], "expenses_act", "EXP.ACT", "ingresos − gastos"),
+                ("result_bud", "RES.BUD", "presupuesto", ib, inc and inc["figs"]["bud"], "expenses_bud", "EXP.BUD", "ingresos − gastos presupuestados"),
+                ("result_cmp_bud", "RES.CMPBUD", "presupuesto comparable", ib, inc and inc["figs"]["bud"], "expenses_cmp_bud", "EXP.CMPBUD", "ingresos − gastos presupuestados comparables")):
+            if inc_v is None or totals[exp_key] is None:
+                continue                         # falta una de las dos mitades: no hay resultado, y se declara
+            v = inc_v - Decimal(totals[exp_key])
+            if self._fig(f"{cc}.{fid}", f"{name} · resultado · {label}", v, cur, components=[inc_fig, f"{cc}.{exp_fig}"], formula=formula, status=status):
+                totals[key] = str(v); totals["figs"][key] = f"{cc}.{fid}"
+        if totals["result_act"] is not None and totals["result_cmp_bud"] is not None:
+            totals["result_var_abs"] = str(Decimal(totals["result_act"]) - Decimal(totals["result_cmp_bud"]))
         country["totals"] = totals
 
     # ------------------------------------------------------------ consolidado en USD
     def _consolidate(self, countries: dict) -> dict:
-        out: dict = {"fx": f"1 USD = {tools.fmt(config.FX_COP_PER_USD, 0)} COP", "currency": "USD", "figs": {}}
-        parts = {}
-        for name, (a_key, b_key) in {"income": ("income_act", "income_bud"), "expenses": ("expenses_act", "expenses_cmp_bud")}.items():
-            pass
-        def usd(cc, field):
-            t = countries[cc]["totals"]
-            return None if t.get(field) is None else tools.to_usd(Decimal(t[field]), t["currency"])
+        fx = f"1 USD = {tools.fmt(config.FX_COP_PER_USD, 0)} COP"
+        out: dict = {"fx": fx, "currency": "USD", "figs": {}}
         complete = all(c["totals"]["complete"] for c in countries.values())
         spec = {"INC.ACT": ("income_act", "REV.ACT"), "INC.BUD": ("income_bud", "REV.BUD"), "EXP.ACT": ("expenses_act", "EXP.ACT"), "EXP.BUD": ("expenses_bud", "EXP.BUD"),
                 "EXP.CMPBUD": ("expenses_cmp_bud", "EXP.CMPBUD")}
-        vals: dict[str, Decimal] = {}
+        vals: dict[str, Decimal | None] = {}
         for fid, (field, comp) in spec.items():
             items = [(Decimal(c["totals"][field]), c["totals"]["currency"]) for c in countries.values() if c["totals"].get(field) is not None]
             comps = [f"{cc}.{comp}" for cc, c in countries.items() if c["totals"].get(field) is not None]
+            vals[fid] = None
+            if not items:
+                continue
             v = self.use("consolidate", f"CONS.{fid}", lambda items=items: tools.consolidate_usd(items))
-            vals[fid] = v
-            self._fig(f"CONS.{fid}", f"Consolidado USD · {fid}", v, "USD", components=comps, formula=f"cada país convertido a USD ({out['fx']}) y sumado", status="ok" if complete or fid.startswith("INC") else "partial")
-        res_act, res_bud, res_cmp = vals["INC.ACT"] - vals["EXP.ACT"], vals["INC.BUD"] - vals["EXP.BUD"], vals["INC.BUD"] - vals["EXP.CMPBUD"]
-        self._fig("CONS.RES.ACT", "Consolidado USD · resultado real", res_act, "USD", components=["CONS.INC.ACT", "CONS.EXP.ACT"], formula="ingresos − gastos", status="ok" if complete else "partial")
-        self._fig("CONS.RES.BUD", "Consolidado USD · resultado presupuesto", res_bud, "USD", components=["CONS.INC.BUD", "CONS.EXP.BUD"], formula="ingresos − gastos presupuestados")
-        self._fig("CONS.RES.CMPBUD", "Consolidado USD · resultado presupuesto comparable", res_cmp, "USD", components=["CONS.INC.BUD", "CONS.EXP.CMPBUD"], formula="ingresos − gastos presupuestados comparables")
+            if self._fig(f"CONS.{fid}", f"Consolidado USD · {fid}", v, "USD", components=comps, formula=f"cada país convertido a USD ({fx}) y sumado", status="ok" if complete else "partial"):
+                vals[fid] = v
+        res = {}
+        for key, (a, b) in {"RES.ACT": ("INC.ACT", "EXP.ACT"), "RES.BUD": ("INC.BUD", "EXP.BUD"), "RES.CMPBUD": ("INC.BUD", "EXP.CMPBUD")}.items():
+            res[key] = None
+            if vals[a] is not None and vals[b] is not None:
+                v = vals[a] - vals[b]
+                if self._fig(f"CONS.{key}", f"Consolidado USD · resultado {key}", v, "USD", components=[f"CONS.{a}", f"CONS.{b}"], formula=f"{a} − {b}", status="ok" if complete else "partial"):
+                    res[key] = v
         out["complete"] = complete
-        out["values"] = {k: str(v) for k, v in vals.items()} | {"RES.ACT": str(res_act), "RES.BUD": str(res_bud), "RES.CMPBUD": str(res_cmp)}
+        out["values"] = {k: (None if v is None else str(v)) for k, v in {**vals, **res}.items()}
+        label = lambda base, ok: base + ("" if ok else " (parciales)")
         out["rows"] = [
-            {"label": "Ingresos", "act": str(vals["INC.ACT"]), "bud": str(vals["INC.BUD"]), "cmp_bud": str(vals["INC.BUD"]), "figs": ["CONS.INC.ACT", "CONS.INC.BUD"]},
-            {"label": "Gastos" + ("" if complete else " (parciales)"), "act": str(vals["EXP.ACT"]), "bud": str(vals["EXP.BUD"]), "cmp_bud": str(vals["EXP.CMPBUD"]), "figs": ["CONS.EXP.ACT", "CONS.EXP.BUD", "CONS.EXP.CMPBUD"]},
-            {"label": "Resultado" + ("" if complete else " (parcial)"), "act": str(res_act), "bud": str(res_bud), "cmp_bud": str(res_cmp), "figs": ["CONS.RES.ACT", "CONS.RES.BUD", "CONS.RES.CMPBUD"]},
+            {"label": "Ingresos", "act": out["values"]["INC.ACT"], "bud": out["values"]["INC.BUD"], "cmp_bud": out["values"]["INC.BUD"]},
+            {"label": label("Gastos", complete), "act": out["values"]["EXP.ACT"], "bud": out["values"]["EXP.BUD"], "cmp_bud": out["values"]["EXP.CMPBUD"]},
+            {"label": label("Resultado", complete), "act": out["values"]["RES.ACT"], "bud": out["values"]["RES.BUD"], "cmp_bud": out["values"]["RES.CMPBUD"]},
         ]
         if not complete:
-            out["note"] = ("Gastos y resultado reales PARCIALES: faltan partidas sin registros. La desviación se calcula frente al presupuesto comparable "
-                           "(solo las partidas que tienen dato real); el resultado real no es comparable con el presupuesto completo.")
+            out["note"] = ("Datos PARCIALES: faltan partidas sin registros o sin presupuesto. La desviación del consolidado se calcula frente al presupuesto comparable "
+                           "(solo lo que tiene dato real); un valor «sin dato» no se ha podido calcular y NO es cero.")
         return out
 
     # ------------------------------------------------------------ desviaciones relevantes + hipótesis
@@ -298,17 +317,24 @@ class TemplateNarrator:
     recibiría SOLO estos datos redactados (nunca registros crudos) y sus cifras seguirían viniendo de las herramientas."""
 
     def summary(self, report: dict) -> list[str]:
-        c, countries = report["consolidated"], report["countries"]
+        c = report["consolidated"]
         v = c["values"]
-        res_var = Decimal(v["RES.ACT"]) - Decimal(v["RES.CMPBUD"])
-        lines = [f"Cierre {report['period']}: resultado consolidado {tools.fmt(Decimal(v['RES.ACT']))} USD frente a {tools.fmt(Decimal(v['RES.CMPBUD']))} USD presupuestados"
-                 f" ({tools.fmt(res_var)} USD){' — cifra PARCIAL: faltan datos' if not c['complete'] else ''}.",
-                 f"Ingresos consolidados {tools.fmt(Decimal(v['INC.ACT']))} USD frente a {tools.fmt(Decimal(v['INC.BUD']))} USD presupuestados (tipo de cambio {report['fx']})."]
-        rel = [d for d in report["deviations"]]
+        usd = lambda x: "sin dato" if x is None else f"{tools.fmt(Decimal(x))} USD"
+        if v["RES.ACT"] is not None and v["RES.CMPBUD"] is not None:
+            head = (f"Cierre {report['period']}: resultado consolidado {usd(v['RES.ACT'])} frente a {usd(v['RES.CMPBUD'])} presupuestados"
+                    f" ({tools.fmt(Decimal(v['RES.ACT']) - Decimal(v['RES.CMPBUD']))} USD){' — cifra PARCIAL: faltan datos' if not c['complete'] else ''}.")
+        else:
+            head = f"Cierre {report['period']}: el resultado consolidado NO se puede calcular con los datos disponibles (faltan ingresos o gastos)."
+        lines = [head, f"Ingresos consolidados {usd(v['INC.ACT'])} frente a {usd(v['INC.BUD'])} presupuestados (tipo de cambio {report['fx']})."]
+        rel = report["deviations"]
         lines.append(f"{len(rel)} desviación(es) relevante(s) (≥ {report['threshold_pct']} %): " + ("; ".join(f"{d['country_name']} · {d['label']} {tools.fmt_pct(Decimal(d['pct']))}" for d in rel) or "ninguna") + ".")
-        miss = [m for m in report["missing"] if m["kind"] in ("missing_line", "missing_indicator", "no_budget")]
+        miss = [m for m in report["missing"] if m["kind"].startswith("missing") or m["kind"] == "no_budget"]
         dub = [m for m in report["missing"] if m["kind"] == "doubtful_record"]
-        lines.append("Datos faltantes: " + ("; ".join(m["text"].split(":")[0] for m in miss) if miss else "ninguno") + (f". Registros dudosos excluidos: {len(dub)}." if dub else "."))
+        part = [m for m in report["missing"] if m["kind"] == "partial"]
+        names = [m["text"].split(":")[0].split(" (")[0] for m in miss]
+        items = [("; ".join(names) if len(names) <= 3 else f"{len(names)} partidas esperadas sin registros o sin presupuesto")] if names else []
+        items = items + ([f"{len(dub)} registro(s) dudoso(s) excluido(s)"] if dub else []) + ([f"{len(part)} cifra(s) parcial(es)"] if part else [])
+        lines.append("Datos faltantes o dudosos: " + ("; ".join(items) if items else "ninguno") + ".")
         lines.append("Estado: pendiente de revisión por Felipe Guerrero; no se distribuye hasta su aprobación.")
         return lines[:5]
 
