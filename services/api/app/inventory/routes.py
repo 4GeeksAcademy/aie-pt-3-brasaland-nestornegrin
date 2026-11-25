@@ -14,6 +14,7 @@ from sqlmodel import Session
 
 from ..access.models import Action
 from ..access.permissions import OPS, require_access
+from ..security import limit_writes
 from ..database import get_db
 from . import repository
 from .models import Ingredient, IngredientEntry, IngredientExit
@@ -47,7 +48,7 @@ def create_router(prefix: str = "/inventory") -> APIRouter:
             for ingredient, stock in rows
         ]
 
-    @router.post("/products", response_model=IngredientResponse, status_code=201, dependencies=[update])  # alta de catálogo: Supervisor (igual de estricto que antes: "manager")
+    @router.post("/products", response_model=IngredientResponse, status_code=201, dependencies=[update, Depends(limit_writes)])  # alta de catálogo: Supervisor
     def create_product(
         payload: IngredientCreate,
         session: Session = Depends(get_db),

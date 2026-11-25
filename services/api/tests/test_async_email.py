@@ -15,6 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 
 import app.main as main_module
+from conftest import make_access_user
 from app.auth.models import UserRole
 from services.async_tasks import config, contracts, dlq, email_tasks, idempotency, status
 from services.async_tasks.email_tasks import send_password_reset
@@ -244,8 +245,7 @@ def test_el_resultado_de_una_tarea_enviada_dice_cuantos_intentos_necesito(provid
 
 def test_la_dlq_la_ve_un_admin_y_nadie_mas(client, auth_headers, dlq_engine):
     dlq.record_dead_letter("t-1", config.SEND_PASSWORD_RESET_TASK, 4, "ConnectionError: Resend caído")
-    admin_headers = auth_headers("admin@example.com")
-    main_module.user_repository._database.update({"role": UserRole.ADMIN.value}, doc_ids=[main_module.user_repository.get_by_email("admin@example.com").id])
+    admin_headers = make_access_user(client, "admin@example.com", "admin", "technology")  # Admin por el catálogo de roles (Roles y permisos)
     rows = client.get("/tasks/dead-letters", headers=admin_headers).json()
     assert [(r["task_id"], r["attempt"]) for r in rows] == [("t-1", 4)]
     assert client.get("/tasks/dead-letters", headers=auth_headers("user@example.com")).status_code == 403

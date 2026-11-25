@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { apiFetch, readApiError } from "@/lib/api-client";
+import { apiFetch, readApiError, saveAccessToken } from "@/lib/api-client";
 import { useFlowTracking } from "@/lib/use-flow-tracking";
 
 export function ChangePasswordForm() {
@@ -36,6 +36,9 @@ export function ChangePasswordForm() {
         setError(await readApiError(response, "No se pudo cambiar la contraseña."));
         return;
       }
+      // Al cambiar la contraseña los tokens anteriores caducan: se guarda el nuevo para no cerrar esta sesión.
+      const body = (await response.json().catch(() => null)) as { access_token?: string } | null;
+      if (body?.access_token) saveAccessToken(body.access_token);
       flow.submitAttempt(true);
       setMessage("Tu contraseña se actualizó correctamente.");
       setCurrentPassword("");

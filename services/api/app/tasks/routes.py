@@ -12,8 +12,8 @@ from pydantic import BaseModel
 from redis.exceptions import RedisError
 
 from app.auth.dependencies import get_current_user
-from app.auth.models import UserRole
-from app.security import require_roles
+from app.access.models import Action
+from app.access.permissions import require_access
 from services.async_tasks import dlq
 from services.async_tasks.status import describe_task
 
@@ -43,7 +43,7 @@ class DeadLetterItem(BaseModel):
 def create_router() -> APIRouter:
     router = APIRouter(tags=["tasks"], dependencies=[Depends(get_current_user)])
 
-    @router.get("/tasks/dead-letters", response_model=list[DeadLetterItem], dependencies=[Depends(require_roles(UserRole.ADMIN))])
+    @router.get("/tasks/dead-letters", response_model=list[DeadLetterItem], dependencies=[Depends(require_access(Action.ADMINISTER))])
     def list_dead_letters(limit: int = Query(50, ge=1, le=200)) -> list[dict[str, Any]]:
         """La cola de mensajes fallidos, vista por un Admin: nada que agote sus reintentos desaparece en silencio."""
         try:

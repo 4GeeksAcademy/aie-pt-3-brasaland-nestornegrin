@@ -1,0 +1,24 @@
+WARNING  app.auth.routes:routes.py:64 login_failed account=c31d94f57d5c ip=203.0.113.7
+WARNING  app.auth.routes:routes.py:64 login_failed account=c31d94f57d5c ip=203.0.113.7
+WARNING  app.auth.routes:routes.py:64 login_failed account=c31d94f57d5c ip=203.0.113.7
+WARNING  app.auth.routes:routes.py:64 login_failed account=c31d94f57d5c ip=203.0.113.7
+WARNING  app.auth.routes:routes.py:64 login_failed account=c31d94f57d5c ip=203.0.113.7
+FAILED services/api/tests/test_security_hardening.py::test_v1_un_token_robado_deja_de_valer_al_cambiar_la_contraseña
+FAILED services/api/tests/test_security_hardening.py::test_v1_un_token_robado_deja_de_valer_al_restablecer_la_contraseña
+FAILED services/api/tests/test_security_hardening.py::test_v1_un_token_sin_huella_de_contraseña_no_se_acepta
+FAILED services/api/tests/test_security_hardening.py::test_v1_el_websocket_del_chat_tambien_rechaza_el_token_revocado
+FAILED services/api/tests/test_security_hardening.py::test_v2_cambiar_el_propio_email_exige_la_contraseña_actual
+FAILED services/api/tests/test_security_hardening.py::test_v2_adivinar_la_contraseña_via_cambio_de_email_tambien_se_limita
+FAILED services/api/tests/test_security_hardening.py::test_v3_una_contraseña_gigante_se_rechaza_como_dato_invalido_no_con_500
+FAILED services/api/tests/test_security_hardening.py::test_v3_verify_password_no_lanza_con_entradas_absurdas
+FAILED services/api/tests/test_security_hardening.py::test_v4_un_atacante_no_puede_bloquear_a_la_victima_desde_otra_ip
+FAILED services/api/tests/test_security_hardening.py::test_v5a_change_password_limita_los_intentos_con_contraseña_actual_erronea
+FAILED services/api/tests/test_security_hardening.py::test_v5b_reset_password_limita_el_canje_de_tokens
+FAILED services/api/tests/test_security_hardening.py::test_v5c_la_ingesta_anonima_de_telemetria_tiene_tope_por_ip
+FAILED services/api/tests/test_security_hardening.py::test_v5d_las_escrituras_criticas_tienen_tope_por_usuario
+FAILED services/api/tests/test_security_hardening.py::test_v6_un_cuerpo_enorme_se_rechaza_con_413_antes_de_leerlo
+FAILED services/api/tests/test_security_hardening.py::test_v6_un_cuerpo_chunked_sin_content_length_tambien_se_corta
+FAILED services/api/tests/test_security_hardening.py::test_rotacion_los_tokens_de_la_clave_anterior_siguen_valiendo_durante_la_transicion
+FAILED services/api/tests/test_security_hardening.py::test_rotacion_un_token_caducado_firmado_con_la_clave_anterior_no_se_acepta
+FAILED services/api/tests/test_security_hardening.py::test_rotacion_el_entorno_se_lee_como_lista_separada_por_comas
+18 failed, 5 passed in 15.09s

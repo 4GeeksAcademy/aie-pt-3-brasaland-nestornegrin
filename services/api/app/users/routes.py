@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app import security as limits
+
 from app.access.models import Action, AssignmentUpdate
 from app.access.permissions import authorize, require_access
 from app.audit.recorder import note
 from app.auth.dependencies import get_current_user
 from app.auth.models import AdminUserCreate, RegisterResponse, UserListItem, UserResponse, UserUpdate
-from app.auth.security import hash_password
+from app.auth.security import hash_password, verify_password
 
 
 def _is_self_or(action: Action):
@@ -55,12 +57,20 @@ def create_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         return UserResponse.model_validate(user)
 
-    @router.put("/{user_id}", response_model=UserResponse)
+    @router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(limits.limit_writes)])
     def update_user(user_id: int, payload: UserUpdate, request: Request, current_user=Depends(_is_self_or(Action.ADMINISTER))) -> UserResponse:
         from app.main import user_repository
 
         if payload.is_active is not None:
             authorize(current_user, Action.ADMINISTER)  # activar/desactivar cuentas es administración, aunque sea la propia
+        if payload.email is not None and current_user.id == user_id:
+            # V2: cambiar el propio email redirige la recuperación de contraseña: exige la contraseña actual (y cuenta los fallos).
+            key = f"user:{current_user.id}"
+            limits.sensitive_by_user.check(key)
+            if not current_user.hashed_password or not payload.current_password \
+                    or not verify_password(payload.current_password, current_user.hashed_password):
+                limits.sensitive_by_user.record(key)
+                raise HTTPException(status_code=403, detail="Confirma tu contraseña actual para cambiar el email")
         if payload.email is not None:
             existing = user_repository.get_by_email(str(payload.email).lower())
             if existing is not None and existing.id != user_id:
@@ -72,7 +82,7 @@ def create_router() -> APIRouter:
         note(request, details={"changed": sorted(payload.model_dump(exclude_none=True))})
         return UserResponse.model_validate(user)
 
-    @router.patch("/{user_id}/assignment", response_model=UserResponse, dependencies=[Depends(require_access(Action.ADMINISTER))])
+    @router.patch("/{user_id}/assignment", response_model=UserResponse, dependencies=[Depends(require_access(Action.ADMINISTER)), Depends(limits.limit_writes)])
     def assign_user(user_id: int, payload: AssignmentUpdate, request: Request) -> UserResponse:
         """Cambia el rol y/o el departamento de un usuario DE FORMA INDEPENDIENTE: lo que no se envía queda intacto."""
         from app.main import access_catalog, user_repository
@@ -96,7 +106,7 @@ def create_router() -> APIRouter:
                                "target_email": str(target.email)})
         return UserResponse.model_validate(user)
 
-    @router.delete("/{user_id}", status_code=204, response_model=None, dependencies=[Depends(require_access(Action.DELETE))])
+    @router.delete("/{user_id}", status_code=204, response_model=None, dependencies=[Depends(require_access(Action.DELETE)), Depends(limits.limit_writes)])
     def delete_user(user_id: int) -> None:
         from app.main import access_catalog, federated_repository, profile_repository, user_repository
 

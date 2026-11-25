@@ -183,7 +183,7 @@ def create_federated_router() -> APIRouter:
                                 headers={"X-Federated-Error": "not_linked" if link is None else "inactive"})
         note(request, user=user, resource_id=link.provider, details={"provider": link.provider, "provider_user_id": link.provider_user_id})
         logger.info("federated_login_success user_id=%s provider=%s", user.id, link.provider)
-        return TokenResponse(access_token=create_access_token(user.id))  # misma sesión (caducidad y revocación) que el login tradicional
+        return TokenResponse(access_token=create_access_token(user.id, user.hashed_password or ""))  # misma sesión (caducidad y revocación) que el login tradicional
 
     return router
 

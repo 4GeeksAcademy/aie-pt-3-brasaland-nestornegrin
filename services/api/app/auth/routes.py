@@ -15,6 +15,7 @@ from .models import (
     LoginRequest,
     MeResponse,
     MessageResponse,
+    PasswordChangedResponse,
     ProfilePublic,
     RegisterResponse,
     ResetPasswordRequest,
@@ -56,6 +57,8 @@ def create_router() -> APIRouter:
 
         # A07: límite de intentos fallidos por cuenta y por IP (antes de tocar la contraseña).
         account_key, ip_key = credentials.login_email, limits.client_ip(request)
+        pair_key = f"{account_key}|{ip_key}"
+        limits.login_by_account_ip.check(pair_key)  # V4: bloquea al que falla, no a la víctima
         limits.login_by_account.check(account_key)
         limits.login_by_ip.check(ip_key)
         note(request, label=credentials.login_email)
@@ -64,6 +67,7 @@ def create_router() -> APIRouter:
         # (una cuenta sin contraseña —solo acceso federado— tampoco puede entrar por aquí.)
         hashed = user.hashed_password if user is not None and user.hashed_password else _dummy_hash()
         if not verify_password(credentials.password, hashed) or user is None or not user.hashed_password:
+            limits.login_by_account_ip.record(pair_key)
             limits.login_by_account.record(account_key)
             limits.login_by_ip.record(ip_key)
             # A09: los fallos de login quedan en el log (cuenta como huella, nunca la contraseña) para detectar fuerza bruta.
@@ -73,9 +77,10 @@ def create_router() -> APIRouter:
                 detail="Email o contraseña incorrectos",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        limits.login_by_account_ip.clear(pair_key)
         limits.login_by_account.clear(account_key)
         note(request, user=user, resource_id=user.id, details={"method": "password"})
-        return TokenResponse(access_token=create_access_token(user.id))
+        return TokenResponse(access_token=create_access_token(user.id, user.hashed_password))
 
     @router.post("/register", response_model=RegisterResponse, status_code=201)
     def register(payload: UserCreate, request: Request) -> RegisterResponse:
@@ -146,6 +151,10 @@ def create_router() -> APIRouter:
     def reset_password(payload: ResetPasswordRequest, request: Request) -> MessageResponse:
         from app.main import password_reset_repository, user_repository
 
+        # V5b: canjear tokens al azar no tenía límite; cada intento cuenta.
+        limits.reset_by_ip.check(limits.client_ip(request))
+        limits.reset_by_ip.record(limits.client_ip(request))
+
         record = password_reset_repository.get_by_token_hash(hash_password_reset_token(payload.token))
         if record is None or record.used or record.expires_at < datetime.now(timezone.utc):
             raise HTTPException(status_code=400, detail="El enlace de restablecimiento es inválido o ha expirado")
@@ -154,16 +163,23 @@ def create_router() -> APIRouter:
         note(request, user=user_repository.get(record.user_id), resource_id=record.user_id)
         return MessageResponse(message="Tu contraseña se actualizó correctamente")
 
-    @router.post("/change-password", response_model=MessageResponse)
-    def change_password(payload: ChangePasswordRequest, request: Request, current_user=Depends(get_current_user)) -> MessageResponse:
+    @router.post("/change-password", response_model=PasswordChangedResponse)
+    def change_password(payload: ChangePasswordRequest, request: Request, current_user=Depends(get_current_user)) -> PasswordChangedResponse:
         from app.main import user_repository
 
         if not current_user.hashed_password:
             raise HTTPException(status_code=400, detail="Tu cuenta no tiene contraseña. Usa «¿Olvidaste tu contraseña?» para crear una.")
+        # V5a: con un token robado se podía adivinar la contraseña actual sin límite.
+        key = f"user:{current_user.id}"
+        limits.sensitive_by_user.check(key)
         if not verify_password(payload.current_password, current_user.hashed_password):
+            limits.sensitive_by_user.record(key)
             raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
-        user_repository.update_password(current_user.id, hash_password(payload.new_password))
+        new_hash = hash_password(payload.new_password)
+        user_repository.update_password(current_user.id, new_hash)
         note(request, resource_id=current_user.id)
-        return MessageResponse(message="Tu contraseña se actualizó correctamente")
+        # V1: los tokens anteriores (incluido uno robado) dejan de valer; la sesión actual recibe uno nuevo.
+        return PasswordChangedResponse(message="Tu contraseña se actualizó correctamente",
+                                       access_token=create_access_token(current_user.id, new_hash))
 
     return router

@@ -89,8 +89,16 @@ class RateLimiter:
             self._events.clear()
 
 
-login_by_account = RateLimiter(max_events=5, window_seconds=15 * 60)     # 5 fallos por cuenta cada 15 min
+# V4: el límite de 5 fallos ya NO es solo "por cuenta" (cualquiera podía bloquear a la víctima desde su propia IP): se aplica por
+# pareja cuenta+IP, de modo que el atacante se bloquea a sí mismo y el dueño legítimo, desde otra IP, sigue entrando.
+login_by_account_ip = RateLimiter(max_events=5, window_seconds=15 * 60)  # 5 fallos por cuenta e IP cada 15 min
+login_by_account = RateLimiter(max_events=50, window_seconds=15 * 60)    # tope global por cuenta: frena la fuerza bruta distribuida
 login_by_ip = RateLimiter(max_events=20, window_seconds=15 * 60)         # 20 fallos por IP (barrido de cuentas)
+# V5: el resto de endpoints sensibles, que no tenían ningún límite.
+sensitive_by_user = RateLimiter(max_events=5, window_seconds=15 * 60)    # 5 fallos de reautenticación por usuario (cambio de contraseña/email)
+reset_by_ip = RateLimiter(max_events=10, window_seconds=15 * 60)         # 10 intentos de canje de token de recuperación por IP
+telemetry_by_ip = RateLimiter(max_events=120, window_seconds=60)         # ingesta anónima: 120 lotes/min por IP
+writes_per_minute = RateLimiter(max_events=30, window_seconds=60)        # escrituras críticas autenticadas: 30/min por usuario
 forgot_by_ip = RateLimiter(max_events=5, window_seconds=15 * 60)
 register_by_ip = RateLimiter(max_events=20, window_seconds=60 * 60)
 # Endpoints que invocan a un modelo (coste por llamada): tope por usuario autenticado contra bucles de coste descontrolado.
@@ -99,7 +107,8 @@ model_per_hour = RateLimiter(max_events=200, window_seconds=60 * 60)    # sosten
 
 
 def reset_rate_limits() -> None:
-    for limiter in (login_by_account, login_by_ip, forgot_by_ip, register_by_ip, model_per_minute, model_per_hour):
+    for limiter in (login_by_account_ip, login_by_account, login_by_ip, sensitive_by_user, reset_by_ip, telemetry_by_ip, writes_per_minute,
+                    forgot_by_ip, register_by_ip, model_per_minute, model_per_hour):
         limiter.reset()
 
 
@@ -112,6 +121,14 @@ def limit_model_calls(current_user=Depends(get_current_user)) -> None:
     model_per_hour.check(key)
     model_per_minute.record(key)
     model_per_hour.record(key)
+
+
+def limit_writes(current_user=Depends(get_current_user)) -> None:
+    """Dependencia para escrituras críticas (alta/baja/cambio de proveedores, inventario y cuentas): 30 por minuto y usuario.
+    Cuenta cada intento, así una sesión robada o un script descontrolado no puede vaciar ni inundar los datos."""
+    key = f"user:{getattr(current_user, 'id', 'unknown')}"
+    writes_per_minute.check(key)
+    writes_per_minute.record(key)
 
 
 def consume_model_budget(user_key: str) -> int:
@@ -147,6 +164,60 @@ def allowed_origins() -> list[str]:
 def docs_enabled() -> bool:
     """Swagger/ReDoc/OpenAPI se apagan en producción (`APP_ENV=production`): no hay motivo para publicar el mapa de la API."""
     return os.environ.get("APP_ENV", "development").lower() != "production"
+
+
+# ------------------------------------------------------------------------------------------------- A04 · tamaño del cuerpo
+MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(1024 * 1024)))          # 1 MiB para cualquier petición normal
+UPLOAD_BODY_LIMITS = {"/api/incidents/analyze": 6 * 1024 * 1024}                    # CSV de análisis (MAX_CSV_BYTES = 5 MiB + multipart)
+
+
+class _BodyTooLarge(Exception):
+    pass
+
+
+class BodySizeLimitMiddleware:
+    """ASGI puro: rechaza con 413 los cuerpos que superan el tope, mirando `Content-Length` y también contando los bytes que
+    llegan (chunked). Antes `/telemetry/events` leía 20 MB enteros en memoria sin autenticar (V6)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        limit = UPLOAD_BODY_LIMITS.get(scope.get("path", ""), MAX_BODY_BYTES)
+        declared = dict(scope.get("headers", [])).get(b"content-length")
+        if declared and declared.isdigit() and int(declared) > limit:
+            return await self._reject(send, limit)
+        received = 0
+        started = False
+
+        async def counting_receive():
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise _BodyTooLarge()
+            return message
+
+        async def tracking_send(message):
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, counting_receive, tracking_send)
+        except _BodyTooLarge:
+            if not started:
+                await self._reject(send, limit)
+
+    @staticmethod
+    async def _reject(send, limit: int) -> None:
+        body = b'{"detail":"El cuerpo de la petici\xc3\xb3n supera el tama\xc3\xb1o m\xc3\xa1ximo permitido"}'
+        await send({"type": "http.response.start", "status": 413,
+                    "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode()), (b"connection", b"close")]})
+        await send({"type": "http.response.body", "body": body})
 
 
 _DOC_PATHS = ("/docs", "/redoc", "/openapi.json")

@@ -148,7 +148,7 @@ def test_la_sesion_federada_tiene_la_misma_caducidad_que_la_tradicional(client, 
     federated = login_with(client, "code-camila").json()["access_token"]
     traditional = password_login(client, CAMILA)["Authorization"].split()[1]
     f, t = (jwt.decode(x, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM]) for x in (federated, traditional))
-    assert set(f) == set(t) == {"sub", "exp"}
+    assert set(f) == set(t) == {"sub", "exp", "iat", "pwf"}  # ambas llevan la huella de contraseña (revocación al cambiarla)
     assert abs(f["exp"] - t["exp"]) <= 5
     assert f["exp"] - datetime.now(timezone.utc).timestamp() <= 30 * 60 + 5  # ACCESS_TOKEN_EXPIRE_MINUTES
 

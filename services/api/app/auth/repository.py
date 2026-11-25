@@ -78,7 +78,7 @@ class UserRepository:
         return [self._record(row, row.doc_id) for row in rows]
 
     def update(self, user_id: int, changes: UserUpdate) -> UserRecord | None:
-        values = changes.model_dump(exclude_none=True, mode="json")
+        values = changes.model_dump(exclude_none=True, exclude={"current_password"}, mode="json")  # la contraseña de confirmación nunca se persiste
         if not values:
             return self.get(user_id)
         with self._lock:

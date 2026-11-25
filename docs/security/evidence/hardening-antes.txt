@@ -1,0 +1,11 @@
+V1   token robado tras el cambio de contraseña (GET /auth/me)       -> HTTP 200                           [VULNERABLE]
+V2   PUT /users/{id} con solo el token, cambiando el email          -> HTTP 200                           [VULNERABLE]
+V3   POST /users con contraseña de 5 MB (sin autenticar)            -> HTTP 500 en 0.05s                  [VULNERABLE]
+V3b  POST /auth/login con contraseña de 5 MB                        -> HTTP 500                           [VULNERABLE]
+V4   5 fallos desde 127.0.0.14; el dueño (127.0.0.15) entra bien    -> HTTP 429                           [VULNERABLE]
+V5a  30 intentos de /auth/change-password con contraseña actual errónea -> 429 en 0/30                        [VULNERABLE]
+V5b  40 intentos de /auth/reset-password con tokens al azar         -> 429 en 0/40                        [VULNERABLE]
+V5c  300 POST /telemetry/events sin autenticar en pocos segundos    -> 429 en 0/300                       [VULNERABLE]
+V6   POST /telemetry/events con cuerpo de 20 MB                     -> HTTP 400                           [VULNERABLE]
+
+9 vulnerables / 9 sondas
