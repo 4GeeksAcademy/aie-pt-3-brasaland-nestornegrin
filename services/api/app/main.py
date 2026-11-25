@@ -52,6 +52,7 @@ from app.suppliers.repository import SupplierRepository
 from app.tasks.routes import create_router as create_tasks_router
 from app.telemetry.routes import create_router as create_telemetry_router
 from app.routes.suppliers import create_router
+from app.financial_close.routes import create_router as create_financial_close_router
 from app.routes.knowledge import create_router as create_knowledge_router
 from services.agent.router import create_router as create_agent_router  # tras knowledge: añade la raíz del repo a sys.path
 from services.agent.chat.router import create_chat_router
@@ -150,6 +151,7 @@ app.include_router(create_agent_router(), dependencies=[Depends(bind_actor), Dep
 app.include_router(create_tasks_router())  # GET /tasks/{task_id} (cola de tareas asíncronas, DEV-55)
 app.include_router(create_telemetry_router())
 app.include_router(create_reporting_router())  # pipeline de desempeño de negocio (services/reporting/, separado de telemetry)
+app.include_router(create_financial_close_router())  # /financial-close/*: cierre financiero mensual (agente + revisión de Felipe + distribución)
 
 def chat_db_path() -> str:
     """Historial del chat en SQLite (`CHAT_DB_PATH`; `:memory:` en pruebas). Por defecto `data/runtime/chat_sessions.sqlite3` (ignorado por git)."""
