@@ -54,6 +54,8 @@ DEFAULT_PASSWORD = "ValidPass123"
 @pytest.fixture(autouse=True)
 def _clean_database():
     main_module.internal_report_repository.truncate()
+    main_module.federated_repository.truncate()
+    main_module.audit_repository.truncate()
     main_module.user_repository._database.truncate()
     main_module.profile_repository._database.truncate()
     main_module.password_reset_repository._database.truncate()

@@ -58,7 +58,11 @@ def main() -> int:
     from app.main import access_catalog, internal_report_repository, profile_repository, user_repository
 
     created = seed_demo(user_repository, profile_repository, access_catalog, internal_report_repository)
-    print(f"Seed de roles y permisos: {created['users']} usuarios y {created['internal_reports']} reportes internos creados.")
+    from app.federated.seed import seed_federated_demo
+    from app.main import federated_repository
+
+    federated = seed_federated_demo(user_repository, profile_repository, federated_repository)
+    print(f"Seed de roles y permisos: {created['users']} usuarios y {created['internal_reports']} reportes internos creados; {federated} clientes de autenticación federada.")
     print("Contraseña de desarrollo compartida: la de SEED_USER_PASSWORD (o la de desarrollo por defecto documentada).")
     return 0
 

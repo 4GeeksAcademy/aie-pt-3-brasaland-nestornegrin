@@ -262,7 +262,7 @@ Read the linked `README.md` inside each folder before you start coding there.
 
 **Put here:**
 
-- System architecture diagrams, ADRs, security/observability guides (roles and permissions: [`docs/security/roles-permissions.md`](./docs/security/roles-permissions.md))
+- System architecture diagrams, ADRs, security/observability guides (federated auth: [`docs/security/federated-auth.md`](./docs/security/federated-auth.md); roles and permissions: [`docs/security/roles-permissions.md`](./docs/security/roles-permissions.md))
 - Conventions not tied to one app or agent
 
 → See [`docs/README.md`](./docs/README.md)
