@@ -32,6 +32,7 @@ export default function RootLayout({
               <Link href="/knowledge" className="hover:text-red-800">Asistente</Link>
               <Link href="/chat" className="hover:text-red-800">Chat en vivo</Link>
               <Link href="/rfp" className="hover:text-red-800">RFPs</Link>
+              <Link href="/supplier-contracts" className="hover:text-red-800">Proveedores y contratos</Link>
               <Link href="/reporting" className="hover:text-red-800">Desempeño de inventario</Link>
               <Link href="/telemetry" className="hover:text-red-800">Telemetría</Link>
               <SessionActions />

@@ -75,6 +75,16 @@ AUDITED_ROUTES: dict[tuple[str, str], AuditSpec] = {
     ("POST", "/rfp/tickets/{ticket_id}/generate"): _s("rfp.generate", "data", "rfp_ticket"),
     ("POST", "/rfp/tickets/{ticket_id}/reprocess"): _s("rfp.reprocess", "data", "rfp_ticket"),
     ("POST", "/reporting/inventory-performance/runs"): _s("reporting.run", "data", "report_run", OPS, "run_id"),
+    # ---- proveedores y contratos (supervisor + especialistas; la aprobación humana de comunicaciones queda aquí con su actor)
+    ("POST", "/supplier-contracts/seed"): _s("supplier_contracts.seed", "data", "supplier_contracts_dataset", OPS),
+    ("POST", "/supplier-contracts/alerts/scan"): _s("supplier_contracts.alerts_scan", "data", "supplier_alert", OPS),
+    ("POST", "/supplier-contracts/ask"): _s("supplier_contracts.ask", "data", "supplier_agent_session", OPS),
+    ("POST", "/supplier-contracts/brief"): _s("supplier_contracts.brief", "data", "renegotiation_brief", OPS),
+    ("POST", "/supplier-contracts/notices"): _s("supplier_contracts.notice_record", "data", "supplier_notice", OPS, "id"),
+    ("POST", "/supplier-contracts/communications/{communication_id}/decision"): _s("supplier_contracts.communication_decision", "data", "supplier_communication", OPS),
+    ("POST", "/supplier-contracts/communications/{communication_id}/send"): _s("supplier_contracts.communication_send", "data", "supplier_communication", OPS),
+    ("GET", "/supplier-contracts/audit/events"): _s("supplier_contracts.audit_view", "audit", "supplier_agent_events", OPS),
+    ("GET", "/supplier-contracts/audit/messages"): _s("supplier_contracts.audit_messages_view", "audit", "supplier_agent_messages", OPS),
     # ---- uso del agente de IA y telemetría de plataforma
     ("POST", "/agent/query"): _s("agent.query", "data", "agent_session", OPS),
     ("POST", "/knowledge/query"): _s("knowledge.query", "data", "knowledge_base"),
