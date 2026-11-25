@@ -10,4 +10,5 @@ incidents.json
 access.json
 internal_reports.json
 federated.json
-audit_events.json
+audit_log.jsonl
+audit_head.json

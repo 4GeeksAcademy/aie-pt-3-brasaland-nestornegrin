@@ -18,7 +18,8 @@ PASSWORD_RESETS_DATABASE_PATH = DATA_DIR / "password_resets.json"
 ACCESS_DATABASE_PATH = DATA_DIR / "access.json"  # roles y departamentos (entidades propias)
 INTERNAL_REPORTS_DATABASE_PATH = DATA_DIR / "internal_reports.json"
 FEDERATED_DATABASE_PATH = DATA_DIR / "federated.json"  # vínculos con proveedores externos y estados OAuth
-AUDIT_DATABASE_PATH = DATA_DIR / "audit_events.json"  # auditoría federada (solo se añade)
+AUDIT_LOG_PATH = DATA_DIR / "audit_log.jsonl"  # audit log append-only con cadena HMAC (app/audit)
+AUDIT_HEAD_PATH = DATA_DIR / "audit_head.json"  # cabeza firmada de la cadena
 
 
 def get_database() -> TinyDB:

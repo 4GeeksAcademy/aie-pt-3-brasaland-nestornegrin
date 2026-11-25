@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from ..access.models import Action
+from ..audit.recorder import note
 from ..access.permissions import PROCUREMENT, require_access
 from ..security import require_confirmation
 from .models import RateUpdate, StatusUpdate, SupplierCreate, SupplierResponse
@@ -39,18 +40,22 @@ def create_router(repository: SupplierRepository, prefix: str = "/api/suppliers"
         return SupplierResponse.model_validate(repository.create(supplier))
 
     @router.patch("/{supplier_id}/rate", response_model=SupplierResponse, dependencies=[update])
-    def update_supplier_rate(supplier_id: str, update: RateUpdate) -> SupplierResponse:
+    def update_supplier_rate(supplier_id: str, update: RateUpdate, request: Request) -> SupplierResponse:
+        before = repository.get(supplier_id)
         supplier = repository.update_rate(supplier_id, update)
         if supplier is None:
             raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+        note(request, details={"rate": {"from": getattr(before, "rate", None), "to": getattr(supplier, "rate", None)}})
         return SupplierResponse.model_validate(supplier)
 
     @router.patch("/{supplier_id}/status", response_model=SupplierResponse, dependencies=[approve])
-    def update_supplier_status(supplier_id: str, update: StatusUpdate, confirm: bool = Query(default=False)) -> SupplierResponse:
+    def update_supplier_status(supplier_id: str, update: StatusUpdate, request: Request, confirm: bool = Query(default=False)) -> SupplierResponse:
         require_confirmation(confirm, "Cambiar el estado de un proveedor")  # BRIEFING §5: acción con confirmación humana
+        before = repository.get(supplier_id)
         supplier = repository.update_status(supplier_id, update)
         if supplier is None:
             raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+        note(request, details={"status": {"from": getattr(getattr(before, "status", None), "value", None), "to": supplier.status.value}})
         return SupplierResponse.model_validate(supplier)
 
     @router.delete("/{supplier_id}", status_code=204, response_model=None, dependencies=[delete])

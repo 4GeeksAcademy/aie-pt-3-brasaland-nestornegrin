@@ -76,3 +76,16 @@ RFP_DEPARTMENT_TO_ACCESS = {
 OPS = "restaurant_operations"      # incidentes de local, reportes de turno, inventario de cocina
 PROCUREMENT = "procurement"        # proveedores, tarifas
 TECHNOLOGY = "technology"          # telemetría / configuración de plataforma
+
+
+# Comprobaciones por rango que necesitan módulos ajenos (p. ej. el visor del audit log): viven aquí, único punto de decisión.
+ADMIN_RANK = 3
+
+
+def has_min_rank(user, minimum: int) -> bool:
+    return user.rank >= minimum
+
+
+def is_platform_admin(user) -> bool:
+    """Admin del departamento de Tecnología: el único alcance «global» (eventos de seguridad del audit log)."""
+    return has_min_rank(user, ADMIN_RANK) and user.department == TECHNOLOGY

@@ -16,6 +16,8 @@ USERS_SEED = [
     {"email": "camila.marketing@brasaland.example", "role": "employee", "department": "marketing", "name": "Camila Ospina"},
     {"email": "jake.training@brasaland.example", "role": "employee", "department": "training_quality", "name": "Jake Morrison"},
     {"email": "nicolas.admin@brasaland.example", "role": "admin", "department": "technology", "name": "Nicolás Park"},
+    # Cuenta de un AGENTE automatizado: el audit log la distingue de una persona (actor_type=agent).
+    {"email": "agente.operaciones@brasaland.example", "role": "supervisor", "department": "restaurant_operations", "name": "Agente de Operaciones", "account_type": "agent"},
 ]
 
 INTERNAL_REPORTS_SEED = [
@@ -39,7 +41,7 @@ def seed_demo(user_repository, profile_repository, catalog, report_repository, p
         if user is None:
             role = catalog.get_role_by_code(item["role"])
             department = catalog.get_department_by_code(item["department"])
-            user = user_repository.create(item["email"], hashed, role["id"], department["id"])
+            user = user_repository.create(item["email"], hashed, role["id"], department["id"], item.get("account_type", "human"))
             profile_repository.create(user.id, item["name"])
             created_users += 1
         if item["role"] == "admin":

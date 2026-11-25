@@ -19,6 +19,7 @@ from .models import (
     RoleOut,
     RoleUpdate,
 )
+from app.audit.recorder import note
 from .permissions import authorize, require_access, visible_department_id
 
 
@@ -49,7 +50,9 @@ def _report_department(request: Request) -> str:
     if row is None:
         raise HTTPException(status_code=404, detail="Reporte no encontrado")
     department = _catalog().get_department(row["department_id"])
-    return department["code"] if department else ""
+    code = department["code"] if department else ""
+    note(request, department=code or None)  # el audit log reparte la visibilidad por departamento dueño del reporte
+    return code
 
 
 def create_router() -> APIRouter:
@@ -123,7 +126,7 @@ def create_router() -> APIRouter:
         return [_report_out(r) for r in _reports().list(scope)]
 
     @router.post("/internal-reports", response_model=InternalReportOut, status_code=201)
-    def create_report(payload: InternalReportCreate, current_user=Depends(require_access(Action.CREATE))) -> InternalReportOut:
+    def create_report(payload: InternalReportCreate, request: Request, current_user=Depends(require_access(Action.CREATE))) -> InternalReportOut:
         department_id = payload.department_id or current_user.department_id
         if department_id is None:
             raise HTTPException(status_code=403, detail="No tienes un departamento asignado: indica uno o pide a un Admin que te lo asigne.")
@@ -131,6 +134,7 @@ def create_router() -> APIRouter:
         if department is None:
             raise HTTPException(status_code=422, detail="El departamento indicado no existe")
         authorize(current_user, Action.CREATE, department["code"])  # crear en otro departamento sin ser Admin → 403
+        note(request, department=department["code"])
         return _report_out(_reports().create(department_id, payload.title, payload.body, current_user.id))
 
     @router.get("/internal-reports/{report_id}", response_model=InternalReportOut,

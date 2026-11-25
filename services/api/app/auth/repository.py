@@ -44,7 +44,8 @@ class UserRepository:
             "department": department["code"] if department else None,
         })
 
-    def create(self, email: str, hashed_password: str, role_id: int | None = None, department_id: int | None = None) -> UserRecord:
+    def create(self, email: str, hashed_password: str, role_id: int | None = None, department_id: int | None = None,
+               account_type: str = "human") -> UserRecord:
         now = datetime.now(timezone.utc)
         if role_id is None:
             role_id = self._catalog.list_roles()[0]["id"]  # rol de menor rango
@@ -53,6 +54,7 @@ class UserRepository:
                 "email": email,
                 "hashed_password": hashed_password,
                 "is_active": True,
+                "account_type": account_type,
                 "role_id": role_id,
                 "department_id": department_id,
                 "created_at": now.isoformat(),

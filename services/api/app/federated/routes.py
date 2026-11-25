@@ -16,15 +16,13 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app import security as limits
-from app.access.models import Action
-from app.access.permissions import require_access
+from app.audit.recorder import note
 from app.auth.dependencies import get_current_user
 from app.auth.models import TokenResponse
 from app.auth.security import create_access_token
 
 from .models import (
     SUPPORTED_PROVIDERS,
-    AuditRecordOut,
     CompleteRequest,
     LinkedAccountsResponse,
     LinkedProvider,
@@ -106,7 +104,7 @@ def create_federated_router() -> APIRouter:
     @router.post("/{provider}/link/complete", response_model=LinkResponse)
     def link_complete(payload: CompleteRequest, request: Request, provider: OAuthProvider = Depends(get_oauth_provider),
                       user=Depends(get_current_user)) -> LinkResponse:
-        from app.main import audit_repository, federated_repository
+        from app.main import federated_repository
 
         _require_available(provider)
         redirect_uri = _resolve_redirect(payload.redirect_uri)
@@ -125,7 +123,7 @@ def create_federated_router() -> APIRouter:
             # No se dice a QUIÉN pertenece: solo que esa identidad ya está en uso.
             logger.warning("federated_link_refused provider=%s user_id=%s reason=identity_in_use", identity.provider, user.id)
             raise HTTPException(status_code=409, detail="Esa cuenta de Google ya está vinculada a otro usuario de Brasaland.")
-        audit_repository.record("federated_link", link.provider, link.provider_user_id, user_id=user.id, ip=limits.client_ip(request))
+        note(request, resource_id=link.provider, details={"provider": link.provider, "provider_user_id": link.provider_user_id})
         logger.info("federated_link user_id=%s provider=%s", user.id, link.provider)
         accounts = _accounts(user)
         account = next(p for p in accounts.providers if p.provider == link.provider)
@@ -133,7 +131,7 @@ def create_federated_router() -> APIRouter:
 
     @router.delete("/{provider}", response_model=UnlinkResponse)
     def unlink(request: Request, provider: OAuthProvider = Depends(get_oauth_provider), user=Depends(get_current_user)) -> UnlinkResponse:
-        from app.main import audit_repository, federated_repository
+        from app.main import federated_repository
 
         current = _accounts(user)
         if not any(p.provider == provider.name and p.linked for p in current.providers):
@@ -141,7 +139,7 @@ def create_federated_router() -> APIRouter:
         if current.access_methods <= 1:  # Google es el ÚNICO método: la API lo rechaza (la interfaz avisa antes)
             raise HTTPException(status_code=409, detail="Google es tu único método de acceso. Crea una contraseña o vincula otro proveedor antes de desvincularlo.")
         removed = federated_repository.unlink(user.id, provider.name)
-        audit_repository.record("federated_unlink", removed.provider, removed.provider_user_id, user_id=user.id, ip=limits.client_ip(request))
+        note(request, resource_id=removed.provider, details={"provider": removed.provider, "provider_user_id": removed.provider_user_id})
         logger.info("federated_unlink user_id=%s provider=%s", user.id, removed.provider)
         return UnlinkResponse(message="Cuenta de Google desvinculada.", accounts=_accounts(user))
 
@@ -157,7 +155,7 @@ def create_federated_router() -> APIRouter:
 
     @router.post("/{provider}/login/complete", response_model=TokenResponse)
     def login_complete(payload: CompleteRequest, request: Request, provider: OAuthProvider = Depends(get_oauth_provider)) -> TokenResponse:
-        from app.main import audit_repository, federated_repository, user_repository
+        from app.main import federated_repository, user_repository
 
         _require_available(provider)
         ip = limits.client_ip(request)
@@ -177,12 +175,13 @@ def create_federated_router() -> APIRouter:
         if link is None or user is None or not user.is_active:
             # RECHAZO: nunca se crea una cuenta. Queda auditado (user_id nulo si ni siquiera hay vínculo).
             limits.login_by_ip.record(ip)
-            audit_repository.record("federated_login_rejected", identity.provider, identity.provider_user_id,
-                                    user_id=user.id if user else None, ip=ip)
+            note(request, user=user, label=identity.email, resource_id=identity.provider,
+                 details={"provider": identity.provider, "provider_user_id": identity.provider_user_id,
+                          "reason": "not_linked" if link is None else "inactive"})
             logger.warning("federated_login_rejected provider=%s ip=%s", identity.provider, ip)
             raise HTTPException(status_code=403, detail=NOT_LINKED_MESSAGE if link is None else "Esta cuenta está desactivada.",
                                 headers={"X-Federated-Error": "not_linked" if link is None else "inactive"})
-        audit_repository.record("federated_login_success", link.provider, link.provider_user_id, user_id=user.id, ip=ip)
+        note(request, user=user, resource_id=link.provider, details={"provider": link.provider, "provider_user_id": link.provider_user_id})
         logger.info("federated_login_success user_id=%s provider=%s", user.id, link.provider)
         return TokenResponse(access_token=create_access_token(user.id))  # misma sesión (caducidad y revocación) que el login tradicional
 
@@ -192,16 +191,3 @@ def create_federated_router() -> APIRouter:
 class _Missing:
     def is_configured(self) -> bool:
         return False
-
-
-def create_audit_router() -> APIRouter:
-    router = APIRouter(prefix="/audit", tags=["audit"])
-
-    @router.get("/events", response_model=list[AuditRecordOut], dependencies=[Depends(require_access(Action.ADMINISTER))])
-    def list_events(event: str | None = None, user_id: int | None = None) -> list[AuditRecordOut]:
-        """Consulta del registro de auditoría (solo Admin): vinculaciones, desvinculaciones y logins federados."""
-        from app.main import audit_repository
-
-        return [AuditRecordOut.model_validate(r.model_dump()) for r in audit_repository.list(event=event, user_id=user_id)]
-
-    return router

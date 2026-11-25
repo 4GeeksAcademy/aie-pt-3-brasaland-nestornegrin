@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 
@@ -9,7 +9,7 @@ from .security import decode_access_token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):
     from app.main import user_repository
 
     credentials_error = HTTPException(
@@ -24,4 +24,5 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     user = user_repository.get(user_id)
     if user is None or not user.is_active:
         raise credentials_error
+    request.state.audit_user = user  # el audit log atribuye la acción a la identidad ya validada, nunca a lo que diga el cliente
     return user
