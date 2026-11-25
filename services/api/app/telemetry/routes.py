@@ -9,6 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import ValidationError
 from sqlmodel import Session
 
+from app import security as limits
+from app.access.models import Action
+from app.access.permissions import TECHNOLOGY, require_access
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.telemetry.allowlists import EVENT_ALLOWLISTS
@@ -54,6 +57,10 @@ def create_router() -> APIRouter:
 
     @router.post("/events", response_model=TelemetryReceipt)
     async def receive_events(request: Request, session: Session = Depends(get_db)) -> TelemetryReceipt:
+        # V5c: ingesta anónima: tope por IP (el cuerpo ya lo acota BodySizeLimitMiddleware, V6).
+        ip = limits.client_ip(request)
+        limits.telemetry_by_ip.check(ip)
+        limits.telemetry_by_ip.record(ip)
         # 1) Envelope laxo: se lee el cuerpo en crudo (el frontend envía `text/plain`
         #    para que sendBeacon no necesite preflight de CORS) y NO se tipa como
         #    list[TelemetryEvent]: un evento inválido haría fallar (422) todo el lote.
@@ -104,7 +111,7 @@ def create_router() -> APIRouter:
             logger.info("telemetry event: %s", row["event_type"])
         return TelemetryReceipt(received=received, stored=stored, rejected=rejected)
 
-    @router.get("/report", response_model=TelemetryReport, dependencies=[Depends(get_current_user)])
+    @router.get("/report", response_model=TelemetryReport, dependencies=[Depends(require_access(Action.READ, TECHNOLOGY))])  # reporte técnico: departamento de Tecnología
     def telemetry_report(
         response: Response,
         start_date: datetime | None = Query(default=None, description="ISO 8601, inclusivo. Por defecto: end_date − 7 días (UTC)."),

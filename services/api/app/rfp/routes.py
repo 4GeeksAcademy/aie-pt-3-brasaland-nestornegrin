@@ -42,6 +42,8 @@ from data.pipelines.rfp_approval.packet import ceo_packet, department_packet
 from data.pipelines.rfp_response import config as part2
 from data.pipelines.rfp_response import generate_ticket
 
+from ..access.models import Action
+from ..access.permissions import RFP_DEPARTMENT_TO_ACCESS, require_access
 from ..auth.dependencies import get_current_user
 from ..database import engine, get_db
 from ..security import limit_model_calls
@@ -96,7 +98,11 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
                   broker: RfpEventBroker | None = None) -> APIRouter:
     """`store_factory`, `llm`, `checkpointer` y `broker` son inyectables para las pruebas (por defecto: Supabase, el modelo real,
     SQLite en archivo y un broker SSE propio de este router)."""
-    router = APIRouter(prefix=prefix, tags=["rfp"], dependencies=[Depends(get_current_user)])
+    router = APIRouter(prefix=prefix, tags=["rfp"])
+    # Las RFP cruzan varios departamentos: se controla el ROL (leer / crear / actualizar) y, al APROBAR, que el Supervisor
+    # sea del departamento que decide (marketing, operaciones, procurement, training → catálogo de acceso).
+    read, create, update = (Depends(require_access(a)) for a in (Action.READ, Action.CREATE, Action.UPDATE))
+    approve = Depends(require_access(Action.APPROVE, lambda request: RFP_DEPARTMENT_TO_ACCESS.get(request.path_params["department_id"], request.path_params["department_id"])))
     make_store = store_factory or (lambda: SqlRfpStore(lambda: Session(engine)))
     events = broker or RfpEventBroker()
 
@@ -167,7 +173,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
             if ceo.get("branch") == part3.BRANCH_WAITING else None
         return packets, card
 
-    @router.post("/tickets", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
+    @router.post("/tickets", response_model=UploadAccepted, status_code=202, dependencies=[create, Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     async def upload(background: BackgroundTasks, file: UploadFile = File(...), session: Session = Depends(get_db),
                      user=Depends(get_current_user)) -> UploadAccepted:
         if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -189,7 +195,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_pipeline, ticket.ticket_id, False)
         return UploadAccepted(ticket_id=ticket.ticket_id, status=ticket.status)
 
-    @router.get("/events", response_class=StreamingResponse, responses={
+    @router.get("/events", dependencies=[read], response_class=StreamingResponse, responses={
         200: {"description": "Flujo Server-Sent Events (rfp_ticket_created).", "content": {"text/event-stream": {"schema": {"type": "string"}}}}})
     async def stream_events(request: Request) -> StreamingResponse:
         """Canal SSE de tickets nuevos. Exige el mismo JWT que el resto del router (dependencia del router: sin token → 401)."""
@@ -202,11 +208,11 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         return StreamingResponse(event_stream(request, events, load_after, last_event_id),
                                  headers={**SSE_HEADERS, "Content-Type": "text/event-stream"})
 
-    @router.get("/tickets", response_model=list[TicketSummary])
+    @router.get("/tickets", response_model=list[TicketSummary], dependencies=[read])
     def list_all(session: Session = Depends(get_db)) -> list[TicketSummary]:
         return [summary_of(session, t) for t in repository.list_tickets(session)]
 
-    @router.get("/tickets/{ticket_id}", response_model=TicketDetail)
+    @router.get("/tickets/{ticket_id}", response_model=TicketDetail, dependencies=[read])
     def detail(ticket_id: int, session: Session = Depends(get_db)) -> TicketDetail:
         t = repository.get_ticket(session, ticket_id)
         if t is None:
@@ -235,7 +241,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
                             ceo_approval=t.ceo_approval, ceo_packet=ceo_card, conflicts=t.conflicts_log, completed_at=t.completed_at,
                             has_final_document=repository.get_final_document(session, ticket_id) is not None)
 
-    @router.post("/tickets/{ticket_id}/reprocess", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
+    @router.post("/tickets/{ticket_id}/reprocess", response_model=UploadAccepted, status_code=202, dependencies=[update, Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     def reprocess(ticket_id: int, background: BackgroundTasks, force: bool = False, session: Session = Depends(get_db)) -> UploadAccepted:
         t = repository.get_ticket(session, ticket_id)
         if t is None:
@@ -250,7 +256,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_pipeline, ticket_id, force)
         return UploadAccepted(ticket_id=ticket_id, status=STATUS_ANALYZING)
 
-    @router.post("/tickets/{ticket_id}/generate", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
+    @router.post("/tickets/{ticket_id}/generate", response_model=UploadAccepted, status_code=202, dependencies=[update, Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     def generate(ticket_id: int, background: BackgroundTasks, regenerate: bool = False, session: Session = Depends(get_db)) -> UploadAccepted:
         t = repository.get_ticket(session, ticket_id)
         if t is None:
@@ -271,7 +277,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_generation, ticket_id, mode)
         return UploadAccepted(ticket_id=ticket_id, status=t.status)
 
-    @router.post("/tickets/{ticket_id}/approval/start", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
+    @router.post("/tickets/{ticket_id}/approval/start", response_model=UploadAccepted, status_code=202, dependencies=[update, Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     def start_approval(ticket_id: int, background: BackgroundTasks, session: Session = Depends(get_db)) -> UploadAccepted:
         t = repository.get_ticket(session, ticket_id)
         if t is None:
@@ -284,7 +290,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_start_approval, ticket_id)
         return UploadAccepted(ticket_id=ticket_id, status=part3.STATUS_AWAITING)
 
-    @router.post("/tickets/{ticket_id}/approvals/{department_id}", response_model=UploadAccepted, status_code=202)
+    @router.post("/tickets/{ticket_id}/approvals/{department_id}", response_model=UploadAccepted, status_code=202, dependencies=[approve])
     def decide(ticket_id: int, department_id: str, body: ApprovalIn, background: BackgroundTasks, session: Session = Depends(get_db),
                user=Depends(get_current_user)) -> UploadAccepted:
         if repository.get_ticket(session, ticket_id) is None:
@@ -298,7 +304,7 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_resume, ticket_id, raw)
         return UploadAccepted(ticket_id=ticket_id, status=part3.STATUS_AWAITING)
 
-    @router.post("/tickets/{ticket_id}/approval/retry", response_model=UploadAccepted, status_code=202, dependencies=[Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
+    @router.post("/tickets/{ticket_id}/approval/retry", response_model=UploadAccepted, status_code=202, dependencies=[update, Depends(limit_model_calls)])  # NIST Protect: tope de llamadas al modelo
     def retry_approval(ticket_id: int, background: BackgroundTasks, session: Session = Depends(get_db)) -> UploadAccepted:
         t = repository.get_ticket(session, ticket_id)
         if t is None:
@@ -308,13 +314,13 @@ def create_router(prefix: str = "/rfp", *, store_factory: Callable[[], SqlRfpSto
         background.add_task(run_retry, ticket_id)
         return UploadAccepted(ticket_id=ticket_id, status=t.status)
 
-    @router.get("/tickets/{ticket_id}/trace", response_model=list[TraceEventOut])
+    @router.get("/tickets/{ticket_id}/trace", response_model=list[TraceEventOut], dependencies=[read])
     def trace(ticket_id: int, session: Session = Depends(get_db)) -> list[dict]:
         if repository.get_ticket(session, ticket_id) is None:
             raise HTTPException(status_code=404, detail="Ticket no encontrado.")
         return make_store().list_events(ticket_id)
 
-    @router.get("/tickets/{ticket_id}/document", response_model=FinalDocumentOut)
+    @router.get("/tickets/{ticket_id}/document", response_model=FinalDocumentOut, dependencies=[read])
     def final_document(ticket_id: int, session: Session = Depends(get_db)):
         if repository.get_ticket(session, ticket_id) is None:
             raise HTTPException(status_code=404, detail="Ticket no encontrado.")

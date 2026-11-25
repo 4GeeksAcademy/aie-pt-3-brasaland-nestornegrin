@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { Can } from "@/components/can";
 import { AUTH_CHANGE_EVENT, clearAccessToken, getAccessToken } from "@/lib/api-client";
 
 export function SessionActions() {
@@ -24,6 +25,8 @@ export function SessionActions() {
 
   return (
     <div className="flex items-center gap-3">
+      <Can capability="approve"><Link href="/admin/audit" className="font-bold text-zinc-700 hover:text-red-800">Auditoría</Link></Can>
+      <Can capability="administer"><Link href="/admin/access" className="font-bold text-zinc-700 hover:text-red-800">Roles y accesos</Link></Can>
       <Link href="/account/profile" className="font-bold text-zinc-700 hover:text-red-800">Mi perfil</Link>
       <Link href="/account/change-password" className="font-bold text-zinc-700 hover:text-red-800">Cambiar contraseña</Link>
       <button type="button" onClick={() => { clearAccessToken(); router.push("/login"); }} className="font-bold text-red-800 hover:text-red-950">Cerrar sesión</button>

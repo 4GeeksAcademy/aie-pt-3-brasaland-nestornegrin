@@ -1,0 +1,10 @@
+# Roles y Permisos — evidencia de 403 por llamada directa a la API (sin interfaz)
+# Generado con la semilla del BRIEFING (contraseña de desarrollo). Columnas: persona · método · ruta · estado [X-Access-Denied] cuerpo
+
+Felipe (sup/operaciones)     GET   /internal-reports/02990f5f-851b-490c-b59b-7fd8d68db2c0 -> 403 [department_scope] {"detail":"Estos datos pertenecen al departamento «procurement»; tu departamento es «restaurant_operations»."}
+Lucía (sup/compras)          GET   /internal-reports/02990f5f-851b-490c-b59b-7fd8d68db2c0 -> 200 [None] {"id":"02990f5f-851b-490c-b59b-7fd8d68db2c0","department_id":2,"department":"procurement","title":"Carnes del Valle rate change","body":"Sup
+Felipe (supervisor)          GET   /roles                                           -> 403 [insufficient_role] {"detail":"Tu rol «supervisor» no permite «administer»: requiere el rol «admin» o superior."}
+Felipe (supervisor)          PATCH /users/1/assignment                              -> 403 [insufficient_role] {"detail":"Tu rol «supervisor» no permite «administer»: requiere el rol «admin» o superior."}
+Camila (empleada/marketing)  PUT   /internal-reports/02990f5f-851b-490c-b59b-7fd8d68db2c0 -> 403 [insufficient_role] {"detail":"Tu rol «employee» no permite «update»: requiere el rol «supervisor» o superior."}
+Nicolás (admin)              GET   /internal-reports/02990f5f-851b-490c-b59b-7fd8d68db2c0 -> 200 [None] {"id":"02990f5f-851b-490c-b59b-7fd8d68db2c0","department_id":2,"department":"procurement","title":"Carnes del Valle rate change","body":"Sup
+Nicolás (admin)              GET   /roles                                           -> 200 [None] [{"id":1,"code":"employee","name":"Employee","label":"Empleado","rank":1,"description":"Crea y lee registros de su departamento. No aprueba,

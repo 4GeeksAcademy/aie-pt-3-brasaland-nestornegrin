@@ -26,11 +26,19 @@ from scripts.analyze import AnalysisResult
 from services.async_tasks import results as task_results
 from services.async_tasks import staging
 from services.async_tasks.incident_tasks import analyze_incidents_csv
+from app.access.catalog import AccessCatalog, InternalReportRepository
+from app.access.models import Action
+from app.access.permissions import OPS, require_access
+from app.access.routes import create_router as create_access_router
 from app.auth.dependencies import get_current_user
 from app.auth.repository import PasswordResetRepository, ProfileRepository, UserRepository
 from app.auth.routes import create_router as create_auth_router
 from app.database import (
+    ACCESS_DATABASE_PATH,
     DATABASE_PATH,
+    AUDIT_LOG_PATH, AUDIT_HEAD_PATH,
+    FEDERATED_DATABASE_PATH,
+    INTERNAL_REPORTS_DATABASE_PATH,
     INCIDENTS_DATABASE_PATH,
     PASSWORD_RESETS_DATABASE_PATH,
     PROFILES_DATABASE_PATH,
@@ -53,13 +61,18 @@ from app.rfp import models as _rfp_models  # noqa: F401 - registra las tablas an
 from app.rfp.routes import create_router as create_rfp_router
 from app.onboarding.routes import create_router as create_onboarding_router
 from app.rfp.schema_sync import ensure_columns as ensure_rfp_columns
+from app.federated.repository import FederatedRepository
+from app.audit.log import AuditLog
+from app.audit.middleware import AuditMiddleware
+from app.audit.routes import create_audit_router
+from app.federated.routes import create_federated_router
 from app.users.routes import create_router as create_users_router
 from app.inventory.routes import create_router as create_inventory_router
 from services.reporting.router import create_router as create_reporting_router
 from app.database import engine
 from sqlmodel import SQLModel
 
-from app.security import SecurityHeadersMiddleware, allowed_origins, bind_actor, consume_model_budget, docs_enabled, limit_model_calls
+from app.security import BodySizeLimitMiddleware, SecurityHeadersMiddleware, allowed_origins, bind_actor, consume_model_budget, docs_enabled, limit_model_calls
 
 app = FastAPI(title="Brasaland Operations API", version="1.0.0",
               docs_url="/docs" if docs_enabled() else None, redoc_url="/redoc" if docs_enabled() else None,
@@ -82,6 +95,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "Accept"],
 )
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(BodySizeLimitMiddleware)  # A04: 413 antes de leer cuerpos enormes (V6)
 MAX_CSV_BYTES = 5 * 1024 * 1024
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
@@ -105,12 +119,29 @@ async def timing_middleware(request: Request, call_next):
     return response
 
 supplier_repository = SupplierRepository(DATABASE_PATH)
-user_repository = UserRepository(USERS_DATABASE_PATH)
+access_catalog = AccessCatalog(ACCESS_DATABASE_PATH)  # roles y departamentos: entidades propias, siempre sembradas
+user_repository = UserRepository(USERS_DATABASE_PATH, access_catalog)
+internal_report_repository = InternalReportRepository(INTERNAL_REPORTS_DATABASE_PATH)
+federated_repository = FederatedRepository(FEDERATED_DATABASE_PATH)  # vínculos usuario ↔ proveedor (sin tokens) y `state` de OAuth
+audit_log = AuditLog(AUDIT_LOG_PATH, AUDIT_HEAD_PATH)  # audit log append-only con cadena HMAC (app/audit)
+app.add_middleware(AuditMiddleware, log=audit_log)  # el más externo: ve el estado final de cada petición (incluidos los 403)
 profile_repository = ProfileRepository(PROFILES_DATABASE_PATH)
 incident_repository = IncidentRepository(INCIDENTS_DATABASE_PATH)
+
 password_reset_repository = PasswordResetRepository(PASSWORD_RESETS_DATABASE_PATH)
+
+if os.environ.get("SEED_DEMO_DATA", "").lower() in ("1", "true", "yes"):  # usuarios y reportes de DEMO (nunca en producción)
+    from app.access.seed import seed_demo
+
+    seed_demo(user_repository, profile_repository, access_catalog, internal_report_repository)
+    from app.federated.seed import seed_federated_demo
+
+    seed_federated_demo(user_repository, profile_repository, federated_repository)
 app.include_router(create_auth_router())
+app.include_router(create_federated_router())  # /auth/federated/*: vincular (con sesión) y login con proveedor (solo cuentas vinculadas)
+app.include_router(create_audit_router())  # GET /audit-log, /audit-log/facets, /audit-log/verify (solo lectura)
 app.include_router(create_users_router())
+app.include_router(create_access_router())  # /roles, /departments (Admin) y /internal-reports (alcance departamental)
 app.include_router(create_profiles_router())
 app.include_router(create_router(supplier_repository))
 app.include_router(create_router(supplier_repository, prefix="/suppliers"))
@@ -163,7 +194,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 @app.post("/api/incidents/analyze", status_code=202, response_model=TaskAccepted, tags=["incidents"])
 async def analyze_incidents(
     file: UploadFile = File(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_access(Action.CREATE, OPS)),  # análisis de incidentes de local: datos de Operaciones
 ) -> TaskAccepted:
     """Encola el análisis del CSV y responde al instante con el `task_id` (202 Accepted).
 
@@ -199,7 +230,7 @@ async def analyze_incidents(
     response_model=None,
     responses={200: {"content": {"text/csv": {"schema": {"type": "string", "format": "binary"}}}, "description": "CSV con columnas metric,dimension,value"}},
 )
-def export_latest_results(current_user=Depends(get_current_user)) -> StreamingResponse:
+def export_latest_results(current_user=Depends(require_access(Action.READ, OPS))) -> StreamingResponse:
     try:
         payload = task_results.load_latest()
     except RedisError as error:

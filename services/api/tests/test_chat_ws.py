@@ -23,10 +23,9 @@ SESSION = "chat_0044"
 
 
 def make_user(email: str, admin: bool = False) -> tuple[int, str]:
-    user = main_module.user_repository.create(email, "hash")
-    if admin:
-        main_module.user_repository._database.update({"role": "admin"}, doc_ids=[user.id])
-    return user.id, create_access_token(user.id)
+    catalog = main_module.access_catalog
+    user = main_module.user_repository.create(email, "hash", catalog.get_role_by_code("admin" if admin else "employee")["id"])
+    return user.id, create_access_token(user.id, user.hashed_password)
 
 
 @pytest.fixture

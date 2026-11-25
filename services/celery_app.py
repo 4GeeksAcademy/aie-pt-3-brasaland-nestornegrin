@@ -17,7 +17,7 @@ celery_app = Celery(
     "brasaland",
     broker=config.REDIS_URL,
     backend=config.REDIS_URL,
-    include=["services.async_tasks.incident_tasks"],  # import perezoso: evita el ciclo celery_app ↔ tareas
+    include=["services.async_tasks.incident_tasks", "services.async_tasks.email_tasks"],  # import perezoso: evita el ciclo celery_app ↔ tareas
 )
 
 celery_app.conf.update(

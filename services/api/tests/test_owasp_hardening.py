@@ -12,13 +12,14 @@ from app.suppliers.models import SupplierCreate
 PASSWORD = "ValidPass123"
 
 
-def make_user(client: TestClient, email: str, role: str = "user") -> dict:
-    created = client.post("/users", json={"email": email, "password": PASSWORD, "name": "T"})
-    assert created.status_code == 201, created.text
-    if role != "user":
-        main_module.user_repository._database.update({"role": role}, doc_ids=[created.json()["id"]])
-    token = client.post("/auth/login", json={"email": email, "password": PASSWORD}).json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+_LEGACY_ROLES = {"user": "employee", "manager": "supervisor", "admin": "admin"}  # nombres anteriores a Roles y Permisos
+
+
+def make_user(client: TestClient, email: str, role: str = "user", department: str | None = None) -> dict:
+    """Usuario con rol (código del BRIEFING; se aceptan los nombres antiguos) y departamento independientes."""
+    from conftest import make_access_user
+
+    return make_access_user(client, email, _LEGACY_ROLES.get(role, role), department)
 
 
 @pytest.fixture(autouse=True)
@@ -88,13 +89,13 @@ def test_a01_el_agente_con_sesion_sigue_funcionando_y_el_actor_sale_del_token(cl
     ("post", "/inventory/products", {"name": "Pollo", "sku": "SKU-OWASP", "restaurant": "Medellín"}),
 ])
 def test_a01_un_usuario_registrado_sin_rol_no_puede_modificar_proveedores_ni_inventario(client, supplier, method, path, body):
-    headers = make_user(client, "plain@example.com", "user")
+    headers = make_user(client, "plain@example.com", "user", "marketing")  # Empleado de OTRO departamento: ni rol ni alcance
     response = getattr(client, method)(path.format(id=supplier.id), headers=headers, **({"json": body} if body else {}))
     assert response.status_code == 403
 
 
 def test_a01_el_gerente_puede_leer_y_el_admin_modificar_con_confirmacion(client, supplier):
-    manager = make_user(client, "manager@example.com", "manager")
+    manager = make_user(client, "manager@example.com", "manager", "procurement")
     assert client.get("/api/suppliers", headers=manager).status_code == 200
     assert client.patch(f"/api/suppliers/{supplier.id}/rate", json={"rate": 2}, headers=manager).status_code == 200
 
@@ -104,7 +105,7 @@ def test_a01_el_gerente_puede_leer_y_el_admin_modificar_con_confirmacion(client,
     ("delete", "/api/suppliers/{id}", None),
 ])
 def test_a01_baja_o_cambio_de_estado_de_proveedor_requiere_confirmacion_humana(client, supplier, method, path, body):
-    admin = make_user(client, "admin@example.com", "admin")
+    admin = make_user(client, "admin@example.com", "admin", "technology")
     unconfirmed = getattr(client, method)(path.format(id=supplier.id), headers=admin, **({"json": body} if body else {}))
     assert unconfirmed.status_code == 428
     assert main_module.supplier_repository.get(str(supplier.id)) is not None  # nada cambió
@@ -184,7 +185,7 @@ def test_a03_el_csv_exportado_neutraliza_formulas_de_celdas_controladas_por_el_u
 
 
 def test_a03_el_export_real_no_contiene_formulas(client):
-    headers = make_user(client, "csv@example.com")
+    headers = make_user(client, "csv@example.com", "user", "restaurant_operations")
     header = "id,category,status,satisfaction,branch,origin,created_at\n"
     body = client.post("/api/incidents/analyze", headers=headers,
                        files={"file": ("x.csv", (header + "1,=cmd|' /C calc'!A0,open,5,Sede,web,2026-01-01\n").encode(), "text/csv")})
@@ -194,7 +195,7 @@ def test_a03_el_export_real_no_contiene_formulas(client):
 
 
 def test_a04_el_csv_de_analisis_tiene_tope_de_tamano(client):
-    headers = make_user(client, "big@example.com")
+    headers = make_user(client, "big@example.com", "user", "restaurant_operations")
     big = b"a,b\n" + b"x" * (main_module.MAX_CSV_BYTES + 10)
     assert client.post("/api/incidents/analyze", headers=headers, files={"file": ("big.csv", big, "text/csv")}).status_code == 413
 

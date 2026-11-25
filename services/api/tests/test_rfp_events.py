@@ -25,6 +25,7 @@ from rfp_support import PDF_FORMAL, PDF_INVALID, ScriptedRfpModel  # noqa: E402
 
 import app.main as main_module  # noqa: E402
 from app.auth.dependencies import get_current_user  # noqa: E402
+from conftest import StubUser  # noqa: E402
 from app.database import get_db  # noqa: E402
 from app.rfp import models  # noqa: E402,F401
 from app.rfp import repository  # noqa: E402
@@ -107,7 +108,7 @@ def sse(tmp_path, monkeypatch):
     broker = RfpEventBroker()
     app = FastAPI()
     app.include_router(create_router(store_factory=lambda: SqlRfpStore(lambda: Session(engine)), llm=ScriptedRfpModel(), broker=broker))
-    app.dependency_overrides[get_current_user] = lambda: {"email": "camila@brasaland.test"}
+    app.dependency_overrides[get_current_user] = lambda: StubUser("camila@brasaland.test")
     app.dependency_overrides[get_db] = lambda: Session(engine)
     return SimpleNamespace(app=app, client=TestClient(app), broker=broker, engine=engine)
 
@@ -332,7 +333,7 @@ def test_a_slow_connection_is_closed_so_it_can_recover_instead_of_losing_events_
     SQLModel.metadata.create_all(engine)
     app = FastAPI()
     app.include_router(create_router(store_factory=lambda: SqlRfpStore(lambda: Session(engine)), llm=ScriptedRfpModel(), broker=broker))
-    app.dependency_overrides[get_current_user] = lambda: {"email": "x@brasaland.test"}
+    app.dependency_overrides[get_current_user] = lambda: StubUser("x@brasaland.test")
 
     async def scenario():
         async with AsgiStream(app) as stream:

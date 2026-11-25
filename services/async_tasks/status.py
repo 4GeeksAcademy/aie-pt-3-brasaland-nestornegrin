@@ -5,6 +5,7 @@ from typing import Any
 
 from celery.result import AsyncResult
 
+from services.async_tasks import idempotency
 from services.celery_app import celery_app
 
 # Estados reales de Celery → estados de la API. RETRY (esperando el siguiente intento) se muestra como `started`:
@@ -33,4 +34,12 @@ def describe_task(task_id: str) -> dict[str, Any]:
     elif status == "failure":
         error = async_result.result  # en FAILURE, `result` es la excepción
         result = {"error": f"{type(error).__name__}: {error}"}
-    return {"task_id": task_id, "status": status, "result": result}
+    return {"task_id": task_id, "status": status, "result": result, "attempts": _attempts(task_id)}
+
+
+def _attempts(task_id: str) -> int | None:
+    """Ejecuciones que ha tenido la tarea (1 = a la primera; 4 = el intento inicial + 3 reintentos). `None` si aún no arrancó."""
+    try:
+        return idempotency.get_store().attempts(task_id)
+    except Exception:  # noqa: BLE001 - es información extra: sin ella el estado sigue siendo válido
+        return None

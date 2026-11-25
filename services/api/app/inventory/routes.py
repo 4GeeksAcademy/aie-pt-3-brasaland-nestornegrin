@@ -12,8 +12,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
-from ..auth.dependencies import get_current_user
-from ..security import require_manager_or_admin
+from ..access.models import Action
+from ..access.permissions import OPS, require_access
+from ..security import limit_writes
 from ..database import get_db
 from . import repository
 from .models import Ingredient, IngredientEntry, IngredientExit
@@ -29,9 +30,11 @@ from .schemas import (
 
 
 def create_router(prefix: str = "/inventory") -> APIRouter:
-    router = APIRouter(prefix=prefix, tags=["inventory"], dependencies=[Depends(get_current_user)])
+    router = APIRouter(prefix=prefix, tags=["inventory"])
+    # El inventario de cocina es dato del departamento de Operaciones de restaurante.
+    read, update = (Depends(require_access(a, OPS)) for a in (Action.READ, Action.UPDATE))
 
-    @router.get("/products", response_model=list[IngredientResponse])
+    @router.get("/products", response_model=list[IngredientResponse], dependencies=[read])
     def list_products(session: Session = Depends(get_db)) -> list[IngredientResponse]:
         rows = repository.list_ingredients_with_stock(session)
         return [
@@ -45,7 +48,7 @@ def create_router(prefix: str = "/inventory") -> APIRouter:
             for ingredient, stock in rows
         ]
 
-    @router.post("/products", response_model=IngredientResponse, status_code=201, dependencies=[Depends(require_manager_or_admin)])
+    @router.post("/products", response_model=IngredientResponse, status_code=201, dependencies=[update, Depends(limit_writes)])  # alta de catálogo: Supervisor
     def create_product(
         payload: IngredientCreate,
         session: Session = Depends(get_db),
@@ -64,7 +67,7 @@ def create_router(prefix: str = "/inventory") -> APIRouter:
             current_stock=0,
         )
 
-    @router.get("/products/{ingredient_id}", response_model=IngredientResponse)
+    @router.get("/products/{ingredient_id}", response_model=IngredientResponse, dependencies=[read])
     def get_product(ingredient_id: int, session: Session = Depends(get_db)) -> IngredientResponse:
         ingredient = session.get(Ingredient, ingredient_id)
         if ingredient is None:
@@ -81,7 +84,7 @@ def create_router(prefix: str = "/inventory") -> APIRouter:
     @router.post("/orders/inbound", response_model=IngredientEntryResponse, status_code=201)
     def create_inbound_order(
         payload: IngredientEntryCreate,
-        current_user=Depends(get_current_user),
+        current_user=Depends(require_access(Action.CREATE, OPS)),
         session: Session = Depends(get_db),
     ) -> IngredientEntryResponse:
         ingredient = session.get(Ingredient, payload.ingredient_id)
@@ -101,7 +104,7 @@ def create_router(prefix: str = "/inventory") -> APIRouter:
     @router.post("/orders/outbound", response_model=IngredientExitResponse, status_code=201)
     def create_outbound_order(
         payload: IngredientExitCreate,
-        current_user=Depends(get_current_user),
+        current_user=Depends(require_access(Action.CREATE, OPS)),
         session: Session = Depends(get_db),
     ) -> IngredientExitResponse:
         ingredient = session.get(Ingredient, payload.ingredient_id)
@@ -128,7 +131,7 @@ def create_router(prefix: str = "/inventory") -> APIRouter:
         session.refresh(exit_record)
         return IngredientExitResponse.model_validate(exit_record)
 
-    @router.get("/orders", response_model=list[OrderResponse])
+    @router.get("/orders", response_model=list[OrderResponse], dependencies=[read])
     def list_orders(session: Session = Depends(get_db)) -> list[OrderResponse]:
         return [OrderResponse(**row) for row in repository.list_orders(session)]
 

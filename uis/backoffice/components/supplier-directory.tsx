@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch, readApiError } from "@/lib/api-client";
+import { can, useMe } from "@/lib/access";
 
 type Supplier = {
   id: number;
@@ -14,6 +15,10 @@ type Supplier = {
 };
 
 export function SupplierDirectory() {
+  const { me } = useMe();
+  const canCreate = can(me, "create");
+  const canUpdate = can(me, "update"); // tarifa: Supervisor+ · estado (aprobar): Supervisor+
+  const canApprove = can(me, "approve");
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [country, setCountry] = useState("all");
   const [category, setCategory] = useState("all");
@@ -118,11 +123,11 @@ export function SupplierDirectory() {
       suppliers.map((supplier) => <tr key={supplier.id} className="border-b border-zinc-100 text-zinc-800">
               <td className="py-3 pr-4"><span className="font-semibold">{supplier.name}</span><span className="block text-xs text-zinc-500">ID {supplier.id}</span></td>
               <td className="py-3 pr-4">{supplier.categories.join(", ")}</td><td className="py-3 pr-4">{supplier.country}</td>
-              <td className="py-3 pr-4"><button type="button" onClick={() => void updateStatus(supplier)} disabled={saving === `status-${supplier.id}`} className={(supplier.status === "Activo" ? "font-semibold text-emerald-700" : "font-semibold text-amber-700") + " disabled:opacity-50"}>{saving === `status-${supplier.id}` ? "..." : supplier.status}</button></td>
-              <td className="py-3 pr-4"><div className="flex items-center gap-2"><input aria-label={`Tarifa de ${supplier.name}`} type="number" min="0.01" step="0.01" value={rates[supplier.id] ?? ""} onChange={(event) => setRates((current) => ({ ...current, [supplier.id]: event.target.value }))} className="w-24 rounded-lg border border-zinc-300 px-2 py-1" /><button type="button" onClick={() => void updateRate(String(supplier.id))} disabled={saving === String(supplier.id)} className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-bold text-white hover:bg-red-800 disabled:opacity-50">{saving === String(supplier.id) ? "..." : "Guardar"}</button></div></td>
+              <td className="py-3 pr-4"><button type="button" onClick={() => void updateStatus(supplier)} disabled={!canApprove || saving === `status-${supplier.id}`} title={canApprove ? undefined : "Requiere rol Supervisor"} className={(supplier.status === "Activo" ? "font-semibold text-emerald-700" : "font-semibold text-amber-700") + " disabled:opacity-50"}>{saving === `status-${supplier.id}` ? "..." : supplier.status}</button></td>
+              <td className="py-3 pr-4"><div className="flex items-center gap-2"><input aria-label={`Tarifa de ${supplier.name}`} type="number" min="0.01" step="0.01" value={rates[supplier.id] ?? ""} disabled={!canUpdate} onChange={(event) => setRates((current) => ({ ...current, [supplier.id]: event.target.value }))} className="w-24 rounded-lg border border-zinc-300 px-2 py-1" /><button type="button" onClick={() => void updateRate(String(supplier.id))} disabled={!canUpdate || saving === String(supplier.id)} title={canUpdate ? undefined : "Requiere rol Supervisor"} className="rounded-lg bg-zinc-900 px-3 py-1 text-xs font-bold text-white hover:bg-red-800 disabled:opacity-50">{saving === String(supplier.id) ? "..." : "Guardar"}</button></div></td>
               <td className="py-3 text-xs text-zinc-500">{new Date(supplier.updated_at).toLocaleString("es-CO")}</td>
             </tr>),
-    [suppliers, rates, saving, updateRate, updateStatus],
+    [suppliers, rates, saving, updateRate, updateStatus, canUpdate, canApprove],
   );
 
   return (
@@ -147,13 +152,13 @@ export function SupplierDirectory() {
         </div>
       </div>
       {error ? <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p> : null}
-      <form onSubmit={createSupplier} className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 sm:grid-cols-5">
+      {canCreate ? <form onSubmit={createSupplier} className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 sm:grid-cols-5">
         <input required value={newSupplier.name} onChange={(event) => setNewSupplier({ ...newSupplier, name: event.target.value })} placeholder="Nombre del proveedor" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
         <select aria-label="Categoría del nuevo proveedor" value={newSupplier.categories} onChange={(event) => setNewSupplier({ ...newSupplier, categories: event.target.value })} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"><option>Carnes</option><option>Vegetales</option><option>Lácteos</option><option>Bebidas</option><option>Empaques</option></select>
         <select aria-label="País del nuevo proveedor" value={newSupplier.country} onChange={(event) => setNewSupplier({ ...newSupplier, country: event.target.value })} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"><option>Colombia</option><option>Estados Unidos</option></select>
         <input required min="0.01" step="0.01" type="number" value={newSupplier.rate} onChange={(event) => setNewSupplier({ ...newSupplier, rate: event.target.value })} placeholder="Tarifa" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
         <button type="submit" disabled={creating} className="rounded-lg bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 disabled:cursor-wait disabled:opacity-60">{creating ? "Añadiendo..." : "Añadir proveedor"}</button>
-      </form>
+      </form> : null}
       {loading ? <p className="mt-6 text-sm text-zinc-500">Cargando proveedores...</p> : null}
       {!loading && !error && suppliers.length === 0 ? <p className="mt-6 text-sm text-zinc-500">No hay proveedores para estos filtros.</p> : null}
       {!loading && suppliers.length > 0 ? (
