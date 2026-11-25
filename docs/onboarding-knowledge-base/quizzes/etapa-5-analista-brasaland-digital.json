@@ -1,0 +1,98 @@
+[
+ {
+  "id": "etapa-5-analista-brasaland-digital-01",
+  "question": "¿Qué haces como analista de Brasaland Digital?",
+  "options": [
+   "Decidir los presupuestos de campaña",
+   "Traducir necesidades de las áreas en especificaciones con criterios de aceptación y analizar datos",
+   "Aprobar pedidos de emergencia",
+   "Gestionar la nómina de los locales"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-analista-brasaland-digital#responsabilidades-del-puesto"
+ },
+ {
+  "id": "etapa-5-analista-brasaland-digital-02",
+  "question": "¿Cuál es el objetivo de los días 1 a 30?",
+  "options": [
+   "Dirigir una mejora medible",
+   "Entender el negocio y completar el onboarding",
+   "Asumir tu primer análisis de principio a fin",
+   "Presentar una comparativa de proveedores"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-analista-brasaland-digital#objetivos-de-los-primeros-90-dias"
+ },
+ {
+  "id": "etapa-5-analista-brasaland-digital-03",
+  "question": "¿Qué haces entre los días 31 y 60?",
+  "options": [
+   "Asumir tu primer análisis o especificación de principio a fin, revisada por tu responsable",
+   "Cerrar el onboarding",
+   "Presentar el informe de resultados de una campaña",
+   "Elegir a los proveedores"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-analista-brasaland-digital#objetivos-de-los-primeros-90-dias"
+ },
+ {
+  "id": "etapa-5-analista-brasaland-digital-04",
+  "question": "¿Qué se espera de ti entre los días 61 y 90?",
+  "options": [
+   "Que empieces el onboarding",
+   "Dirigir una mejora pequeña pero medible con criterio de aceptación validado por el área afectada",
+   "Aprobar compras de emergencia",
+   "Responder dudas de Personas"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-analista-brasaland-digital#objetivos-de-los-primeros-90-dias"
+ },
+ {
+  "id": "etapa-5-analista-brasaland-digital-05",
+  "question": "¿Con quién trabajas en las prioridades?",
+  "options": [
+   "Con el CTO Nicolás Park",
+   "Con la CEO en exclusiva",
+   "Con los proveedores",
+   "Con el equipo de cocina de cada local"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-analista-brasaland-digital#con-quien-trabajas"
+ },
+ {
+  "id": "etapa-5-analista-brasaland-digital-06",
+  "question": "¿Cuándo se considera terminada una especificación?",
+  "options": [
+   "Cuando se ha enviado por correo",
+   "Cuando tiene criterios de aceptación verificables",
+   "Cuando la revisa Marketing",
+   "Cuando lleva una semana en Notion"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-analista-brasaland-digital#como-se-mide-tu-trabajo"
+ },
+ {
+  "id": "etapa-5-analista-brasaland-digital-07",
+  "question": "¿Qué debe hacer un análisis para considerarse terminado?",
+  "options": [
+   "Citar sus fuentes de datos y dejar claro qué decisión permite tomar",
+   "Ser de más de diez páginas",
+   "Presentarse siempre en USD",
+   "Incluir datos de identidad de las personas"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-analista-brasaland-digital#como-se-mide-tu-trabajo"
+ },
+ {
+  "id": "etapa-5-analista-brasaland-digital-08",
+  "question": "¿Qué NO te corresponde como analista?",
+  "options": [
+   "Escribir especificaciones",
+   "Aprobar pedidos de emergencia o cambios de proveedor",
+   "Analizar datos del backoffice",
+   "Dar soporte a las herramientas digitales"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-analista-brasaland-digital#lo-que-no-te-corresponde"
+ }
+]
