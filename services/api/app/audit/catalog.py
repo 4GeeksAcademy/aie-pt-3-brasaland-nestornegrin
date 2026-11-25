@@ -75,6 +75,12 @@ AUDITED_ROUTES: dict[tuple[str, str], AuditSpec] = {
     ("POST", "/rfp/tickets/{ticket_id}/generate"): _s("rfp.generate", "data", "rfp_ticket"),
     ("POST", "/rfp/tickets/{ticket_id}/reprocess"): _s("rfp.reprocess", "data", "rfp_ticket"),
     ("POST", "/reporting/inventory-performance/runs"): _s("reporting.run", "data", "report_run", OPS, "run_id"),
+    # ---- onboarding corporativo (el agente actúa como proceso automatizado; aquí quedan las acciones de las PERSONAS)
+    ("POST", "/onboarding"): _s("onboarding.create", "data", "onboarding", None, "id"),
+    ("POST", "/onboarding/sweep"): _s("onboarding.sweep", "process", "onboarding_sweep"),
+    ("POST", "/onboarding/{onboarding_id}/answers"): _s("onboarding.answers", "data", "onboarding"),
+    ("POST", "/onboarding/{onboarding_id}/decision"): _s("onboarding.decision", "data", "onboarding"),
+    ("POST", "/onboarding/{onboarding_id}/questions"): _s("onboarding.question", "data", "onboarding"),
     # ---- uso del agente de IA y telemetría de plataforma
     ("POST", "/agent/query"): _s("agent.query", "data", "agent_session", OPS),
     ("POST", "/knowledge/query"): _s("knowledge.query", "data", "knowledge_base"),

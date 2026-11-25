@@ -29,7 +29,7 @@ from data.pipelines.onboarding import config
 from data.pipelines.onboarding.runner import OnboardingEngine, OnboardingError
 
 from ..auth.dependencies import get_current_user
-from ..auth.models import UserRole
+from ..access.permissions import is_platform_admin
 
 _engine: OnboardingEngine | None = None
 
@@ -174,7 +174,7 @@ def create_router() -> APIRouter:
         """Quién consulta: persona del directorio (`staff`), persona incorporada, o ninguna de las dos."""
         email = str(user.email).lower()
         return {"staff": engine.store.staff_by_email(email), "onboarding": engine.store.onboarding_by_email(email),
-                "platform_admin": user.role == UserRole.ADMIN}
+                "platform_admin": is_platform_admin(user)}
 
     def is_people(identity: dict) -> bool:
         s = identity["staff"]
