@@ -85,6 +85,12 @@ AUDITED_ROUTES: dict[tuple[str, str], AuditSpec] = {
     ("POST", "/supplier-contracts/communications/{communication_id}/send"): _s("supplier_contracts.communication_send", "data", "supplier_communication", OPS),
     ("GET", "/supplier-contracts/audit/events"): _s("supplier_contracts.audit_view", "audit", "supplier_agent_events", OPS),
     ("GET", "/supplier-contracts/audit/messages"): _s("supplier_contracts.audit_messages_view", "audit", "supplier_agent_messages", OPS),
+    # ---- onboarding corporativo (el agente actúa como proceso automatizado; aquí quedan las acciones de las PERSONAS)
+    ("POST", "/onboarding"): _s("onboarding.create", "data", "onboarding", None, "id"),
+    ("POST", "/onboarding/sweep"): _s("onboarding.sweep", "process", "onboarding_sweep"),
+    ("POST", "/onboarding/{onboarding_id}/answers"): _s("onboarding.answers", "data", "onboarding"),
+    ("POST", "/onboarding/{onboarding_id}/decision"): _s("onboarding.decision", "data", "onboarding"),
+    ("POST", "/onboarding/{onboarding_id}/questions"): _s("onboarding.question", "data", "onboarding"),
     # ---- uso del agente de IA y telemetría de plataforma
     ("POST", "/agent/query"): _s("agent.query", "data", "agent_session", OPS),
     ("POST", "/knowledge/query"): _s("knowledge.query", "data", "knowledge_base"),

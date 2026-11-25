@@ -1,0 +1,98 @@
+[
+ {
+  "id": "etapa-7-01",
+  "question": "¿Cuál es la frase de presentación de la marca?",
+  "options": [
+   "«El sabor de la brasa, en cada bocado»",
+   "«La mejor carne del mundo»",
+   "«Rapidez ante todo»",
+   "«Brasa para todos»"
+  ],
+  "answer": 0,
+  "source": "etapa-7-lineamientos#guia-de-marca"
+ },
+ {
+  "id": "etapa-7-02",
+  "question": "¿Qué es Brasa Points según la guía de marca?",
+  "options": [
+   "Un sistema de reservas",
+   "Un programa de fidelización para mayores de 18 años, no de pedidos en línea",
+   "Un servicio de entrega a domicilio",
+   "Una tarjeta de crédito"
+  ],
+  "answer": 1,
+  "source": "etapa-7-lineamientos#guia-de-marca"
+ },
+ {
+  "id": "etapa-7-03",
+  "question": "¿Cuál de estos datos nunca debe aparecer en logs, chats ni respuestas de las herramientas?",
+  "options": [
+   "El nombre del restaurante",
+   "El número de documento de identidad",
+   "La ciudad de la sede",
+   "El puesto"
+  ],
+  "answer": 1,
+  "source": "etapa-7-lineamientos#politica-de-proteccion-de-datos"
+ },
+ {
+  "id": "etapa-7-04",
+  "question": "¿Qué otros datos se consideran sensibles?",
+  "options": [
+   "Datos bancarios para nómina y salario o condiciones económicas del contrato",
+   "El horario de los locales",
+   "El menú",
+   "Los canales de Slack"
+  ],
+  "answer": 0,
+  "source": "etapa-7-lineamientos#politica-de-proteccion-de-datos"
+ },
+ {
+  "id": "etapa-7-05",
+  "question": "¿Con qué trabajan los sistemas respecto a los trámites de contrato y de nómina?",
+  "options": [
+   "Con el contenido de los documentos",
+   "Solo con el estado del trámite (por ejemplo, «contrato recibido»)",
+   "Con copias escaneadas",
+   "Con los importes"
+  ],
+  "answer": 1,
+  "source": "etapa-7-lineamientos#politica-de-proteccion-de-datos"
+ },
+ {
+  "id": "etapa-7-06",
+  "question": "¿Quién gestiona el contrato y la nómina?",
+  "options": [
+   "El equipo de Personas",
+   "Cada responsable directo",
+   "Compras",
+   "Marketing"
+  ],
+  "answer": 0,
+  "source": "etapa-7-lineamientos#politica-de-proteccion-de-datos"
+ },
+ {
+  "id": "etapa-7-07",
+  "question": "¿Qué haces si tienes un conflicto de intereses (por ejemplo, con un proveedor)?",
+  "options": [
+   "Lo declaras a tu responsable",
+   "Lo ignoras",
+   "Lo resuelves con el proveedor",
+   "Lo publicas en Slack"
+  ],
+  "answer": 0,
+  "source": "etapa-7-lineamientos#codigo-de-conducta"
+ },
+ {
+  "id": "etapa-7-08",
+  "question": "¿Cuál es la fuente para las dudas sobre contrato, jornada o prestaciones entre Colombia y EE. UU.?",
+  "options": [
+   "El equipo de Personas",
+   "Un buscador en internet",
+   "Tu compañero de equipo",
+   "Cualquier canal de Slack"
+  ],
+  "answer": 0,
+  "source": "etapa-7-lineamientos#diferencias-laborales-entre-colombia-y-estados-unidos"
+ }
+]
