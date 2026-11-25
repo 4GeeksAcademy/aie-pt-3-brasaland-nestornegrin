@@ -1,0 +1,98 @@
+[
+ {
+  "id": "etapa-6-01",
+  "question": "¿Dónde viven las especificaciones y la documentación del trabajo?",
+  "options": [
+   "En Slack",
+   "En Notion",
+   "En el correo",
+   "En el backoffice"
+  ],
+  "answer": 1,
+  "source": "etapa-6-como-trabajamos#herramientas-del-dia-a-dia"
+ },
+ {
+  "id": "etapa-6-02",
+  "question": "¿Para qué se usa Slack?",
+  "options": [
+   "Para guardar contratos",
+   "Para la comunicación diaria, con las respuestas en hilos",
+   "Para gestionar el inventario",
+   "Para las especificaciones definitivas"
+  ],
+  "answer": 1,
+  "source": "etapa-6-como-trabajamos#herramientas-del-dia-a-dia"
+ },
+ {
+  "id": "etapa-6-03",
+  "question": "¿Qué se gestiona en el backoffice de Brasaland?",
+  "options": [
+   "Inventario, proveedores, incidencias, reportes y RFP",
+   "Solo el correo",
+   "Solo las nóminas",
+   "Los contratos de personal"
+  ],
+  "answer": 0,
+  "source": "etapa-6-como-trabajamos#herramientas-del-dia-a-dia"
+ },
+ {
+  "id": "etapa-6-04",
+  "question": "¿Qué es un criterio de aceptación?",
+  "options": [
+   "Una condición verificable que dice cuándo el trabajo está terminado",
+   "Una opinión del responsable",
+   "La fecha de entrega",
+   "El nombre del autor"
+  ],
+  "answer": 0,
+  "source": "etapa-6-como-trabajamos#especificaciones-en-notion-con-criterios-de-aceptacion"
+ },
+ {
+  "id": "etapa-6-05",
+  "question": "¿Cuándo no está lista una especificación para empezar?",
+  "options": [
+   "Cuando no tiene criterios de aceptación",
+   "Cuando es corta",
+   "Cuando está en Notion",
+   "Cuando la escribe una persona de Miami"
+  ],
+  "answer": 0,
+  "source": "etapa-6-como-trabajamos#especificaciones-en-notion-con-criterios-de-aceptacion"
+ },
+ {
+  "id": "etapa-6-06",
+  "question": "¿Qué diferencia horaria hay entre Medellín y Miami en verano?",
+  "options": [
+   "Misma hora todo el año",
+   "Miami va una hora por delante",
+   "Miami va una hora por detrás",
+   "Cinco horas de diferencia"
+  ],
+  "answer": 1,
+  "source": "etapa-6-como-trabajamos#trabajo-entre-medellin-y-miami"
+ },
+ {
+  "id": "etapa-6-07",
+  "question": "¿Dónde se dejan las decisiones para que nadie dependa de una conversación a la que la otra ciudad no pudo asistir?",
+  "options": [
+   "Solo de palabra",
+   "Por escrito, en Slack o Notion",
+   "En el calendario",
+   "No hace falta dejarlas"
+  ],
+  "answer": 1,
+  "source": "etapa-6-como-trabajamos#trabajo-entre-medellin-y-miami"
+ },
+ {
+  "id": "etapa-6-08",
+  "question": "¿A quién se deriva una duda sobre tu onboarding que no esté cubierta por la documentación?",
+  "options": [
+   "A Personas (Ashley Turner)",
+   "A la CEO",
+   "A un proveedor",
+   "A cualquier local"
+  ],
+  "answer": 0,
+  "source": "etapa-6-como-trabajamos#como-pedir-ayuda"
+ }
+]
