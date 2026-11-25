@@ -124,3 +124,62 @@ def test_failing_task_is_retried_with_backoff_and_dead_lettered_through_real_red
     rows = [row for row in dlq.list_dead_letters() if row["task_id"] == task.id]
     assert len(rows) == 1 and rows[0]["attempt"] == 4
     assert "Faltan columnas obligatorias" in rows[0]["error_message"]
+
+
+# --------------------------------------------------------------------------- #
+# Ticket feature/async-processing: el email de «olvidé mi contraseña» por un Redis y un worker REALES
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def redis_store(redis_url):
+    from services.async_tasks import idempotency
+
+    store = idempotency.RedisIdempotencyStore(redis_url)
+    store.redis.flushdb()
+    idempotency.set_store(store)
+    yield store
+    idempotency.set_store(None)
+
+
+def test_email_con_proveedor_caido_reintenta_con_backoff_y_acaba_en_la_dlq_con_redis_real(worker, redis_store, monkeypatch):
+    from services.async_tasks import email_tasks
+    from services.async_tasks.enqueue import enqueue_password_reset_email
+
+    calls: list[float] = []
+
+    def resend_down(to_email, token, idempotency_key=None):
+        calls.append(time.perf_counter())
+        raise ConnectionError("Resend caído (simulado)")
+
+    monkeypatch.setattr(email_tasks, "send_password_reset_email", resend_down)
+    started = time.perf_counter()
+    task_id = enqueue_password_reset_email("ana@example.com", "tok-secreto", "password-reset:900")
+    assert time.perf_counter() - started < 0.5  # encolar no espera al proveedor
+
+    result = _wait(task_id, timeout=60)
+    assert result.state == "FAILURE"
+    assert len(calls) == 4  # 1 intento + 3 reintentos
+    gaps = [round(b - a) for a, b in zip(calls, calls[1:])]
+    assert gaps == [1, 2, 4]  # backoff exponencial real entre intentos (base 1 s en el test)
+    assert redis_store.attempts(task_id) == 4  # los reintentos quedan registrados y consultables
+    (row,) = [r for r in dlq.list_dead_letters() if r["task_id"] == task_id]
+    assert row["attempt"] == 4 and "Resend caído" in row["error_message"] and "tok-secreto" not in row["error_message"]
+
+
+def test_encolar_dos_veces_la_misma_operacion_envia_un_solo_email_con_redis_real(worker, redis_store, monkeypatch):
+    from services.async_tasks import email_tasks
+    from services.async_tasks.enqueue import enqueue_password_reset_email
+
+    sent: list[tuple] = []
+    monkeypatch.setattr(email_tasks, "send_password_reset_email", lambda to, token, idempotency_key=None: sent.append((to, idempotency_key)))
+
+    first = enqueue_password_reset_email("ana@example.com", "tok", "password-reset:901")
+    second = enqueue_password_reset_email("ana@example.com", "tok", "password-reset:901")  # doble clic / reenvío
+    assert first == second
+    result = _wait(first)
+    assert result.state == "SUCCESS" and result.result == {"status": "sent", "attempts": 1}
+
+    # Y aunque el broker entregara el mismo mensaje otra vez, el worker ve la clave como ya procesada.
+    again = email_tasks.send_password_reset.apply_async(kwargs={"idempotency_key": "password-reset:901",
+                                                              "sealed": __import__("services.async_tasks.contracts", fromlist=["seal"]).seal("ana@example.com", "tok")})
+    assert _wait(again.id).result["status"] == "duplicate_skipped"
+    assert sent == [("ana@example.com", "password-reset:901")]  # UN solo envío en total

@@ -9,10 +9,10 @@ def _get_reset_token(client, email: str) -> str:
     habría enviado por email, para poder usarlo en la prueba."""
     captured: dict[str, str] = {}
 
-    def _capture(_to_email: str, token: str) -> None:
+    def _capture(_to_email: str, token: str, _idempotency_key: str) -> None:
         captured["token"] = token
 
-    with patch("app.auth.routes.send_password_reset_email", side_effect=_capture):
+    with patch("app.auth.routes.enqueue_password_reset_email", side_effect=_capture):
         client.post("/auth/forgot-password", json={"email": email})
     return captured["token"]
 

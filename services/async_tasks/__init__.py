@@ -10,4 +10,8 @@ Layout:
     services/async_tasks/status.py    estado de Celery → estado de la API (pending/started/success/failure)
     services/async_tasks/observability.py  logs por tarea (task_id, intento, estado, duración, error)
     services/async_tasks/incident_tasks.py  la tarea: análisis del CSV de incidencias
+    services/async_tasks/email_tasks.py     la tarea: email de restablecimiento (Resend) con reintentos e idempotencia
+    services/async_tasks/contracts.py       contrato (cifrado) del mensaje de la cola del email
+    services/async_tasks/idempotency.py     claves de idempotencia (Redis) e intentos por tarea
+    services/async_tasks/enqueue.py         encolado idempotente (lado API)
 """

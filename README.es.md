@@ -79,6 +79,8 @@ PYTHONPATH=.:services/api celery -A services.celery_app worker --loglevel=info  
 
 - `POST /api/incidents/analyze` → `202 {"task_id": "..."}` al instante. Sigue devolviendo `415` (extensión) y `400` (fichero vacío) en la propia petición; el resto de errores del CSV (cabecera inválida, codificación…) aparecen como `failure` de la tarea.
 - `GET /tasks/{task_id}` → `{"task_id", "status", "result"}`, con `status` = `pending | started | success | failure`. `result` es el resumen del análisis en `success` y `{"error": "..."}` en `failure`. Un id desconocido figura como `pending` (así lo reporta Celery).
+- `GET /tasks/{task_id}` devuelve también `attempts` (ejecuciones que tuvo la tarea; `1` = a la primera). `GET /tasks/dead-letters` (Admin) lista las tareas que agotaron sus reintentos.
+- El email de restablecimiento de contraseña (Resend) lo envía la tarea `email.send_password_reset` con reintentos, clave de idempotencia y DLQ: ver [docs/async-processing.md](docs/async-processing.md).
 - `GET /api/incidents/results/export` descarga el último resultado como CSV (ya no vive en memoria de la API: lo guarda el worker en Redis).
 
 **Reintentos y Dead Letter Queue.** Toda excepción de la tarea se reintenta 3 veces con backoff exponencial
