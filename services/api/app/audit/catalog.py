@@ -75,6 +75,12 @@ AUDITED_ROUTES: dict[tuple[str, str], AuditSpec] = {
     ("POST", "/rfp/tickets/{ticket_id}/generate"): _s("rfp.generate", "data", "rfp_ticket"),
     ("POST", "/rfp/tickets/{ticket_id}/reprocess"): _s("rfp.reprocess", "data", "rfp_ticket"),
     ("POST", "/reporting/inventory-performance/runs"): _s("reporting.run", "data", "report_run", OPS, "run_id"),
+    # ---- cierre financiero mensual (el agente actúa como proceso automatizado; aquí quedan las acciones de las PERSONAS)
+    ("POST", "/financial-close/demo"): _s("financial_close.demo", "data", "financial_close_dataset", OPS),
+    ("POST", "/financial-close/schedule/tick"): _s("financial_close.schedule_tick", "process", "financial_close_run", OPS),
+    ("POST", "/financial-close/reports/{report_id}/review"): _s("financial_close.review", "data", "financial_close_report", OPS),
+    ("GET", "/financial-close/audit/events"): _s("financial_close.audit_view", "audit", "financial_close_events", OPS),
+    ("GET", "/financial-close/audit/messages"): _s("financial_close.audit_messages_view", "audit", "financial_close_messages", OPS),
     # ---- proveedores y contratos (supervisor + especialistas; la aprobación humana de comunicaciones queda aquí con su actor)
     ("POST", "/supplier-contracts/seed"): _s("supplier_contracts.seed", "data", "supplier_contracts_dataset", OPS),
     ("POST", "/supplier-contracts/alerts/scan"): _s("supplier_contracts.alerts_scan", "data", "supplier_alert", OPS),
