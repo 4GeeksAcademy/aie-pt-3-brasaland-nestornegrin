@@ -1,48 +1,56 @@
-import Link from "next/link";
+import { PHOTOS } from "@/lib/site-data";
+import { FoodImage } from "./food-image";
+import { ButtonLink } from "./ui";
+
+const STATS = [
+  { value: "14", label: "restaurantes" },
+  { value: "2", label: "países" },
+  { value: "2008", label: "desde" },
+];
 
 export function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-red-900 via-red-800 to-amber-700 text-white">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-2 lg:items-center lg:px-8">
-        <article>
-          <p className="mb-3 inline-block rounded-full border border-amber-200/40 px-3 py-1 text-xs font-semibold uppercase tracking-widest">
-            Desde 2008
-          </p>
-          <h1 className="text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
-            El sabor de la brasa, en cada bocado
-          </h1>
-          <p className="mt-4 text-base text-amber-100 sm:text-lg">
-            Desde 2008 sirviendo las mejores carnes a la brasa en Colombia y
-            Estados Unidos. 14 ubicaciones, una misma pasión por la calidad y
-            el sabor.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/brasa-points"
-              className="inline-flex items-center justify-center rounded-lg bg-amber-300 px-6 py-3 text-sm font-black text-zinc-900 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200"
-              aria-label="Ir al formulario de registro Brasa Points"
-            >
-              Únete a Brasa Points
-            </Link>
-            <Link
-              href="#ubicaciones"
-              className="inline-flex items-center justify-center rounded-lg border border-white/60 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white"
-              aria-label="Ver nuestras ubicaciones"
-            >
-              Ver ubicaciones
-            </Link>
-          </div>
-        </article>
-        <aside className="rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur">
-          <h2 className="text-lg font-bold">¿Quieres hacer un pedido?</h2>
-          <p className="mt-3 text-sm text-amber-100">
-            Llama a tu ubicación favorita o visítanos directamente. ¡Pronto
-            tendremos pedidos en línea!
-          </p>
-          <p className="mt-5 text-sm font-semibold">
-            14 restaurantes en Colombia y Florida
-          </p>
-        </aside>
+    <section className="grain relative isolate flex min-h-[100svh] items-end overflow-hidden bg-ink text-cream">
+      <div className="absolute inset-0 -z-10">
+        <FoodImage src={PHOTOS.hero} alt="" priority sizes="100vw" className="opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/60 to-ink/30" />
+        <div className="absolute inset-0 bg-gradient-to-r from-ink/80 via-transparent to-transparent" />
+      </div>
+
+      <div className="mx-auto w-full max-w-6xl px-5 pb-16 pt-36 sm:px-8 sm:pb-24">
+        <p className="animate-rise font-display text-sm uppercase tracking-[0.35em] text-amber">
+          Colombia · Estados Unidos · Desde 2008
+        </p>
+        <h1 className="animate-rise mt-4 max-w-4xl font-display text-5xl font-bold uppercase leading-[0.98] [animation-delay:120ms] sm:text-7xl lg:text-8xl">
+          El sabor de la <span className="text-ember">brasa</span>, en cada bocado
+        </h1>
+        <p className="animate-rise mt-6 max-w-xl text-lg leading-relaxed text-cream/85 [animation-delay:240ms] sm:text-xl">
+          Desde 2008 sirviendo las mejores carnes a la brasa en Colombia y Estados Unidos. 14 ubicaciones, una misma
+          pasión por la calidad y el sabor.
+        </p>
+        <div className="animate-rise mt-9 flex flex-col gap-3 [animation-delay:360ms] sm:flex-row">
+          <ButtonLink href="/brasa-points" variant="primary">
+            Únete a Brasa Points
+          </ButtonLink>
+          <ButtonLink href="/menu" variant="ghost">
+            Ver la carta
+          </ButtonLink>
+          <ButtonLink href="/reservas" variant="ghost">
+            Reservar mesa
+          </ButtonLink>
+        </div>
+
+        <dl className="animate-rise mt-14 flex gap-10 border-t border-cream/15 pt-6 [animation-delay:480ms] sm:gap-16">
+          {STATS.map((s) => (
+            <div key={s.label}>
+              <dt className="sr-only">{s.label}</dt>
+              <dd>
+                <span className="font-display text-4xl font-bold text-amber sm:text-5xl">{s.value}</span>
+                <span className="ml-2 text-xs uppercase tracking-[0.25em] text-smoke">{s.label}</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
     </section>
   );
