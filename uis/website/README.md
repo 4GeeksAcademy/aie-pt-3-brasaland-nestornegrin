@@ -16,10 +16,17 @@ Abre `http://localhost:3000`.
 
 ## Rutas
 
-- `/` — home con todas las secciones del Hito 1 (historia, valores, ubicaciones,
-  teaser de Brasa Points, contacto), migradas a componentes React (`components/*`).
-- `/brasa-points` — formulario de registro a Brasa Points (reemplaza
-  `application.html`), con validación en tiempo real por campo.
+- `/` — home: hero, favoritos de la carta, historia, valores, ubicaciones,
+  Brasa Points y contacto.
+- `/menu` — carta interactiva (categorías, filtros alimentarios, precios COP/USD).
+- `/ubicaciones` — directorio de los 14 restaurantes con filtro por país/ciudad.
+- `/nuestra-historia` — historia, cifras y pilares de marca.
+- `/reservas` — solicitud de reserva (abre el correo con los datos; no hay backend).
+- `/contacto` — formulario de contacto (mismo mecanismo) y datos de la empresa.
+- `/brasa-points` — formulario de registro (lógica intacta).
+
+Contenido editable en `lib/site-data.ts`. **La carta es de ejemplo**: sustituirla
+por la real. Las fotos son de Unsplash con degradado de respaldo si no cargan.
 
 ## Qué importa de fuera de esta carpeta
 

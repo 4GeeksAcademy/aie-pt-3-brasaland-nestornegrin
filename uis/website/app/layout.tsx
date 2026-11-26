@@ -1,10 +1,37 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 import "./globals.css";
 
+// Tipografía de títulos autoalojada (sin peticiones a Google Fonts).
+const oswald = localFont({
+  src: "./fonts/Oswald-Variable.ttf",
+  variable: "--font-oswald",
+  weight: "200 700",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Brasaland | El sabor de la brasa, en cada bocado",
+  metadataBase: new URL("https://brasaland.com"),
+  title: {
+    default: "Brasaland | El sabor de la brasa, en cada bocado",
+    template: "%s | Brasaland",
+  },
   description:
-    "Brasaland: cadena de restaurantes de comida a la brasa en Colombia y Estados Unidos. Conoce nuestras ubicaciones y unete a Brasa Points.",
+    "Brasaland: cadena de restaurantes de comida a la brasa en Colombia y Estados Unidos. Conoce nuestra carta, nuestras ubicaciones y únete a Brasa Points.",
+  openGraph: {
+    type: "website",
+    siteName: "Brasaland",
+    locale: "es_CO",
+    title: "Brasaland | El sabor de la brasa, en cada bocado",
+    description:
+      "14 restaurantes de comida a la brasa en Colombia y Florida. Carta, ubicaciones, reservas y Brasa Points.",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#14100d",
 };
 
 export default function RootLayout({
@@ -13,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="h-full antialiased">
+    <html lang="es" className={`${oswald.variable} h-full antialiased`}>
       <head>
         <script
           type="application/ld+json"
@@ -57,8 +84,18 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col bg-amber-50 text-zinc-900">
-        {children}
+      <body className="flex min-h-full flex-col bg-cream text-ink">
+        <a
+          href="#contenido"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-amber focus:px-5 focus:py-3 focus:font-bold focus:text-ink"
+        >
+          Saltar al contenido
+        </a>
+        <SiteHeader />
+        <div id="contenido" className="flex-1">
+          {children}
+        </div>
+        <SiteFooter />
       </body>
     </html>
   );
