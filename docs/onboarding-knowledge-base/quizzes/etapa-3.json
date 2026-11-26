@@ -1,0 +1,98 @@
+[
+ {
+  "id": "etapa-3-01",
+  "question": "¿Cuál es el horario de los locales de Brasaland?",
+  "options": [
+   "De 8:00 a 18:00",
+   "De 11:00 a 22:00 todos los días",
+   "De 12:00 a 24:00",
+   "De 11:00 a 22:00, solo de lunes a viernes"
+  ],
+  "answer": 1,
+  "source": "etapa-3-como-opera-un-restaurante#un-dia-en-el-restaurante-turnos"
+ },
+ {
+  "id": "etapa-3-02",
+  "question": "¿Qué es un «cubierto»?",
+  "options": [
+   "Una persona atendida",
+   "Un pedido a proveedores",
+   "Un turno de cocina",
+   "Un plato del menú"
+  ],
+  "answer": 0,
+  "source": "etapa-3-como-opera-un-restaurante#cubiertos-y-ticket-medio"
+ },
+ {
+  "id": "etapa-3-03",
+  "question": "¿Cómo se entiende el ticket medio?",
+  "options": [
+   "El número de cubiertos del día",
+   "Lo que gasta de media cada cuenta o cubierto (ventas entre cuentas o cubiertos)",
+   "El costo de los ingredientes por plato",
+   "El precio del plato más vendido"
+  ],
+  "answer": 1,
+  "source": "etapa-3-como-opera-un-restaurante#cubiertos-y-ticket-medio"
+ },
+ {
+  "id": "etapa-3-04",
+  "question": "¿Cuándo genera cada gerente de local el pedido semanal a proveedores?",
+  "options": [
+   "Los viernes por la tarde",
+   "Los lunes antes de las 10:00 a. m. (hora local)",
+   "Los jueves antes de mediodía",
+   "Cada día a primera hora"
+  ],
+  "answer": 1,
+  "source": "etapa-3-como-opera-un-restaurante#pedidos-de-ingredientes"
+ },
+ {
+  "id": "etapa-3-05",
+  "question": "¿Con qué frecuencia se piden las proteínas (carne, pollo)?",
+  "options": [
+   "Dos veces por semana",
+   "Cada mes",
+   "Semanalmente, con entrega en 48 horas",
+   "Cada quince días"
+  ],
+  "answer": 2,
+  "source": "etapa-3-como-opera-un-restaurante#pedidos-de-ingredientes"
+ },
+ {
+  "id": "etapa-3-06",
+  "question": "¿Cuántos días de inventario de proteínas principales debe tener como mínimo un local?",
+  "options": [
+   "1 día",
+   "3 días",
+   "7 días",
+   "10 días"
+  ],
+  "answer": 1,
+  "source": "etapa-3-como-opera-un-restaurante#stock-minimo-y-pedidos-de-emergencia"
+ },
+ {
+  "id": "etapa-3-07",
+  "question": "¿Qué recargo tiene un pedido de emergencia?",
+  "options": [
+   "Ninguno",
+   "3 %",
+   "8 % sobre el precio de lista",
+   "20 % sobre el precio de lista"
+  ],
+  "answer": 2,
+  "source": "etapa-3-como-opera-un-restaurante#stock-minimo-y-pedidos-de-emergencia"
+ },
+ {
+  "id": "etapa-3-08",
+  "question": "¿Qué merma no explicada activa una alerta automática al supervisor de Operaciones?",
+  "options": [
+   "Más del 3 % del inventario semanal de un ingrediente",
+   "Más del 10 % del inventario mensual",
+   "Cualquier desperdicio de verduras",
+   "Más de 1 kg en un turno"
+  ],
+  "answer": 0,
+  "source": "etapa-3-como-opera-un-restaurante#control-de-mermas-y-desperdicio"
+ }
+]

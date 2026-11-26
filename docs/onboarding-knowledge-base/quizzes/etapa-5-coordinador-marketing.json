@@ -1,0 +1,98 @@
+[
+ {
+  "id": "etapa-5-coordinador-marketing-01",
+  "question": "¿Qué coordinas como coordinador de Marketing?",
+  "options": [
+   "Los pedidos a proveedores",
+   "Las campañas y los contenidos de la marca en Colombia y Estados Unidos",
+   "La nómina de los locales",
+   "El inventario del backoffice"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-coordinador-marketing#responsabilidades-del-puesto"
+ },
+ {
+  "id": "etapa-5-coordinador-marketing-02",
+  "question": "¿Quién toma las decisiones de presupuesto de campaña?",
+  "options": [
+   "El coordinador",
+   "La Gerente de Marketing",
+   "El CTO",
+   "Compras"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-coordinador-marketing#responsabilidades-del-puesto"
+ },
+ {
+  "id": "etapa-5-coordinador-marketing-03",
+  "question": "¿Qué haces entre los días 1 y 30?",
+  "options": [
+   "Presentar un informe de resultados",
+   "Conocer la marca, los locales y Brasa Points, y completar el onboarding",
+   "Coordinar tu primera campaña",
+   "Cambiar las condiciones de Brasa Points"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-coordinador-marketing#objetivos-de-los-primeros-90-dias"
+ },
+ {
+  "id": "etapa-5-coordinador-marketing-04",
+  "question": "¿Qué se espera entre los días 31 y 60?",
+  "options": [
+   "Coordinar tu primera campaña o pieza de contenido con el calendario de ambos mercados",
+   "Aprobar el presupuesto anual",
+   "Cerrar el onboarding de otras personas",
+   "Gestionar proveedores"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-coordinador-marketing#objetivos-de-los-primeros-90-dias"
+ },
+ {
+  "id": "etapa-5-coordinador-marketing-05",
+  "question": "¿Qué debes presentar entre los días 61 y 90?",
+  "options": [
+   "Un informe de resultados de una campaña con aprendizajes y una propuesta de mejora",
+   "Una comparativa de proveedores",
+   "Una especificación con criterios de aceptación",
+   "Un plan de nómina"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-coordinador-marketing#objetivos-de-los-primeros-90-dias"
+ },
+ {
+  "id": "etapa-5-coordinador-marketing-06",
+  "question": "¿Quién es tu responsable directo en este puesto?",
+  "options": [
+   "Camila Ospina, Gerente de Marketing",
+   "Felipe Guerrero",
+   "Lucía Fernández",
+   "Ashley Turner"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-coordinador-marketing#con-quien-trabajas"
+ },
+ {
+  "id": "etapa-5-coordinador-marketing-07",
+  "question": "¿Cuándo se considera terminada una pieza o campaña?",
+  "options": [
+   "Cuando cumple la guía de marca, está publicada en el mercado correcto y su resultado queda registrado",
+   "Cuando la aprueba Compras",
+   "Cuando se envía por correo",
+   "Cuando se publica en cualquier mercado"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-coordinador-marketing#como-se-mide-tu-trabajo"
+ },
+ {
+  "id": "etapa-5-coordinador-marketing-08",
+  "question": "¿Qué NO te corresponde?",
+  "options": [
+   "Coordinar contenidos",
+   "Cambiar condiciones de Brasa Points sin aprobación de la Gerente de Marketing",
+   "Cuidar la guía de marca",
+   "Hacer seguimiento de Brasa Points"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-coordinador-marketing#lo-que-no-te-corresponde"
+ }
+]

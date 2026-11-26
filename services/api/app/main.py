@@ -60,6 +60,8 @@ from services.agent.service import get_agent_service
 from app.auth.ws import authenticate_ws_token
 from app.rfp import models as _rfp_models  # noqa: F401 - registra las tablas antes de create_all
 from app.rfp.routes import create_router as create_rfp_router
+from app.supplier_contracts.routes import create_router as create_supplier_contracts_router
+from app.onboarding.routes import create_router as create_onboarding_router
 from app.rfp.schema_sync import ensure_columns as ensure_rfp_columns
 from app.federated.repository import FederatedRepository
 from app.audit.log import AuditLog
@@ -170,7 +172,9 @@ app.include_router(create_chat_router(authenticate_ws_token, get_agent_service, 
 SQLModel.metadata.create_all(engine)
 ensure_rfp_columns(engine)  # añade a las tablas rfp_* ya creadas las columnas nuevas (create_all no migra)
 app.include_router(create_inventory_router())
+app.include_router(create_onboarding_router())  # orquestador de onboarding corporativo (agente LangGraph con checkpointer)
 app.include_router(create_rfp_router())  # /rfp/tickets (Hito 9 — recepción de RFPs)
+app.include_router(create_supplier_contracts_router())  # /supplier-contracts: supervisor + especialistas de precios y contratos (aprobación humana)
 
 
 @app.exception_handler(RequestValidationError)

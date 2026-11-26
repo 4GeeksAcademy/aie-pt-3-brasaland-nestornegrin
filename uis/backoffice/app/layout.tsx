@@ -33,6 +33,8 @@ export default function RootLayout({
               <Link href="/chat" className="hover:text-red-800">Chat en vivo</Link>
               <Link href="/rfp" className="hover:text-red-800">RFPs</Link>
               <Link href="/financial-close" className="hover:text-red-800">Cierre financiero</Link>
+              <Link href="/supplier-contracts" className="hover:text-red-800">Proveedores y contratos</Link>
+              <Link href="/onboarding" className="hover:text-red-800">Onboarding</Link>
               <Link href="/reporting" className="hover:text-red-800">Desempeño de inventario</Link>
               <Link href="/telemetry" className="hover:text-red-800">Telemetría</Link>
               <SessionActions />

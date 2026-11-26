@@ -1,0 +1,98 @@
+[
+ {
+  "id": "etapa-5-analista-compras-01",
+  "question": "¿Qué haces como analista de Compras?",
+  "options": [
+   "Seguir los pedidos de ingredientes de los 14 locales, vigilar el stock mínimo y preparar comparativas de proveedores",
+   "Coordinar campañas de marca",
+   "Escribir el código del backoffice",
+   "Gestionar contratos de personal"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-analista-compras#responsabilidades-del-puesto"
+ },
+ {
+  "id": "etapa-5-analista-compras-02",
+  "question": "¿Quién aprueba los pedidos de emergencia de más de 500 USD?",
+  "options": [
+   "El analista de Compras",
+   "La Gerente de Compras",
+   "El supervisor de Operaciones",
+   "La CEO"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-analista-compras#responsabilidades-del-puesto"
+ },
+ {
+  "id": "etapa-5-analista-compras-03",
+  "question": "¿Qué se espera entre los días 1 y 30?",
+  "options": [
+   "Entender el ciclo de pedidos y el control de mermas, y completar el onboarding",
+   "Presentar una comparativa de proveedores",
+   "Aprobar pedidos de emergencia",
+   "Cambiar de proveedor"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-analista-compras#objetivos-de-los-primeros-90-dias"
+ },
+ {
+  "id": "etapa-5-analista-compras-04",
+  "question": "¿Qué haces entre los días 31 y 60?",
+  "options": [
+   "Asumir el seguimiento semanal de pedidos de un grupo de locales",
+   "Presentar una comparativa final",
+   "Dirigir el área",
+   "Cerrar el onboarding"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-analista-compras#objetivos-de-los-primeros-90-dias"
+ },
+ {
+  "id": "etapa-5-analista-compras-05",
+  "question": "¿Qué debe incluir la comparativa de proveedores de los días 61 a 90?",
+  "options": [
+   "Costo, plazo de entrega y riesgo de falta de stock",
+   "Solo el precio",
+   "Los datos bancarios de los proveedores",
+   "Las ventas por local"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-analista-compras#objetivos-de-los-primeros-90-dias"
+ },
+ {
+  "id": "etapa-5-analista-compras-06",
+  "question": "¿Quién es tu responsable directo en este puesto?",
+  "options": [
+   "Lucía Fernández, Gerente de Compras",
+   "Camila Ospina",
+   "Nicolás Park",
+   "Ashley Turner"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-analista-compras#con-quien-trabajas"
+ },
+ {
+  "id": "etapa-5-analista-compras-07",
+  "question": "¿Cuándo debe estar enviado el pedido semanal de cada local?",
+  "options": [
+   "Antes del lunes a las 10:00 (hora local)",
+   "Antes del viernes a las 18:00",
+   "Antes del jueves",
+   "En cualquier momento de la semana"
+  ],
+  "answer": 0,
+  "source": "etapa-5-funcion-analista-compras#como-se-mide-tu-trabajo"
+ },
+ {
+  "id": "etapa-5-analista-compras-08",
+  "question": "¿Qué NO te corresponde?",
+  "options": [
+   "Seguir pedidos",
+   "Sustituir proveedores sin la aprobación de la Gerente de Compras",
+   "Preparar comparativas",
+   "Vigilar el stock mínimo"
+  ],
+  "answer": 1,
+  "source": "etapa-5-funcion-analista-compras#lo-que-no-te-corresponde"
+ }
+]

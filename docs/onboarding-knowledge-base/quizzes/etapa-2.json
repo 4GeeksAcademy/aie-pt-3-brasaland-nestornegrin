@@ -1,0 +1,98 @@
+[
+ {
+  "id": "etapa-2-01",
+  "question": "¿En qué año y dónde se fundó Brasaland?",
+  "options": [
+   "2008 en Medellín, Colombia",
+   "2012 en Miami, Estados Unidos",
+   "2008 en Bogotá, Colombia",
+   "2019 en Medellín, Colombia"
+  ],
+  "answer": 0,
+  "source": "etapa-2-la-empresa#historia-desde-2008"
+ },
+ {
+  "id": "etapa-2-02",
+  "question": "¿Cuántos restaurantes propios tiene Brasaland?",
+  "options": [
+   "10",
+   "14",
+   "115",
+   "4"
+  ],
+  "answer": 1,
+  "source": "etapa-2-la-empresa#historia-desde-2008"
+ },
+ {
+  "id": "etapa-2-03",
+  "question": "¿Cuáles son los tres pilares de la marca?",
+  "options": [
+   "Precio bajo, rapidez y publicidad",
+   "Calidad de producto consistente, experiencia de cliente cálida y rapidez de servicio",
+   "Innovación, tecnología y expansión",
+   "Tradición, tamaño y exclusividad"
+  ],
+  "answer": 1,
+  "source": "etapa-2-la-empresa#los-tres-pilares-de-marca"
+ },
+ {
+  "id": "etapa-2-04",
+  "question": "¿Qué significa «consistencia» para la marca?",
+  "options": [
+   "Que todos los locales tengan la misma decoración",
+   "Que la calidad sea la misma en Medellín, en Bogotá o en Miami",
+   "Que el menú no cambie nunca",
+   "Que los precios sean iguales en COP y en USD"
+  ],
+  "answer": 1,
+  "source": "etapa-2-la-empresa#los-tres-pilares-de-marca"
+ },
+ {
+  "id": "etapa-2-05",
+  "question": "¿Cuántos restaurantes tiene Brasaland en Colombia?",
+  "options": [
+   "14",
+   "4",
+   "10",
+   "6"
+  ],
+  "answer": 2,
+  "source": "etapa-2-la-empresa#los-14-locales-y-los-dos-mercados"
+ },
+ {
+  "id": "etapa-2-06",
+  "question": "¿En qué moneda opera Brasaland en Estados Unidos?",
+  "options": [
+   "Pesos colombianos (COP)",
+   "Euros (EUR)",
+   "Dólares (USD)",
+   "Ambas, según el cliente"
+  ],
+  "answer": 2,
+  "source": "etapa-2-la-empresa#por-que-operamos-con-dos-monedas"
+ },
+ {
+  "id": "etapa-2-07",
+  "question": "¿Cuántos puntos de Brasa Points se acumulan por cada 10.000 COP o por cada 5 USD?",
+  "options": [
+   "1 punto",
+   "5 puntos",
+   "10 puntos",
+   "Ninguno: se acumulan por visita"
+  ],
+  "answer": 0,
+  "source": "etapa-2-la-empresa#por-que-operamos-con-dos-monedas"
+ },
+ {
+  "id": "etapa-2-08",
+  "question": "¿Quién aprueba el cierre del onboarding y acompaña cada incorporación desde Personas?",
+  "options": [
+   "Mariana Restrepo",
+   "Ashley Turner, People Manager",
+   "Nicolás Park",
+   "Felipe Guerrero"
+  ],
+  "answer": 1,
+  "source": "etapa-2-la-empresa#quien-es-quien"
+ }
+]
